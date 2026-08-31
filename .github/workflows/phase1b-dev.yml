@@ -1,0 +1,75 @@
+name: Phase 1B Development
+
+on:
+  push:
+    branches:
+      - research/phase1b-feasibility-first
+    paths:
+      - '.github/workflows/phase1b-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include:
+          - name: f1_local1_noimm
+            mutation_swaps: 1
+            immigrant_fraction: 0.0
+          - name: f1_local3_noimm
+            mutation_swaps: 3
+            immigrant_fraction: 0.0
+          - name: f1_local5_noimm
+            mutation_swaps: 5
+            immigrant_fraction: 0.0
+          - name: f1_local3_20imm
+            mutation_swaps: 3
+            immigrant_fraction: 0.2
+          - name: f1_local3_40imm
+            mutation_swaps: 3
+            immigrant_fraction: 0.4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run fresh equal-budget development configuration
+        run: |
+          python -m adversarial_sbox.benchmark \
+            --seeds 307 311 313 317 331 \
+            --population-size 12 \
+            --generations 8 \
+            --elite-count 2 \
+            --tournament-size 3 \
+            --mutation-swaps ${{ matrix.mutation_swaps }} \
+            --crossover-rate 0.0 \
+            --immigrant-fraction ${{ matrix.immigrant_fraction }} \
+            --offspring-multiplier 3 \
+            --ranking-mode feasibility_first \
+            --comparison-mode primary \
+            --output phase1b-${{ matrix.name }}.json
+      - name: Show primary summary
+        if: always()
+        run: |
+          if [ -f phase1b-${{ matrix.name }}.json ]; then
+            python -c "import json; d=json.load(open('phase1b-${{ matrix.name }}.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True))"
+          fi
+      - name: Upload development evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1b-${{ matrix.name }}-${{ github.sha }}
+          path: phase1b-${{ matrix.name }}.json
+          if-no-files-found: error
+          retention-days: 30
