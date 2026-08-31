@@ -2,9 +2,11 @@ import random
 
 from adversarial_sbox.cryptoshield import is_bijective
 from adversarial_sbox.evolution import (
+    ClassicalMetrics,
     EvolutionConfig,
     HardConstraints,
     classical_rank,
+    constraint_violation,
     equivalent_random_budget,
     evaluate_classical,
     evolve_permutations,
@@ -44,6 +46,7 @@ def test_aes_passes_default_classical_constraints():
     assert metrics.max_linear_correlation == 32
     assert metrics.algebraic_degree == 7
     assert is_admissible(metrics, constraints)
+    assert constraint_violation(metrics, constraints) == 0.0
     assert classical_rank(metrics, constraints)[0] == 1.0
 
 
@@ -51,7 +54,37 @@ def test_identity_fails_default_classical_constraints():
     identity = tuple(range(256))
     metrics = evaluate_classical(identity)
     assert not is_admissible(metrics, HardConstraints())
+    assert constraint_violation(metrics, HardConstraints()) > 0.0
     assert classical_rank(metrics, HardConstraints())[0] == 0.0
+
+
+def test_infeasible_rank_prefers_candidate_closer_to_all_hard_gates():
+    constraints = HardConstraints()
+    near = ClassicalMetrics(
+        nonlinearity=96,
+        differential_uniformity=8,
+        max_linear_correlation=64,
+        sac_score=0.5,
+        algebraic_degree=7,
+        fingerprint="near",
+    )
+    misleading_high_nl = ClassicalMetrics(
+        nonlinearity=99,
+        differential_uniformity=16,
+        max_linear_correlation=64,
+        sac_score=0.5,
+        algebraic_degree=7,
+        fingerprint="far",
+    )
+
+    assert not is_admissible(near, constraints)
+    assert not is_admissible(misleading_high_nl, constraints)
+    assert constraint_violation(near, constraints) < constraint_violation(
+        misleading_high_nl, constraints
+    )
+    assert classical_rank(near, constraints) > classical_rank(
+        misleading_high_nl, constraints
+    )
 
 
 def test_ga_is_deterministic_elitist_and_uses_exact_unique_budget():
