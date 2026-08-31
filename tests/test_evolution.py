@@ -87,7 +87,7 @@ def test_infeasible_rank_prefers_candidate_closer_to_all_hard_gates():
     )
 
 
-def test_ga_is_deterministic_elitist_and_uses_exact_unique_budget():
+def test_ga_is_deterministic_elitist_with_immigrants_and_exact_unique_budget():
     identity = tuple(range(256))
     config = EvolutionConfig(
         population_size=8,
@@ -96,6 +96,7 @@ def test_ga_is_deterministic_elitist_and_uses_exact_unique_budget():
         tournament_size=3,
         mutation_swaps=2,
         crossover_rate=0.8,
+        immigrant_fraction=0.25,
         seed=77,
     )
 
