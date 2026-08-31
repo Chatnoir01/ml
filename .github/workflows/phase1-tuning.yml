@@ -1,0 +1,41 @@
+name: Phase 1 Tuning
+
+on:
+  push:
+    branches:
+      - research/phase1-benchmark
+      - research/phase1-immigrants
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run development sweep
+        run: python -m adversarial_sbox.tuning --output phase1-tuning.json
+      - name: Show selected configuration
+        if: always()
+        run: |
+          if [ -f phase1-tuning.json ]; then
+            python -c "import json; d=json.load(open('phase1-tuning.json')); print('selected=', d['selected_configuration']); print('key=', d['selected_key'])"
+          fi
+      - name: Upload tuning evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-tuning-${{ github.sha }}
+          path: phase1-tuning.json
+          if-no-files-found: error
+          retention-days: 30

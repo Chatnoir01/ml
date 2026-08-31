@@ -66,6 +66,7 @@ class EvolutionConfig:
     tournament_size: int = 4
     mutation_swaps: int = 2
     crossover_rate: float = 0.9
+    immigrant_fraction: float = 0.0
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -81,6 +82,8 @@ class EvolutionConfig:
             raise ValueError("mutation_swaps must be >= 1")
         if not 0.0 <= self.crossover_rate <= 1.0:
             raise ValueError("crossover_rate must be in [0, 1]")
+        if not 0.0 <= self.immigrant_fraction < 1.0:
+            raise ValueError("immigrant_fraction must be in [0, 1)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,16 +120,60 @@ def is_admissible(metrics: ClassicalMetrics, constraints: HardConstraints) -> bo
     )
 
 
+def constraint_violation(
+    metrics: ClassicalMetrics, constraints: HardConstraints
+) -> float:
+    """Normalized distance from the hard admissibility region.
+
+    Admissible candidates have exactly zero violation. Infeasible candidates
+    receive a positive score proportional to how far they miss each gate. This
+    gives the GA a direction toward feasibility without allowing a soft score to
+    override the final hard constraints.
+    """
+
+    nl_denominator = max(1, constraints.min_nonlinearity)
+    du_denominator = max(1, constraints.max_differential_uniformity)
+    linear_denominator = max(1, constraints.max_linear_correlation)
+    degree_denominator = max(1, constraints.min_algebraic_degree)
+    sac_denominator = max(constraints.max_sac_deviation, 1e-12)
+
+    nl_violation = max(
+        0, constraints.min_nonlinearity - metrics.nonlinearity
+    ) / nl_denominator
+    du_violation = max(
+        0, metrics.differential_uniformity - constraints.max_differential_uniformity
+    ) / du_denominator
+    linear_violation = max(
+        0, metrics.max_linear_correlation - constraints.max_linear_correlation
+    ) / linear_denominator
+    degree_violation = max(
+        0, constraints.min_algebraic_degree - metrics.algebraic_degree
+    ) / degree_denominator
+    sac_violation = max(
+        0.0, abs(metrics.sac_score - 0.5) - constraints.max_sac_deviation
+    ) / sac_denominator
+
+    return float(
+        nl_violation
+        + du_violation
+        + linear_violation
+        + degree_violation
+        + sac_violation
+    )
+
+
 def classical_rank(metrics: ClassicalMetrics, constraints: HardConstraints) -> Rank:
     """Lexicographic rank, higher is better.
 
-    The first coordinate is the hard admissibility gate. Remaining coordinates
-    only rank candidates within the same admissibility class; they are not a
-    claim that the tuple is a universal security metric.
+    The first coordinate remains the hard admissibility gate. The second is the
+    negative normalized constraint violation, which guides infeasible candidates
+    toward the admissible region. Remaining coordinates rank candidates only
+    after feasibility distance is accounted for.
     """
 
     return (
         1.0 if is_admissible(metrics, constraints) else 0.0,
+        -constraint_violation(metrics, constraints),
         float(metrics.nonlinearity),
         float(-metrics.differential_uniformity),
         float(-metrics.max_linear_correlation),
@@ -219,6 +266,24 @@ def _tournament(
     return max(contenders, key=lambda item: item[1])[0]
 
 
+def _append_unique_random(
+    target: list[SBox],
+    *,
+    count: int,
+    rng: random.Random,
+    seen_ever: set[SBox],
+) -> None:
+    """Append globally unseen random permutations as diversity immigrants."""
+
+    while count > 0:
+        candidate = random_sbox(rng)
+        if candidate in seen_ever:
+            continue
+        seen_ever.add(candidate)
+        target.append(candidate)
+        count -= 1
+
+
 def evolve_permutations(
     evaluator: Evaluator,
     config: EvolutionConfig,
@@ -228,9 +293,10 @@ def evolve_permutations(
     """Run deterministic elitist GA over globally unique permutation candidates.
 
     Each distinct S-Box is evaluated at most once. Elites retain their previous
-    ranks, while every child must be globally unseen. The resulting evaluation
-    count therefore has a deterministic, directly comparable random-search
-    budget.
+    ranks. A configurable fraction of each new generation may be globally random
+    immigrants; the remainder is produced through selection, crossover and swap
+    mutation. The total unique evaluation budget remains exact and comparable to
+    random search.
     """
 
     rng = random.Random(config.seed)
@@ -256,11 +322,21 @@ def evolve_permutations(
     ranked = rank_new(population)
     history.append(ranked[0][1])
 
+    children_per_generation = config.population_size - config.elite_count
+    immigrant_count = int(children_per_generation * config.immigrant_fraction)
+
     for _ in range(config.generations):
         elite_ranked = ranked[: config.elite_count]
         children: list[SBox] = []
 
-        while len(children) < config.population_size - config.elite_count:
+        _append_unique_random(
+            children,
+            count=immigrant_count,
+            rng=rng,
+            seen_ever=seen_ever,
+        )
+
+        while len(children) < children_per_generation:
             parent_a = _tournament(ranked, rng, config.tournament_size)
             if rng.random() < config.crossover_rate:
                 parent_b = _tournament(ranked, rng, config.tournament_size)

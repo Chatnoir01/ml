@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "experiment": "phase1_blind_confirmation",
+  "head_sha": "b19938f81dd9d601eabdb5782af5054c31b9de5a",
+  "workflow_run_id": 33346116820,
+  "artifact_id": 9742095889,
+  "artifact_digest": "sha256:eae94bb6e0959c19d732846e2bb98ee73247d3ba358a6f0c19bda0fafe19d659",
+  "scientific_status": "confirmatory_frozen_no_retuning",
+  "frozen_configuration": {
+    "population_size": 10,
+    "generations": 12,
+    "elite_count": 2,
+    "tournament_size": 3,
+    "mutation_swaps": 3,
+    "crossover_rate": 0.0,
+    "immigrant_fraction": 0.25,
+    "evaluation_budget_each_per_seed": 106
+  },
+  "confirmation_seeds": [131,137,149,157,163,173,181,191,197,211,223,227],
+  "preregistered_gates": {
+    "alpha": 0.05,
+    "minimum_repeated_admissible_runs": 3,
+    "gate1a_search_superiority": false,
+    "gate1b_repeated_admissibility": false,
+    "gate1_full_pass": false
+  },
+  "observed": {
+    "ga_wins": 9,
+    "random_wins": 2,
+    "ties": 1,
+    "non_tied_comparisons": 11,
+    "exact_one_sided_sign_test_p": 0.03271484375,
+    "median_constraint_violation_ga": 0.29,
+    "median_constraint_violation_random": 0.29,
+    "median_nonlinearity_ga": 96.0,
+    "median_nonlinearity_random": 96.0,
+    "median_differential_uniformity_ga": 10.0,
+    "median_differential_uniformity_random": 10.0,
+    "ga_admissible_runs": 0,
+    "random_admissible_runs": 0,
+    "candidate_found": false
+  },
+  "runs": [
+    {"seed":131,"outcome":"ga","ga":{"nl":96,"du":10,"max_corr":64,"sac":0.4990234375,"violation":0.29},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.498291015625,"violation":0.29}},
+    {"seed":137,"outcome":"ga","ga":{"nl":96,"du":10,"max_corr":64,"sac":0.500244140625,"violation":0.29},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.499267578125,"violation":0.29}},
+    {"seed":149,"outcome":"ga","ga":{"nl":96,"du":10,"max_corr":64,"sac":0.50048828125,"violation":0.29},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.499267578125,"violation":0.29}},
+    {"seed":157,"outcome":"ga","ga":{"nl":96,"du":10,"max_corr":64,"sac":0.499755859375,"violation":0.29},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.4970703125,"violation":0.29}},
+    {"seed":163,"outcome":"ga","ga":{"nl":98,"du":10,"max_corr":60,"sac":0.503173828125,"violation":0.27},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.499267578125,"violation":0.29}},
+    {"seed":173,"outcome":"random","ga":{"nl":96,"du":10,"max_corr":64,"sac":0.499755859375,"violation":0.29},"random":{"nl":98,"du":10,"max_corr":60,"sac":0.51025390625,"violation":0.27}},
+    {"seed":181,"outcome":"ga","ga":{"nl":96,"du":10,"max_corr":64,"sac":0.5,"violation":0.29},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.50048828125,"violation":0.29}},
+    {"seed":191,"outcome":"ga","ga":{"nl":98,"du":10,"max_corr":60,"sac":0.4970703125,"violation":0.27},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.49853515625,"violation":0.29}},
+    {"seed":197,"outcome":"random","ga":{"nl":96,"du":10,"max_corr":64,"sac":0.49951171875,"violation":0.29},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.499755859375,"violation":0.29}},
+    {"seed":211,"outcome":"ga","ga":{"nl":98,"du":10,"max_corr":60,"sac":0.50048828125,"violation":0.27},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.500244140625,"violation":0.29}},
+    {"seed":223,"outcome":"tie","ga":{"nl":96,"du":10,"max_corr":64,"sac":0.5,"violation":0.29},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.5,"violation":0.29}},
+    {"seed":227,"outcome":"ga","ga":{"nl":96,"du":10,"max_corr":64,"sac":0.5,"violation":0.29},"random":{"nl":96,"du":10,"max_corr":64,"sac":0.49951171875,"violation":0.29}}
+  ],
+  "verdict": "The sign test alone is significant, but the preregistered search-superiority gate fails because median constraint violation, nonlinearity and differential uniformity do not improve. No hard-admissible candidate was found. Gate 1 remains red."
+}

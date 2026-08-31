@@ -1,0 +1,42 @@
+name: Phase 1 Blind Confirmation
+
+on:
+  push:
+    branches:
+      - research/phase1-confirmation
+    paths:
+      - '.github/workflows/phase1-confirmation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  confirm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout frozen confirmation branch
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run blind confirmatory experiment
+        run: python -m adversarial_sbox.confirm --output phase1-confirmation.json
+      - name: Show preregistered verdict
+        if: always()
+        run: |
+          if [ -f phase1-confirmation.json ]; then
+            python -c "import json; d=json.load(open('phase1-confirmation.json')); print(json.dumps(d['gates'], indent=2, sort_keys=True)); print(json.dumps(d['evidence']['summary'], indent=2, sort_keys=True))"
+          fi
+      - name: Upload confirmation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-confirmation-${{ github.sha }}
+          path: phase1-confirmation.json
+          if-no-files-found: error
+          retention-days: 90
