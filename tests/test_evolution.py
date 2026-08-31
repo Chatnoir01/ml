@@ -1,5 +1,7 @@
 import random
 
+import pytest
+
 from adversarial_sbox.cryptoshield import is_bijective
 from adversarial_sbox.evolution import (
     ClassicalMetrics,
@@ -12,6 +14,7 @@ from adversarial_sbox.evolution import (
     evolve_permutations,
     is_admissible,
     ordered_crossover,
+    primary_security_key,
     random_search,
     random_sbox,
     swap_mutation,
@@ -47,6 +50,7 @@ def test_aes_passes_default_classical_constraints():
     assert metrics.algebraic_degree == 7
     assert is_admissible(metrics, constraints)
     assert constraint_violation(metrics, constraints) == 0.0
+    assert primary_security_key(metrics, constraints)[0] == 1.0
     assert classical_rank(metrics, constraints)[0] == 1.0
 
 
@@ -58,32 +62,84 @@ def test_identity_fails_default_classical_constraints():
     assert classical_rank(metrics, HardConstraints())[0] == 0.0
 
 
-def test_infeasible_rank_prefers_candidate_closer_to_all_hard_gates():
+def test_primary_security_key_ignores_cosmetic_sac_differences():
     constraints = HardConstraints()
-    near = ClassicalMetrics(
+    first = ClassicalMetrics(
+        nonlinearity=96,
+        differential_uniformity=10,
+        max_linear_correlation=64,
+        sac_score=0.5001,
+        algebraic_degree=7,
+        fingerprint="first",
+    )
+    second = ClassicalMetrics(
+        nonlinearity=96,
+        differential_uniformity=10,
+        max_linear_correlation=64,
+        sac_score=0.5100,
+        algebraic_degree=7,
+        fingerprint="second",
+    )
+
+    assert primary_security_key(first, constraints) == primary_security_key(
+        second, constraints
+    )
+    assert classical_rank(first, constraints) > classical_rank(second, constraints)
+
+
+def test_security_first_rank_prioritizes_primary_metrics_before_gate_distance():
+    constraints = HardConstraints()
+    higher_nl = ClassicalMetrics(
+        nonlinearity=98,
+        differential_uniformity=12,
+        max_linear_correlation=64,
+        sac_score=0.5,
+        algebraic_degree=7,
+        fingerprint="higher-nl",
+    )
+    lower_nl = ClassicalMetrics(
         nonlinearity=96,
         differential_uniformity=8,
         max_linear_correlation=64,
         sac_score=0.5,
         algebraic_degree=7,
-        fingerprint="near",
-    )
-    misleading_high_nl = ClassicalMetrics(
-        nonlinearity=99,
-        differential_uniformity=16,
-        max_linear_correlation=64,
-        sac_score=0.5,
-        algebraic_degree=7,
-        fingerprint="far",
+        fingerprint="lower-nl",
     )
 
-    assert not is_admissible(near, constraints)
-    assert not is_admissible(misleading_high_nl, constraints)
-    assert constraint_violation(near, constraints) < constraint_violation(
-        misleading_high_nl, constraints
+    assert not is_admissible(higher_nl, constraints)
+    assert not is_admissible(lower_nl, constraints)
+    assert constraint_violation(lower_nl, constraints) < constraint_violation(
+        higher_nl, constraints
     )
-    assert classical_rank(near, constraints) > classical_rank(
-        misleading_high_nl, constraints
+    assert primary_security_key(higher_nl, constraints) > primary_security_key(
+        lower_nl, constraints
+    )
+    assert classical_rank(higher_nl, constraints) > classical_rank(lower_nl, constraints)
+
+
+def test_admissible_candidate_always_outranks_infeasible_candidate():
+    constraints = HardConstraints()
+    admissible = ClassicalMetrics(
+        nonlinearity=100,
+        differential_uniformity=8,
+        max_linear_correlation=64,
+        sac_score=0.5,
+        algebraic_degree=6,
+        fingerprint="admissible",
+    )
+    infeasible = ClassicalMetrics(
+        nonlinearity=112,
+        differential_uniformity=10,
+        max_linear_correlation=32,
+        sac_score=0.5,
+        algebraic_degree=7,
+        fingerprint="infeasible",
+    )
+
+    assert is_admissible(admissible, constraints)
+    assert not is_admissible(infeasible, constraints)
+    assert primary_security_key(admissible, constraints) > primary_security_key(
+        infeasible, constraints
     )
 
 
@@ -115,6 +171,29 @@ def test_ga_is_deterministic_elitist_and_uses_exact_unique_budget():
         later >= earlier
         for earlier, later in zip(first.best_rank_history, first.best_rank_history[1:])
     )
+
+
+def test_offspring_oversampling_is_counted_in_equal_random_budget():
+    config = EvolutionConfig(
+        population_size=8,
+        generations=4,
+        elite_count=2,
+        tournament_size=3,
+        mutation_swaps=2,
+        crossover_rate=0.0,
+        offspring_multiplier=3,
+        seed=77,
+    )
+    result = evolve_permutations(_fixed_points_rank, config)
+
+    assert equivalent_random_budget(config) == 80
+    assert result.evaluations == 80
+    assert is_bijective(result.best_sbox)
+
+
+def test_config_rejects_invalid_offspring_multiplier():
+    with pytest.raises(ValueError):
+        EvolutionConfig(offspring_multiplier=0)
 
 
 def test_random_search_matches_requested_unique_budget_and_is_deterministic():
