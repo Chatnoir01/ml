@@ -183,8 +183,6 @@ def ordered_crossover(
         raise ValueError("ordered_crossover requires bijective parents")
 
     start, end = sorted(rng.sample(range(256), 2))
-    if start == end:
-        end = min(256, start + 1)
     child: list[int | None] = [None] * 256
     child[start:end] = a[start:end]
     used = set(a[start:end])
@@ -227,7 +225,13 @@ def evolve_permutations(
     *,
     initial_population: Iterable[SBox] | None = None,
 ) -> EvolutionResult:
-    """Run deterministic elitist GA over permutation S-Boxes."""
+    """Run deterministic elitist GA over globally unique permutation candidates.
+
+    Each distinct S-Box is evaluated at most once. Elites retain their previous
+    ranks, while every child must be globally unseen. The resulting evaluation
+    count therefore has a deterministic, directly comparable random-search
+    budget.
+    """
 
     rng = random.Random(config.seed)
     population = _unique_population(initial_population or ())
@@ -238,24 +242,25 @@ def evolve_permutations(
     if len(population) > config.population_size:
         population = population[: config.population_size]
 
+    seen_ever: set[SBox] = set(population)
     evaluations = 0
     history: list[Rank] = []
 
-    def rank_population(items: list[SBox]) -> list[tuple[SBox, Rank]]:
+    def rank_new(items: list[SBox]) -> list[tuple[SBox, Rank]]:
         nonlocal evaluations
         ranked_items = [(candidate, evaluator(candidate)) for candidate in items]
         evaluations += len(items)
         ranked_items.sort(key=lambda item: item[1], reverse=True)
         return ranked_items
 
-    ranked = rank_population(population)
+    ranked = rank_new(population)
     history.append(ranked[0][1])
 
     for _ in range(config.generations):
-        next_population = [candidate for candidate, _ in ranked[: config.elite_count]]
-        seen = set(next_population)
+        elite_ranked = ranked[: config.elite_count]
+        children: list[SBox] = []
 
-        while len(next_population) < config.population_size:
+        while len(children) < config.population_size - config.elite_count:
             parent_a = _tournament(ranked, rng, config.tournament_size)
             if rng.random() < config.crossover_rate:
                 parent_b = _tournament(ranked, rng, config.tournament_size)
@@ -264,12 +269,13 @@ def evolve_permutations(
                 child = parent_a
             child = swap_mutation(child, rng, swaps=config.mutation_swaps)
 
-            if child in seen:
+            if child in seen_ever:
                 continue
-            seen.add(child)
-            next_population.append(child)
+            seen_ever.add(child)
+            children.append(child)
 
-        ranked = rank_population(next_population)
+        ranked = elite_ranked + rank_new(children)
+        ranked.sort(key=lambda item: item[1], reverse=True)
         history.append(ranked[0][1])
 
     return EvolutionResult(
@@ -281,17 +287,21 @@ def evolve_permutations(
 
 
 def random_search(evaluator: Evaluator, *, evaluations: int, seed: int) -> EvolutionResult:
-    """Random-search baseline with an explicit evaluation budget."""
+    """Random-search baseline with an explicit unique evaluation budget."""
 
     if evaluations < 1:
         raise ValueError("evaluations must be >= 1")
     rng = random.Random(seed)
+    seen: set[SBox] = set()
     best_sbox: SBox | None = None
     best_rank: Rank | None = None
     history: list[Rank] = []
 
-    for _ in range(evaluations):
+    while len(seen) < evaluations:
         candidate = random_sbox(rng)
+        if candidate in seen:
+            continue
+        seen.add(candidate)
         rank = evaluator(candidate)
         if best_rank is None or rank > best_rank:
             best_sbox = candidate
@@ -308,6 +318,7 @@ def random_search(evaluator: Evaluator, *, evaluations: int, seed: int) -> Evolu
 
 
 def equivalent_random_budget(config: EvolutionConfig) -> int:
-    """Evaluation budget matching one GA run without cross-generation caching."""
+    """Exact number of unique S-Box evaluations performed by one GA run."""
 
-    return config.population_size * (config.generations + 1)
+    children_per_generation = config.population_size - config.elite_count
+    return config.population_size + config.generations * children_per_generation
