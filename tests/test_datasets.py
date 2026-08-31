@@ -1,6 +1,6 @@
 import pytest
 
-from adversarial_sbox.datasets import generate_balanced_pairs, split_dataset
+from adversarial_sbox.datasets import PairSample, generate_balanced_pairs, split_dataset
 from adversarial_sbox.references import AES_SBOX
 from adversarial_sbox.spn import ToySPN
 
@@ -16,6 +16,10 @@ def _unordered_pair(sample):
     return tuple(sorted((sample.left, sample.right)))
 
 
+def _blocks(samples):
+    return {block for sample in samples for block in (sample.left, sample.right)}
+
+
 def test_dataset_is_exactly_balanced_and_deterministic():
     first = generate_balanced_pairs(
         _cipher(), pair_count=1000, input_difference=0x00400000, seed=20260831
@@ -28,16 +32,18 @@ def test_dataset_is_exactly_balanced_and_deterministic():
     assert len(first) == 1000
 
 
-def test_dataset_contains_no_exact_or_reversed_pair_duplicates():
+def test_dataset_contains_no_pair_or_block_duplicates():
     samples = generate_balanced_pairs(
         _cipher(), pair_count=4000, input_difference=0x00400000, seed=7
     )
     identities = {_unordered_pair(sample) for sample in samples}
+    blocks = _blocks(samples)
     assert len(identities) == len(samples)
+    assert len(blocks) == len(samples) * 2
     assert all(sample.left != sample.right for sample in samples)
 
 
-def test_split_has_no_cross_partition_pair_leakage():
+def test_split_has_no_cross_partition_block_leakage():
     samples = generate_balanced_pairs(
         _cipher(), pair_count=2000, input_difference=0x00000040, seed=99
     )
@@ -47,13 +53,13 @@ def test_split_has_no_cross_partition_pair_leakage():
     assert len(validation) == 300
     assert len(test) == 300
 
-    train_ids = {_unordered_pair(sample) for sample in train}
-    validation_ids = {_unordered_pair(sample) for sample in validation}
-    test_ids = {_unordered_pair(sample) for sample in test}
+    train_blocks = _blocks(train)
+    validation_blocks = _blocks(validation)
+    test_blocks = _blocks(test)
 
-    assert train_ids.isdisjoint(validation_ids)
-    assert train_ids.isdisjoint(test_ids)
-    assert validation_ids.isdisjoint(test_ids)
+    assert train_blocks.isdisjoint(validation_blocks)
+    assert train_blocks.isdisjoint(test_blocks)
+    assert validation_blocks.isdisjoint(test_blocks)
 
 
 def test_generator_rejects_invalid_counts_and_differences():
@@ -73,3 +79,14 @@ def test_split_rejects_overlapping_fraction_definition():
     )
     with pytest.raises(ValueError):
         split_dataset(samples, train_fraction=0.9, validation_fraction=0.2)
+
+
+def test_split_rejects_reused_ciphertext_blocks():
+    invalid = (
+        PairSample(1, 2, 0),
+        PairSample(2, 3, 1),
+        PairSample(4, 5, 0),
+        PairSample(6, 7, 1),
+    )
+    with pytest.raises(ValueError, match="reuse"):
+        split_dataset(invalid)
