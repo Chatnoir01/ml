@@ -1,0 +1,42 @@
+name: Phase 1C V3 Confirmation
+
+on:
+  push:
+    branches:
+      - research/phase1c-balanced-feasibility
+    paths:
+      - '.github/workflows/phase1c-confirmation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  confirm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout frozen V3 experiment
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run preregistered V3 confirmation
+        run: python -m adversarial_sbox.phase1c_confirmation --output phase1c-confirmation.json
+      - name: Show preregistered verdict
+        if: always()
+        run: |
+          if [ -f phase1c-confirmation.json ]; then
+            python -c "import json; d=json.load(open('phase1c-confirmation.json')); print('verdict=', d['verdict']); print(json.dumps(d['gates'], indent=2, sort_keys=True)); print(json.dumps(d['evidence']['summary'], indent=2, sort_keys=True))"
+          fi
+      - name: Upload V3 confirmation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1c-confirmation-${{ github.sha }}
+          path: phase1c-confirmation.json
+          if-no-files-found: error
+          retention-days: 90
