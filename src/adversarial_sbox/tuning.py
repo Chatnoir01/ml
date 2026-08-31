@@ -1,7 +1,8 @@
 """Development-only Phase-1 configuration sweep.
 
-The seeds in this module are tuning seeds, never confirmatory evidence.  The
+The seeds in this module are tuning seeds, never confirmatory evidence. The
 winner of this sweep must be re-tested on fresh seeds before any Gate-1 claim.
+All configurations below use the same 154 unique evaluations per method/seed.
 """
 
 from __future__ import annotations
@@ -17,56 +18,76 @@ DEV_SEEDS = (101, 103, 107)
 
 CONFIGURATIONS: tuple[dict[str, Any], ...] = (
     {
-        "name": "mutation_only_1swap",
+        "name": "local_1swap_x3",
         "population_size": 10,
-        "generations": 9,
+        "generations": 6,
         "elite_count": 2,
         "tournament_size": 3,
         "mutation_swaps": 1,
         "crossover_rate": 0.0,
+        "offspring_multiplier": 3,
     },
     {
-        "name": "mutation_only_3swap",
+        "name": "local_3swap_x3",
+        "population_size": 10,
+        "generations": 6,
+        "elite_count": 2,
+        "tournament_size": 3,
+        "mutation_swaps": 3,
+        "crossover_rate": 0.0,
+        "offspring_multiplier": 3,
+    },
+    {
+        "name": "local_5swap_x3",
+        "population_size": 10,
+        "generations": 6,
+        "elite_count": 2,
+        "tournament_size": 3,
+        "mutation_swaps": 5,
+        "crossover_rate": 0.0,
+        "offspring_multiplier": 3,
+    },
+    {
+        "name": "mixed_3swap_25pct_x3",
+        "population_size": 10,
+        "generations": 6,
+        "elite_count": 2,
+        "tournament_size": 3,
+        "mutation_swaps": 3,
+        "crossover_rate": 0.25,
+        "offspring_multiplier": 3,
+    },
+    {
+        "name": "deep_3swap_x2",
         "population_size": 10,
         "generations": 9,
         "elite_count": 2,
         "tournament_size": 3,
         "mutation_swaps": 3,
         "crossover_rate": 0.0,
-    },
-    {
-        "name": "mixed_25pct_crossover",
-        "population_size": 10,
-        "generations": 9,
-        "elite_count": 2,
-        "tournament_size": 3,
-        "mutation_swaps": 2,
-        "crossover_rate": 0.25,
-    },
-    {
-        "name": "crossover_heavy_control",
-        "population_size": 10,
-        "generations": 9,
-        "elite_count": 2,
-        "tournament_size": 3,
-        "mutation_swaps": 1,
-        "crossover_rate": 0.9,
+        "offspring_multiplier": 2,
     },
 )
 
 
-def _selection_key(result: dict[str, Any]) -> tuple[float, float, float]:
+def _selection_key(result: dict[str, Any]) -> tuple[float, ...]:
     summary = result["summary"]
+    admissible_margin = float(
+        summary["admissible_ga"] - summary["admissible_random"]
+    )
     win_margin = float(summary["ga_wins"] - summary["random_wins"])
     nl_margin = float(
         summary["median_nonlinearity_ga"] - summary["median_nonlinearity_random"]
     )
-    # Lower differential uniformity is better.
     du_margin = float(
         summary["median_differential_uniformity_random"]
         - summary["median_differential_uniformity_ga"]
     )
-    return win_margin, nl_margin, du_margin
+    lat_margin = float(
+        summary["median_max_linear_correlation_random"]
+        - summary["median_max_linear_correlation_ga"]
+    )
+    return admissible_margin, win_margin, nl_margin, du_margin, lat_margin
 
 
 def run_sweep() -> dict[str, Any]:
@@ -84,7 +105,7 @@ def run_sweep() -> dict[str, Any]:
 
     selected = max(experiments, key=lambda item: tuple(item["selection_key"]))
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "experiment": "phase1_development_configuration_sweep",
         "scientific_status": "development_only_not_confirmatory",
         "development_seeds": list(DEV_SEEDS),
