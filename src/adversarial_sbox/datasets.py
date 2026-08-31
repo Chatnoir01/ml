@@ -1,8 +1,8 @@
 """Deterministic dataset generation for neural-distinguisher experiments.
 
 The factory works on the fixed ToySPN interface and records ciphertext pairs
-plus labels. It enforces unique unordered plaintext pairs before splitting,
-which prevents exact or reversed pair reuse across train, validation, and test.
+plus labels. It enforces unique plaintext blocks globally before splitting, so
+no exact block or pair can reappear across train, validation, and test.
 """
 
 from __future__ import annotations
@@ -38,12 +38,13 @@ def generate_balanced_pairs(
     seed: int,
     shuffle: bool = True,
 ) -> tuple[PairSample, ...]:
-    """Generate an exactly balanced, pair-unique classification dataset.
+    """Generate an exactly balanced, block-disjoint classification dataset.
 
     Positive plaintext pairs satisfy ``p0 ^ p1 == input_difference``. Negative
     pairs are independent while excluding both that relation and equal-block
-    pairs. Exact and reversed plaintext-pair duplicates are rejected across both
-    classes before encryption. The same cipher/key is used for both labels.
+    pairs. Every plaintext block is used at most once in the whole dataset; as
+    ToySPN is a permutation, every resulting ciphertext block is therefore also
+    globally unique. The same cipher/key is used for both labels.
     """
 
     if pair_count <= 0 or pair_count % 2:
@@ -54,15 +55,15 @@ def generate_balanced_pairs(
     rng = random.Random(seed)
     half = pair_count // 2
     samples: list[PairSample] = []
-    seen_plaintext_pairs: set[tuple[int, int]] = set()
+    seen_plaintexts: set[int] = set()
 
     while len(samples) < half:
         p0 = rng.randrange(MASK32 + 1)
         p1 = p0 ^ input_difference
-        identity = _pair_id(p0, p1)
-        if identity in seen_plaintext_pairs:
+        if p0 in seen_plaintexts or p1 in seen_plaintexts:
             continue
-        seen_plaintext_pairs.add(identity)
+        seen_plaintexts.add(p0)
+        seen_plaintexts.add(p1)
         samples.append(PairSample(cipher.encrypt_block(p0), cipher.encrypt_block(p1), 1))
 
     while len(samples) < pair_count:
@@ -70,15 +71,26 @@ def generate_balanced_pairs(
         p1 = rng.randrange(MASK32 + 1)
         if p1 == p0 or (p0 ^ p1) == input_difference:
             continue
-        identity = _pair_id(p0, p1)
-        if identity in seen_plaintext_pairs:
+        if p0 in seen_plaintexts or p1 in seen_plaintexts:
             continue
-        seen_plaintext_pairs.add(identity)
+        seen_plaintexts.add(p0)
+        seen_plaintexts.add(p1)
         samples.append(PairSample(cipher.encrypt_block(p0), cipher.encrypt_block(p1), 0))
 
     if shuffle:
         rng.shuffle(samples)
     return tuple(samples)
+
+
+def _validate_block_disjoint(samples: tuple[PairSample, ...]) -> None:
+    seen: set[int] = set()
+    for sample in samples:
+        if sample.left == sample.right:
+            raise ValueError("sample contains an identical left/right block")
+        if sample.left in seen or sample.right in seen:
+            raise ValueError("samples reuse a ciphertext block")
+        seen.add(sample.left)
+        seen.add(sample.right)
 
 
 def split_dataset(
@@ -87,7 +99,7 @@ def split_dataset(
     train_fraction: float = 0.70,
     validation_fraction: float = 0.15,
 ) -> tuple[tuple[PairSample, ...], tuple[PairSample, ...], tuple[PairSample, ...]]:
-    """Split an already-shuffled immutable dataset into disjoint slices."""
+    """Split an immutable block-disjoint dataset into disjoint slices."""
 
     if not samples:
         raise ValueError("samples must not be empty")
@@ -97,6 +109,8 @@ def split_dataset(
         raise ValueError("validation_fraction must be in [0, 1)")
     if train_fraction + validation_fraction >= 1.0:
         raise ValueError("train + validation fractions must be < 1")
+
+    _validate_block_disjoint(samples)
 
     n = len(samples)
     train_end = int(n * train_fraction)
