@@ -1,0 +1,70 @@
+name: Phase 1D Frontier Continuation Development
+
+on:
+  push:
+    branches:
+      - research/phase1d-frontier-continuation
+    paths:
+      - '.github/workflows/phase1d-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: beam1_swap1
+            beam: 1
+            swaps: 1
+          - name: beam4_swap1
+            beam: 4
+            swaps: 1
+          - name: beam8_swap1
+            beam: 8
+            swaps: 1
+          - name: beam16_swap1
+            beam: 16
+            swaps: 1
+          - name: beam8_swap2
+            beam: 8
+            swaps: 2
+          - name: beam8_swap3
+            beam: 8
+            swaps: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run verified warm-start continuation
+        run: |
+          python -m adversarial_sbox.phase1d \
+            --seeds 701 709 719 727 733 \
+            --evaluations 600 \
+            --beam-width ${{ matrix.beam }} \
+            --mutation-swaps ${{ matrix.swaps }} \
+            --output phase1d-${{ matrix.name }}.json
+      - name: Show summary
+        if: always()
+        run: |
+          if [ -f phase1d-${{ matrix.name }}.json ]; then
+            python -c "import json; d=json.load(open('phase1d-${{ matrix.name }}.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True))"
+          fi
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1d-${{ matrix.name }}-${{ github.sha }}
+          path: phase1d-${{ matrix.name }}.json
+          if-no-files-found: error
+          retention-days: 30
