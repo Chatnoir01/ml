@@ -1,0 +1,78 @@
+name: Phase 1C DU Frontier Development
+
+on:
+  push:
+    branches:
+      - research/phase1c-du-frontier
+    paths:
+      - 'src/adversarial_sbox/phase1c.py'
+      - 'tests/test_phase1c.py'
+      - 'research/PHASE1C_DEV_PROTOCOL.md'
+      - '.github/workflows/phase1c-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: local1_noimm
+            swaps: 1
+            immigrants: 0.0
+          - name: local2_noimm
+            swaps: 2
+            immigrants: 0.0
+          - name: local3_noimm
+            swaps: 3
+            immigrants: 0.0
+          - name: local5_noimm
+            swaps: 5
+            immigrants: 0.0
+          - name: local3_10imm
+            swaps: 3
+            immigrants: 0.1
+          - name: local3_20imm
+            swaps: 3
+            immigrants: 0.2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run Phase 1C development configuration
+        run: |
+          python -m adversarial_sbox.phase1c \
+            --seeds 503 509 521 523 541 \
+            --population-size 14 \
+            --generations 10 \
+            --elite-count 2 \
+            --tournament-size 3 \
+            --mutation-swaps ${{ matrix.swaps }} \
+            --crossover-rate 0.0 \
+            --immigrant-fraction ${{ matrix.immigrants }} \
+            --offspring-multiplier 4 \
+            --output phase1c-${{ matrix.name }}.json
+      - name: Show summary
+        if: always()
+        run: |
+          if [ -f phase1c-${{ matrix.name }}.json ]; then
+            python -c "import json; d=json.load(open('phase1c-${{ matrix.name }}.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True))"
+          fi
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1c-${{ matrix.name }}-${{ github.sha }}
+          path: phase1c-${{ matrix.name }}.json
+          if-no-files-found: error
+          retention-days: 30
