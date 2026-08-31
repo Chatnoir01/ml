@@ -117,16 +117,58 @@ def is_admissible(metrics: ClassicalMetrics, constraints: HardConstraints) -> bo
     )
 
 
+def constraint_violation(
+    metrics: ClassicalMetrics, constraints: HardConstraints
+) -> float:
+    """Normalized distance from the hard admissibility region.
+
+    Admissible candidates have exactly zero violation.  Infeasible candidates
+    receive a positive score proportional to how far they miss each gate.  This
+    gives the GA a direction toward feasibility without allowing a soft score to
+    override the final hard constraints.
+    """
+
+    nl_denominator = max(1, constraints.min_nonlinearity)
+    du_denominator = max(1, constraints.max_differential_uniformity)
+    linear_denominator = max(1, constraints.max_linear_correlation)
+    degree_denominator = max(1, constraints.min_algebraic_degree)
+    sac_denominator = max(constraints.max_sac_deviation, 1e-12)
+
+    nl_violation = max(0, constraints.min_nonlinearity - metrics.nonlinearity) / nl_denominator
+    du_violation = max(
+        0, metrics.differential_uniformity - constraints.max_differential_uniformity
+    ) / du_denominator
+    linear_violation = max(
+        0, metrics.max_linear_correlation - constraints.max_linear_correlation
+    ) / linear_denominator
+    degree_violation = max(
+        0, constraints.min_algebraic_degree - metrics.algebraic_degree
+    ) / degree_denominator
+    sac_violation = max(
+        0.0, abs(metrics.sac_score - 0.5) - constraints.max_sac_deviation
+    ) / sac_denominator
+
+    return float(
+        nl_violation
+        + du_violation
+        + linear_violation
+        + degree_violation
+        + sac_violation
+    )
+
+
 def classical_rank(metrics: ClassicalMetrics, constraints: HardConstraints) -> Rank:
     """Lexicographic rank, higher is better.
 
-    The first coordinate is the hard admissibility gate. Remaining coordinates
-    only rank candidates within the same admissibility class; they are not a
-    claim that the tuple is a universal security metric.
+    The first coordinate remains the hard admissibility gate.  The second is the
+    negative normalized constraint violation, which guides infeasible candidates
+    toward the admissible region.  Remaining coordinates rank candidates only
+    after feasibility distance is accounted for.
     """
 
     return (
         1.0 if is_admissible(metrics, constraints) else 0.0,
+        -constraint_violation(metrics, constraints),
         float(metrics.nonlinearity),
         float(-metrics.differential_uniformity),
         float(-metrics.max_linear_correlation),
