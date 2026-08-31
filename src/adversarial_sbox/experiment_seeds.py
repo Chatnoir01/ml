@@ -19,12 +19,10 @@ CONFIRM_V1_SEEDS = frozenset(
 # CONFIRM_V1 and therefore that run must not be described as fully blind.
 STRICT_HISTORICAL_SEEDS = frozenset({211, 223, 227, 229, 233, 239, 241, 251, 257})
 
-# Fresh V2 development seeds. These are development-only once this file lands.
+# Phase-1B V2 development and confirmation seeds are now permanently consumed.
 DEV_V2_SEEDS = (307, 311, 313, 317, 331)
-
-# Reserved now, before V2 development results exist. Development code must not
-# consume them. They may be used only by a future frozen V2 confirmation.
 CONFIRM_V2_RESERVED_SEEDS = (401, 409, 419, 421, 431, 433, 439, 443, 449)
+CONFIRM_V2_USED_SEEDS = frozenset(CONFIRM_V2_RESERVED_SEEDS)
 
 USED_BEFORE_V2 = (
     BASELINE_SEEDS
@@ -33,9 +31,21 @@ USED_BEFORE_V2 = (
     | STRICT_HISTORICAL_SEEDS
 )
 
+# Fresh Phase-1C V3 development seeds. Reserved before V3 algorithm results exist.
+DEV_V3_SEEDS = (503, 509, 521, 523, 541)
+
+# Reserved before V3 development. Development code must never consume these.
+CONFIRM_V3_RESERVED_SEEDS = (601, 607, 613, 617, 619, 631, 641, 643, 647)
+
+USED_BEFORE_V3 = (
+    USED_BEFORE_V2
+    | set(DEV_V2_SEEDS)
+    | CONFIRM_V2_USED_SEEDS
+)
+
 
 def validate_seed_registry() -> None:
-    """Raise if V2 development/confirmation isolation is violated."""
+    """Raise if development/confirmation isolation is violated."""
 
     dev_v2 = set(DEV_V2_SEEDS)
     confirm_v2 = set(CONFIRM_V2_RESERVED_SEEDS)
@@ -45,6 +55,15 @@ def validate_seed_registry() -> None:
         raise ValueError("CONFIRM_V2_RESERVED_SEEDS overlap an already-used seed")
     if dev_v2 & confirm_v2:
         raise ValueError("V2 development and confirmation seeds overlap")
+
+    dev_v3 = set(DEV_V3_SEEDS)
+    confirm_v3 = set(CONFIRM_V3_RESERVED_SEEDS)
+    if dev_v3 & USED_BEFORE_V3:
+        raise ValueError("DEV_V3_SEEDS overlap an already-used seed")
+    if confirm_v3 & USED_BEFORE_V3:
+        raise ValueError("CONFIRM_V3_RESERVED_SEEDS overlap an already-used seed")
+    if dev_v3 & confirm_v3:
+        raise ValueError("V3 development and confirmation seeds overlap")
 
 
 validate_seed_registry()
