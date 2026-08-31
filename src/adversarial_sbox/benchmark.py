@@ -1,6 +1,6 @@
 """Reproducible Phase-1 benchmark: classical GA versus equal-budget random search.
 
-The benchmark never turns an experimental outcome into a test failure.  It
+The benchmark never turns an experimental outcome into a test failure. It
 records the result, including losses and ties, so negative evidence is retained.
 """
 
@@ -43,6 +43,7 @@ def run_benchmark(
     tournament_size: int = 2,
     mutation_swaps: int = 1,
     crossover_rate: float = 0.9,
+    immigrant_fraction: float = 0.0,
     constraints: HardConstraints | None = None,
 ) -> dict[str, Any]:
     """Run matched-budget GA/random experiments and return JSON-ready evidence."""
@@ -62,6 +63,7 @@ def run_benchmark(
             tournament_size=tournament_size,
             mutation_swaps=mutation_swaps,
             crossover_rate=crossover_rate,
+            immigrant_fraction=immigrant_fraction,
             seed=seed,
         )
 
@@ -109,9 +111,9 @@ def run_benchmark(
     random_nl = [row["random"]["metrics"]["nonlinearity"] for row in rows]
     ga_du = [row["ga"]["metrics"]["differential_uniformity"] for row in rows]
     random_du = [row["random"]["metrics"]["differential_uniformity"] for row in rows]
+    ga_violation = [-float(row["ga"]["rank"][1]) for row in rows]
+    random_violation = [-float(row["random"]["rank"][1]) for row in rows]
 
-    # This is intentionally named preliminary: Gate 1 requires a larger repeated
-    # experiment and statistical analysis, not merely a majority of five runs.
     if ga_wins > random_wins:
         preliminary = "ga_ahead"
     elif random_wins > ga_wins:
@@ -120,7 +122,7 @@ def run_benchmark(
         preliminary = "inconclusive"
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "experiment": "phase1_ga_vs_equal_budget_random",
         "scientific_status": "preliminary_not_gate1",
         "configuration": {
@@ -131,6 +133,7 @@ def run_benchmark(
             "tournament_size": tournament_size,
             "mutation_swaps": mutation_swaps,
             "crossover_rate": crossover_rate,
+            "immigrant_fraction": immigrant_fraction,
             "constraints": asdict(constraints),
         },
         "summary": {
@@ -138,6 +141,8 @@ def run_benchmark(
             "random_wins": random_wins,
             "ties": ties,
             "preliminary_verdict": preliminary,
+            "median_constraint_violation_ga": _median(ga_violation),
+            "median_constraint_violation_random": _median(random_violation),
             "median_nonlinearity_ga": _median(ga_nl),
             "median_nonlinearity_random": _median(random_nl),
             "median_differential_uniformity_ga": _median(ga_du),
@@ -152,6 +157,9 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=Path("phase1-benchmark.json"))
     parser.add_argument("--population-size", type=int, default=8)
     parser.add_argument("--generations", type=int, default=3)
+    parser.add_argument("--mutation-swaps", type=int, default=1)
+    parser.add_argument("--crossover-rate", type=float, default=0.9)
+    parser.add_argument("--immigrant-fraction", type=float, default=0.0)
     parser.add_argument(
         "--seeds",
         type=int,
@@ -165,8 +173,13 @@ def main() -> None:
         seeds=tuple(args.seeds),
         population_size=args.population_size,
         generations=args.generations,
+        mutation_swaps=args.mutation_swaps,
+        crossover_rate=args.crossover_rate,
+        immigrant_fraction=args.immigrant_fraction,
     )
-    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.output.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(json.dumps(result["summary"], sort_keys=True))
 
 
