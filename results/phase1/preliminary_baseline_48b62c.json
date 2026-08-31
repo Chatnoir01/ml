@@ -1,0 +1,66 @@
+{
+  "configuration": {
+    "constraints": {
+      "max_differential_uniformity": 8,
+      "max_linear_correlation": 64,
+      "max_sac_deviation": 0.05,
+      "min_algebraic_degree": 6,
+      "min_nonlinearity": 100
+    },
+    "crossover_rate": 0.9,
+    "elite_count": 2,
+    "generations": 3,
+    "mutation_swaps": 1,
+    "population_size": 8,
+    "seeds": [11, 23, 37],
+    "tournament_size": 2
+  },
+  "experiment": "phase1_ga_vs_equal_budget_random",
+  "runs": [
+    {
+      "evaluation_budget_each": 26,
+      "ga": {
+        "history": [[0.0,96.0,-10.0,-64.0,-0.005126953125,7.0],[0.0,96.0,-10.0,-64.0,-0.005126953125,7.0],[0.0,96.0,-10.0,-64.0,-0.005126953125,7.0],[0.0,96.0,-10.0,-64.0,-0.005126953125,7.0]],
+        "metrics": {"algebraic_degree":7,"differential_uniformity":10,"fingerprint":"237e082d8b84448049d31c6be0d070e19a077d819cc57475d208e0caaf0eca0f","max_linear_correlation":64,"nonlinearity":96,"sac_score":0.494873046875},
+        "rank": [0.0,96.0,-10.0,-64.0,-0.005126953125,7.0]
+      },
+      "outcome": "random",
+      "random": {"metrics":{"algebraic_degree":7,"differential_uniformity":10,"fingerprint":"8c74684f72770f8e378af3b8fd89f6a96b0b2ddb0a8ad6e2c56ea5f581096c8f","max_linear_correlation":64,"nonlinearity":96,"sac_score":0.504638671875},"rank":[0.0,96.0,-10.0,-64.0,-0.004638671875,7.0]},
+      "seed": 11
+    },
+    {
+      "evaluation_budget_each": 26,
+      "ga": {
+        "history": [[0.0,96.0,-12.0,-64.0,-0.00048828125,7.0],[0.0,96.0,-12.0,-64.0,-0.00048828125,7.0],[0.0,96.0,-12.0,-64.0,-0.00048828125,7.0],[0.0,96.0,-12.0,-64.0,-0.00048828125,7.0]],
+        "metrics": {"algebraic_degree":7,"differential_uniformity":12,"fingerprint":"2a57a4f0538a18d86a7736fc8002708693ec13a307b99cb22e068bca19050f8e","max_linear_correlation":64,"nonlinearity":96,"sac_score":0.49951171875},
+        "rank": [0.0,96.0,-12.0,-64.0,-0.00048828125,7.0]
+      },
+      "outcome": "random",
+      "random": {"metrics":{"algebraic_degree":7,"differential_uniformity":12,"fingerprint":"6d09bcce7fcf85e9e01816d9c6bc7916b10e9ef641af6ff75b091a96b12ed2cb","max_linear_correlation":60,"nonlinearity":98,"sac_score":0.507080078125},"rank":[0.0,98.0,-12.0,-60.0,-0.007080078125,7.0]},
+      "seed": 23
+    },
+    {
+      "evaluation_budget_each": 26,
+      "ga": {
+        "history": [[0.0,96.0,-10.0,-64.0,-0.00390625,7.0],[0.0,96.0,-10.0,-64.0,-0.00390625,7.0],[0.0,96.0,-10.0,-64.0,-0.00390625,7.0],[0.0,96.0,-10.0,-64.0,-0.00390625,7.0]],
+        "metrics": {"algebraic_degree":7,"differential_uniformity":10,"fingerprint":"220534879c7170a2828887fdd4d6a5c3b51efbdce537bfb2e07e844dcc005e76","max_linear_correlation":64,"nonlinearity":96,"sac_score":0.50390625},
+        "rank": [0.0,96.0,-10.0,-64.0,-0.00390625,7.0]
+      },
+      "outcome": "random",
+      "random": {"metrics":{"algebraic_degree":7,"differential_uniformity":10,"fingerprint":"de8e1d06fb53f383d080fff8f8ed4f01d6d247354177a2d5a0a37a58a5264c78","max_linear_correlation":64,"nonlinearity":96,"sac_score":0.499267578125},"rank":[0.0,96.0,-10.0,-64.0,-0.000732421875,7.0]},
+      "seed": 37
+    }
+  ],
+  "schema_version": 1,
+  "scientific_status": "preliminary_not_gate1",
+  "summary": {
+    "ga_wins": 0,
+    "median_differential_uniformity_ga": 10.0,
+    "median_differential_uniformity_random": 10.0,
+    "median_nonlinearity_ga": 96.0,
+    "median_nonlinearity_random": 96.0,
+    "preliminary_verdict": "random_ahead",
+    "random_wins": 3,
+    "ties": 0
+  }
+}
