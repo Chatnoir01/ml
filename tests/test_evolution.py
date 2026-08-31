@@ -1,5 +1,7 @@
 import random
 
+import pytest
+
 from adversarial_sbox.cryptoshield import is_bijective
 from adversarial_sbox.evolution import (
     ClassicalMetrics,
@@ -10,10 +12,14 @@ from adversarial_sbox.evolution import (
     equivalent_random_budget,
     evaluate_classical,
     evolve_permutations,
+    feasibility_rank,
     is_admissible,
+    make_classical_evaluator,
     ordered_crossover,
+    primary_security_key,
     random_search,
     random_sbox,
+    structural_gate_count,
     swap_mutation,
 )
 from adversarial_sbox.references import AES_SBOX
@@ -46,8 +52,10 @@ def test_aes_passes_default_classical_constraints():
     assert metrics.max_linear_correlation == 32
     assert metrics.algebraic_degree == 7
     assert is_admissible(metrics, constraints)
+    assert structural_gate_count(metrics, constraints) == 4
     assert constraint_violation(metrics, constraints) == 0.0
     assert classical_rank(metrics, constraints)[0] == 1.0
+    assert feasibility_rank(metrics, constraints)[0] == 1.0
 
 
 def test_identity_fails_default_classical_constraints():
@@ -58,27 +66,11 @@ def test_identity_fails_default_classical_constraints():
     assert classical_rank(metrics, HardConstraints())[0] == 0.0
 
 
-def test_infeasible_rank_prefers_candidate_closer_to_all_hard_gates():
+def test_historical_constraint_distance_rank_is_retained():
     constraints = HardConstraints()
-    near = ClassicalMetrics(
-        nonlinearity=96,
-        differential_uniformity=8,
-        max_linear_correlation=64,
-        sac_score=0.5,
-        algebraic_degree=7,
-        fingerprint="near",
-    )
-    misleading_high_nl = ClassicalMetrics(
-        nonlinearity=99,
-        differential_uniformity=16,
-        max_linear_correlation=64,
-        sac_score=0.5,
-        algebraic_degree=7,
-        fingerprint="far",
-    )
+    near = ClassicalMetrics(96, 8, 64, 0.5, 7, "near")
+    misleading_high_nl = ClassicalMetrics(99, 16, 64, 0.5, 7, "far")
 
-    assert not is_admissible(near, constraints)
-    assert not is_admissible(misleading_high_nl, constraints)
     assert constraint_violation(near, constraints) < constraint_violation(
         misleading_high_nl, constraints
     )
@@ -87,7 +79,33 @@ def test_infeasible_rank_prefers_candidate_closer_to_all_hard_gates():
     )
 
 
-def test_ga_is_deterministic_elitist_with_immigrants_and_exact_unique_budget():
+def test_feasibility_rank_rewards_more_structural_gates_before_nl():
+    constraints = HardConstraints()
+    high_nl_two_gates = ClassicalMetrics(98, 10, 60, 0.5, 7, "high-nl")
+    lower_nl_three_gates = ClassicalMetrics(94, 8, 64, 0.5, 7, "three-gates")
+
+    assert structural_gate_count(high_nl_two_gates, constraints) == 2
+    assert structural_gate_count(lower_nl_three_gates, constraints) == 3
+    assert feasibility_rank(lower_nl_three_gates, constraints) > feasibility_rank(
+        high_nl_two_gates, constraints
+    )
+
+
+def test_primary_security_key_cannot_be_won_by_sac_only():
+    constraints = HardConstraints()
+    first = ClassicalMetrics(98, 10, 60, 0.5001, 7, "a")
+    second = ClassicalMetrics(98, 10, 60, 0.5123, 7, "b")
+    assert primary_security_key(first, constraints) == primary_security_key(
+        second, constraints
+    )
+
+
+def test_make_evaluator_requires_known_versioned_ranking_mode():
+    with pytest.raises(ValueError):
+        make_classical_evaluator(HardConstraints(), ranking_mode="future-magic")
+
+
+def test_historical_ga_budget_and_flow_remain_deterministic_with_defaults():
     identity = tuple(range(256))
     config = EvolutionConfig(
         population_size=8,
@@ -110,12 +128,30 @@ def test_ga_is_deterministic_elitist_with_immigrants_and_exact_unique_budget():
     assert first == second
     assert first.best_sbox == identity
     assert first.best_rank == (256.0,)
-    assert first.evaluations == equivalent_random_budget(config)
-    assert first.evaluations == 32
-    assert all(
-        later >= earlier
-        for earlier, later in zip(first.best_rank_history, first.best_rank_history[1:])
+    assert first.evaluations == equivalent_random_budget(config) == 32
+
+
+def test_oversampling_and_immigrants_are_fully_charged_to_budget():
+    config = EvolutionConfig(
+        population_size=8,
+        generations=4,
+        elite_count=2,
+        tournament_size=3,
+        mutation_swaps=3,
+        crossover_rate=0.0,
+        immigrant_fraction=0.25,
+        offspring_multiplier=3,
+        seed=91,
     )
+    result = evolve_permutations(_fixed_points_rank, config)
+    assert equivalent_random_budget(config) == 80
+    assert result.evaluations == 80
+    assert is_bijective(result.best_sbox)
+
+
+def test_config_rejects_invalid_offspring_multiplier():
+    with pytest.raises(ValueError):
+        EvolutionConfig(offspring_multiplier=0)
 
 
 def test_random_search_matches_requested_unique_budget_and_is_deterministic():

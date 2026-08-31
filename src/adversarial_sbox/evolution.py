@@ -1,8 +1,8 @@
 """Deterministic classical genetic search over bijective 8x8 S-Boxes.
 
-This module deliberately keeps the evolutionary machinery independent from any
-neural model. Classical cryptographic properties are evaluated separately and
-used as hard admissibility gates plus a lexicographic ranking signal.
+Historical Phase-1 behaviour remains reproducible through the default
+``constraint_distance`` ranking mode. Phase 1B adds an explicit
+``feasibility_first`` mode and offspring oversampling without changing defaults.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from .provenance import fingerprint_sbox
 SBox = tuple[int, ...]
 Rank = tuple[float, ...]
 Evaluator = Callable[[SBox], Rank]
+RANKING_MODES = ("constraint_distance", "feasibility_first")
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +68,7 @@ class EvolutionConfig:
     mutation_swaps: int = 2
     crossover_rate: float = 0.9
     immigrant_fraction: float = 0.0
+    offspring_multiplier: int = 1
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -84,6 +86,8 @@ class EvolutionConfig:
             raise ValueError("crossover_rate must be in [0, 1]")
         if not 0.0 <= self.immigrant_fraction < 1.0:
             raise ValueError("immigrant_fraction must be in [0, 1)")
+        if self.offspring_multiplier < 1:
+            raise ValueError("offspring_multiplier must be >= 1")
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,8 +99,6 @@ class EvolutionResult:
 
 
 def evaluate_classical(sbox: Sequence[int]) -> ClassicalMetrics:
-    """Compute the Phase-1 classical measurements for one S-Box."""
-
     frozen = validate_sbox(sbox)
     return ClassicalMetrics(
         nonlinearity=nonlinearity(frozen),
@@ -109,8 +111,6 @@ def evaluate_classical(sbox: Sequence[int]) -> ClassicalMetrics:
 
 
 def is_admissible(metrics: ClassicalMetrics, constraints: HardConstraints) -> bool:
-    """Return whether all hard classical gates are satisfied."""
-
     return (
         metrics.nonlinearity >= constraints.min_nonlinearity
         and metrics.differential_uniformity <= constraints.max_differential_uniformity
@@ -120,16 +120,39 @@ def is_admissible(metrics: ClassicalMetrics, constraints: HardConstraints) -> bo
     )
 
 
+def structural_gate_count(
+    metrics: ClassicalMetrics, constraints: HardConstraints
+) -> int:
+    """Count passed primary structural gates, deliberately excluding SAC."""
+
+    return sum(
+        (
+            metrics.nonlinearity >= constraints.min_nonlinearity,
+            metrics.differential_uniformity <= constraints.max_differential_uniformity,
+            metrics.max_linear_correlation <= constraints.max_linear_correlation,
+            metrics.algebraic_degree >= constraints.min_algebraic_degree,
+        )
+    )
+
+
+def primary_security_key(
+    metrics: ClassicalMetrics, constraints: HardConstraints
+) -> tuple[float, ...]:
+    """Frozen scientific comparison key; secondary SAC cannot create a win."""
+
+    return (
+        1.0 if is_admissible(metrics, constraints) else 0.0,
+        float(metrics.nonlinearity),
+        float(-metrics.differential_uniformity),
+        float(-metrics.max_linear_correlation),
+        float(metrics.algebraic_degree),
+    )
+
+
 def constraint_violation(
     metrics: ClassicalMetrics, constraints: HardConstraints
 ) -> float:
-    """Normalized distance from the hard admissibility region.
-
-    Admissible candidates have exactly zero violation. Infeasible candidates
-    receive a positive score proportional to how far they miss each gate. This
-    gives the GA a direction toward feasibility without allowing a soft score to
-    override the final hard constraints.
-    """
+    """Normalized distance from the hard admissibility region."""
 
     nl_denominator = max(1, constraints.min_nonlinearity)
     du_denominator = max(1, constraints.max_differential_uniformity)
@@ -163,13 +186,7 @@ def constraint_violation(
 
 
 def classical_rank(metrics: ClassicalMetrics, constraints: HardConstraints) -> Rank:
-    """Lexicographic rank, higher is better.
-
-    The first coordinate remains the hard admissibility gate. The second is the
-    negative normalized constraint violation, which guides infeasible candidates
-    toward the admissible region. Remaining coordinates rank candidates only
-    after feasibility distance is accounted for.
-    """
+    """Historical constraint-distance ranking retained for reproducibility."""
 
     return (
         1.0 if is_admissible(metrics, constraints) else 0.0,
@@ -182,11 +199,37 @@ def classical_rank(metrics: ClassicalMetrics, constraints: HardConstraints) -> R
     )
 
 
+def feasibility_rank(metrics: ClassicalMetrics, constraints: HardConstraints) -> Rank:
+    """Phase-1B ranking that explicitly rewards entering the feasible region.
+
+    Full admissibility remains absolute. Before reaching it, the number of passed
+    structural hard gates is more important than a small aggregate-distance or
+    SAC improvement. Primary metrics then order candidates inside a gate-count
+    level; constraint distance and SAC are only final tie-breakers.
+    """
+
+    return (
+        1.0 if is_admissible(metrics, constraints) else 0.0,
+        float(structural_gate_count(metrics, constraints)),
+        float(metrics.nonlinearity),
+        float(-metrics.differential_uniformity),
+        float(-metrics.max_linear_correlation),
+        float(metrics.algebraic_degree),
+        -constraint_violation(metrics, constraints),
+        float(-abs(metrics.sac_score - 0.5)),
+    )
+
+
 def make_classical_evaluator(
     constraints: HardConstraints,
+    *,
+    ranking_mode: str = "constraint_distance",
 ) -> tuple[Evaluator, dict[SBox, ClassicalMetrics]]:
-    """Build a cached classical evaluator and expose its metrics cache."""
+    """Build a cached evaluator with an explicitly versioned ranking mode."""
 
+    if ranking_mode not in RANKING_MODES:
+        raise ValueError(f"unknown ranking_mode: {ranking_mode}")
+    ranker = classical_rank if ranking_mode == "constraint_distance" else feasibility_rank
     cache: dict[SBox, ClassicalMetrics] = {}
 
     def evaluator(sbox: SBox) -> Rank:
@@ -194,7 +237,7 @@ def make_classical_evaluator(
         if metrics is None:
             metrics = evaluate_classical(sbox)
             cache[sbox] = metrics
-        return classical_rank(metrics, constraints)
+        return ranker(metrics, constraints)
 
     return evaluator, cache
 
@@ -206,8 +249,6 @@ def random_sbox(rng: random.Random) -> SBox:
 
 
 def swap_mutation(parent: Sequence[int], rng: random.Random, *, swaps: int = 1) -> SBox:
-    """Apply one or more swap mutations while preserving a permutation."""
-
     values = list(validate_sbox(parent))
     if not is_bijective(values):
         raise ValueError("swap_mutation requires a bijective parent")
@@ -222,8 +263,6 @@ def swap_mutation(parent: Sequence[int], rng: random.Random, *, swaps: int = 1) 
 def ordered_crossover(
     parent_a: Sequence[int], parent_b: Sequence[int], rng: random.Random
 ) -> SBox:
-    """Permutation-preserving ordered crossover (OX)."""
-
     a = validate_sbox(parent_a)
     b = validate_sbox(parent_b)
     if not is_bijective(a) or not is_bijective(b):
@@ -273,8 +312,6 @@ def _append_unique_random(
     rng: random.Random,
     seen_ever: set[SBox],
 ) -> None:
-    """Append globally unseen random permutations as diversity immigrants."""
-
     while count > 0:
         candidate = random_sbox(rng)
         if candidate in seen_ever:
@@ -290,13 +327,12 @@ def evolve_permutations(
     *,
     initial_population: Iterable[SBox] | None = None,
 ) -> EvolutionResult:
-    """Run deterministic elitist GA over globally unique permutation candidates.
+    """Run deterministic elitist search with optional oversampled offspring.
 
-    Each distinct S-Box is evaluated at most once. Elites retain their previous
-    ranks. A configurable fraction of each new generation may be globally random
-    immigrants; the remainder is produced through selection, crossover and swap
-    mutation. The total unique evaluation budget remains exact and comparable to
-    random search.
+    ``offspring_multiplier=1`` preserves historical evaluation counts and flow.
+    For larger values, every trial is evaluated and counted before only the best
+    child slots survive, so equal-budget random search receives the exact same
+    total number of candidate evaluations.
     """
 
     rng = random.Random(config.seed)
@@ -322,21 +358,22 @@ def evolve_permutations(
     ranked = rank_new(population)
     history.append(ranked[0][1])
 
-    children_per_generation = config.population_size - config.elite_count
-    immigrant_count = int(children_per_generation * config.immigrant_fraction)
+    child_slots = config.population_size - config.elite_count
+    trial_target = child_slots * config.offspring_multiplier
+    immigrant_trials = int(trial_target * config.immigrant_fraction)
 
     for _ in range(config.generations):
         elite_ranked = ranked[: config.elite_count]
-        children: list[SBox] = []
+        trials: list[SBox] = []
 
         _append_unique_random(
-            children,
-            count=immigrant_count,
+            trials,
+            count=immigrant_trials,
             rng=rng,
             seen_ever=seen_ever,
         )
 
-        while len(children) < children_per_generation:
+        while len(trials) < trial_target:
             parent_a = _tournament(ranked, rng, config.tournament_size)
             if rng.random() < config.crossover_rate:
                 parent_b = _tournament(ranked, rng, config.tournament_size)
@@ -344,13 +381,13 @@ def evolve_permutations(
             else:
                 child = parent_a
             child = swap_mutation(child, rng, swaps=config.mutation_swaps)
-
             if child in seen_ever:
                 continue
             seen_ever.add(child)
-            children.append(child)
+            trials.append(child)
 
-        ranked = elite_ranked + rank_new(children)
+        selected_children = rank_new(trials)[:child_slots]
+        ranked = elite_ranked + selected_children
         ranked.sort(key=lambda item: item[1], reverse=True)
         history.append(ranked[0][1])
 
@@ -363,8 +400,6 @@ def evolve_permutations(
 
 
 def random_search(evaluator: Evaluator, *, evaluations: int, seed: int) -> EvolutionResult:
-    """Random-search baseline with an explicit unique evaluation budget."""
-
     if evaluations < 1:
         raise ValueError("evaluations must be >= 1")
     rng = random.Random(seed)
@@ -394,7 +429,5 @@ def random_search(evaluator: Evaluator, *, evaluations: int, seed: int) -> Evolu
 
 
 def equivalent_random_budget(config: EvolutionConfig) -> int:
-    """Exact number of unique S-Box evaluations performed by one GA run."""
-
-    children_per_generation = config.population_size - config.elite_count
-    return config.population_size + config.generations * children_per_generation
+    child_slots = config.population_size - config.elite_count
+    return config.population_size + config.generations * child_slots * config.offspring_multiplier
