@@ -1,9 +1,6 @@
 name: Phase 1 Tuning
 
 on:
-  push:
-    branches:
-      - research/phase1-benchmark
   workflow_dispatch:
 
 permissions:
