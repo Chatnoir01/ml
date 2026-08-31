@@ -1,6 +1,6 @@
 """Development-only Phase-1 configuration sweep.
 
-The seeds in this module are tuning seeds, never confirmatory evidence.  The
+The seeds in this module are tuning seeds, never confirmatory evidence. The
 winner of this sweep must be re-tested on fresh seeds before any Gate-1 claim.
 """
 
@@ -15,58 +15,70 @@ from .benchmark import run_benchmark
 
 DEV_SEEDS = (101, 103, 107)
 
+# All configurations have the same population, elite count and number of
+# generations, so every GA and its paired random baseline receive the same exact
+# unique evaluation budget (10 + 12 * 8 = 106 per method and seed).
 CONFIGURATIONS: tuple[dict[str, Any], ...] = (
     {
-        "name": "mutation_only_1swap",
+        "name": "mutation_1swap_control",
         "population_size": 10,
-        "generations": 9,
+        "generations": 12,
         "elite_count": 2,
         "tournament_size": 3,
         "mutation_swaps": 1,
         "crossover_rate": 0.0,
+        "immigrant_fraction": 0.0,
     },
     {
-        "name": "mutation_only_3swap",
+        "name": "mutation_3swap_control",
         "population_size": 10,
-        "generations": 9,
+        "generations": 12,
         "elite_count": 2,
         "tournament_size": 3,
         "mutation_swaps": 3,
         "crossover_rate": 0.0,
+        "immigrant_fraction": 0.0,
     },
     {
-        "name": "mixed_25pct_crossover",
+        "name": "mutation_1swap_25pct_immigrants",
         "population_size": 10,
-        "generations": 9,
-        "elite_count": 2,
-        "tournament_size": 3,
-        "mutation_swaps": 2,
-        "crossover_rate": 0.25,
-    },
-    {
-        "name": "crossover_heavy_control",
-        "population_size": 10,
-        "generations": 9,
+        "generations": 12,
         "elite_count": 2,
         "tournament_size": 3,
         "mutation_swaps": 1,
-        "crossover_rate": 0.9,
+        "crossover_rate": 0.0,
+        "immigrant_fraction": 0.25,
+    },
+    {
+        "name": "mutation_3swap_25pct_immigrants",
+        "population_size": 10,
+        "generations": 12,
+        "elite_count": 2,
+        "tournament_size": 3,
+        "mutation_swaps": 3,
+        "crossover_rate": 0.0,
+        "immigrant_fraction": 0.25,
     },
 )
 
 
-def _selection_key(result: dict[str, Any]) -> tuple[float, float, float]:
+def _selection_key(result: dict[str, Any]) -> tuple[float, float, float, float]:
     summary = result["summary"]
-    win_margin = float(summary["ga_wins"] - summary["random_wins"])
+    # First select for actual movement toward the hard admissible region. Lower
+    # violation is better, so random - GA is a positive improvement margin.
+    violation_margin = float(
+        summary["median_constraint_violation_random"]
+        - summary["median_constraint_violation_ga"]
+    )
     nl_margin = float(
         summary["median_nonlinearity_ga"] - summary["median_nonlinearity_random"]
     )
-    # Lower differential uniformity is better.
     du_margin = float(
         summary["median_differential_uniformity_random"]
         - summary["median_differential_uniformity_ga"]
     )
-    return win_margin, nl_margin, du_margin
+    win_margin = float(summary["ga_wins"] - summary["random_wins"])
+    return violation_margin, nl_margin, du_margin, win_margin
 
 
 def run_sweep() -> dict[str, Any]:
@@ -84,7 +96,7 @@ def run_sweep() -> dict[str, Any]:
 
     selected = max(experiments, key=lambda item: tuple(item["selection_key"]))
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "experiment": "phase1_development_configuration_sweep",
         "scientific_status": "development_only_not_confirmatory",
         "development_seeds": list(DEV_SEEDS),
@@ -99,7 +111,9 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=Path("phase1-tuning.json"))
     args = parser.parse_args()
     result = run_sweep()
-    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.output.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     concise = {
         "selected_configuration": result["selected_configuration"],
         "selected_key": result["selected_key"],
