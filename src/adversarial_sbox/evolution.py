@@ -66,6 +66,7 @@ class EvolutionConfig:
     tournament_size: int = 4
     mutation_swaps: int = 2
     crossover_rate: float = 0.9
+    offspring_multiplier: int = 1
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -81,6 +82,8 @@ class EvolutionConfig:
             raise ValueError("mutation_swaps must be >= 1")
         if not 0.0 <= self.crossover_rate <= 1.0:
             raise ValueError("crossover_rate must be in [0, 1]")
+        if self.offspring_multiplier < 1:
+            raise ValueError("offspring_multiplier must be >= 1")
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,10 +125,10 @@ def constraint_violation(
 ) -> float:
     """Normalized distance from the hard admissibility region.
 
-    Admissible candidates have exactly zero violation.  Infeasible candidates
-    receive a positive score proportional to how far they miss each gate.  This
-    gives the GA a direction toward feasibility without allowing a soft score to
-    override the final hard constraints.
+    Admissible candidates have exactly zero violation. Infeasible candidates
+    receive a positive diagnostic distance. The distance remains useful for
+    tie-breaking and reporting, but it is not allowed to hide regressions in the
+    primary cryptographic metrics.
     """
 
     nl_denominator = max(1, constraints.min_nonlinearity)
@@ -157,23 +160,38 @@ def constraint_violation(
     )
 
 
-def classical_rank(metrics: ClassicalMetrics, constraints: HardConstraints) -> Rank:
-    """Lexicographic rank, higher is better.
+def primary_security_key(
+    metrics: ClassicalMetrics, constraints: HardConstraints
+) -> tuple[float, ...]:
+    """Security-first comparison key used for scientific GA/random outcomes.
 
-    The first coordinate remains the hard admissibility gate.  The second is the
-    negative normalized constraint violation, which guides infeasible candidates
-    toward the admissible region.  Remaining coordinates rank candidates only
-    after feasibility distance is accounted for.
+    Hard admissibility is absolute. Before admissibility is reached, candidates
+    are compared on the primary classical metrics rather than tiny SAC changes:
+    higher nonlinearity, lower differential uniformity, lower maximum linear
+    correlation, then algebraic degree. SAC and aggregate gate distance are
+    intentionally excluded from this primary comparison.
     """
 
     return (
         1.0 if is_admissible(metrics, constraints) else 0.0,
-        -constraint_violation(metrics, constraints),
         float(metrics.nonlinearity),
         float(-metrics.differential_uniformity),
         float(-metrics.max_linear_correlation),
-        float(-abs(metrics.sac_score - 0.5)),
         float(metrics.algebraic_degree),
+    )
+
+
+def classical_rank(metrics: ClassicalMetrics, constraints: HardConstraints) -> Rank:
+    """Lexicographic evolutionary rank, higher is better.
+
+    The hard gate is absolute. Primary cryptographic metrics drive the search.
+    Normalized gate distance and SAC are only tie-breakers, preventing cosmetic
+    SAC improvements from outranking a genuine NL/DDT/LAT improvement.
+    """
+
+    return primary_security_key(metrics, constraints) + (
+        -constraint_violation(metrics, constraints),
+        float(-abs(metrics.sac_score - 0.5)),
     )
 
 
@@ -269,10 +287,10 @@ def evolve_permutations(
 ) -> EvolutionResult:
     """Run deterministic elitist GA over globally unique permutation candidates.
 
-    Each distinct S-Box is evaluated at most once. Elites retain their previous
-    ranks, while every child must be globally unseen. The resulting evaluation
-    count therefore has a deterministic, directly comparable random-search
-    budget.
+    Each distinct S-Box is evaluated at most once. For each generation the GA
+    may oversample a larger offspring pool and retain only its strongest portion.
+    Every discarded trial is still counted as an evaluation, so an equal-budget
+    random-search baseline receives exactly the same number of evaluations.
     """
 
     rng = random.Random(config.seed)
@@ -300,9 +318,11 @@ def evolve_permutations(
 
     for _ in range(config.generations):
         elite_ranked = ranked[: config.elite_count]
-        children: list[SBox] = []
+        child_slots = config.population_size - config.elite_count
+        trial_target = child_slots * config.offspring_multiplier
+        trials: list[SBox] = []
 
-        while len(children) < config.population_size - config.elite_count:
+        while len(trials) < trial_target:
             parent_a = _tournament(ranked, rng, config.tournament_size)
             if rng.random() < config.crossover_rate:
                 parent_b = _tournament(ranked, rng, config.tournament_size)
@@ -314,9 +334,11 @@ def evolve_permutations(
             if child in seen_ever:
                 continue
             seen_ever.add(child)
-            children.append(child)
+            trials.append(child)
 
-        ranked = elite_ranked + rank_new(children)
+        ranked_trials = rank_new(trials)
+        selected_children = ranked_trials[:child_slots]
+        ranked = elite_ranked + selected_children
         ranked.sort(key=lambda item: item[1], reverse=True)
         history.append(ranked[0][1])
 
@@ -363,4 +385,7 @@ def equivalent_random_budget(config: EvolutionConfig) -> int:
     """Exact number of unique S-Box evaluations performed by one GA run."""
 
     children_per_generation = config.population_size - config.elite_count
-    return config.population_size + config.generations * children_per_generation
+    return (
+        config.population_size
+        + config.generations * children_per_generation * config.offspring_multiplier
+    )
