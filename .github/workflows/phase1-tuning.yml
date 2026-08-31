@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - research/phase1-benchmark
+      - research/phase1-immigrants
   workflow_dispatch:
 
 permissions:
