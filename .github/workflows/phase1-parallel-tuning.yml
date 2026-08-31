@@ -1,0 +1,82 @@
+name: Phase 1 Parallel Tuning
+
+on:
+  push:
+    branches:
+      - research/phase1-benchmark
+    paths:
+      - '.github/workflows/phase1-parallel-tuning.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include:
+          - name: local_1swap_x3
+            generations: 6
+            mutation_swaps: 1
+            crossover_rate: 0.0
+            offspring_multiplier: 3
+          - name: local_3swap_x3
+            generations: 6
+            mutation_swaps: 3
+            crossover_rate: 0.0
+            offspring_multiplier: 3
+          - name: local_5swap_x3
+            generations: 6
+            mutation_swaps: 5
+            crossover_rate: 0.0
+            offspring_multiplier: 3
+          - name: mixed_3swap_25pct_x3
+            generations: 6
+            mutation_swaps: 3
+            crossover_rate: 0.25
+            offspring_multiplier: 3
+          - name: deep_3swap_x2
+            generations: 9
+            mutation_swaps: 3
+            crossover_rate: 0.0
+            offspring_multiplier: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run equal-budget configuration
+        run: |
+          python -m adversarial_sbox.benchmark \
+            --seeds 101 103 107 \
+            --population-size 10 \
+            --generations ${{ matrix.generations }} \
+            --elite-count 2 \
+            --tournament-size 3 \
+            --mutation-swaps ${{ matrix.mutation_swaps }} \
+            --crossover-rate ${{ matrix.crossover_rate }} \
+            --offspring-multiplier ${{ matrix.offspring_multiplier }} \
+            --output phase1-${{ matrix.name }}.json
+      - name: Show primary summary
+        if: always()
+        run: |
+          if [ -f phase1-${{ matrix.name }}.json ]; then
+            python -c "import json; d=json.load(open('phase1-${{ matrix.name }}.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True))"
+          fi
+      - name: Upload configuration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-dev-${{ matrix.name }}-${{ github.sha }}
+          path: phase1-${{ matrix.name }}.json
+          if-no-files-found: error
+          retention-days: 30
