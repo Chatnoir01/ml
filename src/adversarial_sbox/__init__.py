@@ -12,23 +12,53 @@ from .cryptoshield import (
     validate_sbox,
 )
 from .datasets import PairSample, generate_balanced_pairs, split_dataset
+from .evolution import (
+    ClassicalMetrics,
+    EvolutionConfig,
+    EvolutionResult,
+    HardConstraints,
+    classical_rank,
+    equivalent_random_budget,
+    evaluate_classical,
+    evolve_permutations,
+    is_admissible,
+    make_classical_evaluator,
+    ordered_crossover,
+    random_search,
+    random_sbox,
+    swap_mutation,
+)
 from .provenance import fingerprint_dataset, fingerprint_sbox
 from .spn import ToySPN
 
 __all__ = [
+    "ClassicalMetrics",
+    "EvolutionConfig",
+    "EvolutionResult",
+    "HardConstraints",
     "PairSample",
     "ToySPN",
     "algebraic_degree",
+    "classical_rank",
     "differential_distribution_table",
     "differential_uniformity",
+    "equivalent_random_budget",
+    "evaluate_classical",
+    "evolve_permutations",
     "fingerprint_dataset",
     "fingerprint_sbox",
     "generate_balanced_pairs",
+    "is_admissible",
     "is_bijective",
     "linear_approximation_table",
+    "make_classical_evaluator",
     "max_linear_correlation",
     "nonlinearity",
+    "ordered_crossover",
+    "random_search",
+    "random_sbox",
     "sac_score",
     "split_dataset",
+    "swap_mutation",
     "validate_sbox",
 ]
