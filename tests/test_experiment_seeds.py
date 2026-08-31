@@ -1,9 +1,13 @@
 from adversarial_sbox.experiment_seeds import (
     CONFIRM_V1_SEEDS,
     CONFIRM_V2_RESERVED_SEEDS,
+    CONFIRM_V2_USED_SEEDS,
+    CONFIRM_V3_RESERVED_SEEDS,
     DEV_V2_SEEDS,
+    DEV_V3_SEEDS,
     STRICT_HISTORICAL_SEEDS,
     USED_BEFORE_V2,
+    USED_BEFORE_V3,
     validate_seed_registry,
 )
 
@@ -13,6 +17,14 @@ def test_v2_seed_registry_is_disjoint_from_prior_evidence():
     assert set(DEV_V2_SEEDS).isdisjoint(USED_BEFORE_V2)
     assert set(CONFIRM_V2_RESERVED_SEEDS).isdisjoint(USED_BEFORE_V2)
     assert set(DEV_V2_SEEDS).isdisjoint(CONFIRM_V2_RESERVED_SEEDS)
+    assert CONFIRM_V2_USED_SEEDS == set(CONFIRM_V2_RESERVED_SEEDS)
+
+
+def test_v3_seed_registry_is_reserved_before_development():
+    validate_seed_registry()
+    assert set(DEV_V3_SEEDS).isdisjoint(USED_BEFORE_V3)
+    assert set(CONFIRM_V3_RESERVED_SEEDS).isdisjoint(USED_BEFORE_V3)
+    assert set(DEV_V3_SEEDS).isdisjoint(CONFIRM_V3_RESERVED_SEEDS)
 
 
 def test_historical_overlap_is_explicit_not_hidden():
