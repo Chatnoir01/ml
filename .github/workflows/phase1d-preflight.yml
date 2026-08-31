@@ -1,0 +1,47 @@
+name: Phase 1D Historical Receipt
+
+on:
+  push:
+    branches:
+      - research/phase1d-frontier-continuation
+    paths:
+      - 'src/adversarial_sbox/phase1d.py'
+      - 'tests/test_phase1d.py'
+      - 'research/PHASE1D_DEV_PROTOCOL.md'
+      - '.github/workflows/phase1d-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  receipt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Reproduce and verify Phase 1B frontier candidate
+        run: |
+          python - <<'PY'
+          import json
+          from dataclasses import asdict
+          from adversarial_sbox.phase1d import reproduce_phase1b_frontier_candidate
+          sbox, metrics = reproduce_phase1b_frontier_candidate()
+          receipt = {"metrics": asdict(metrics), "sbox": list(sbox)}
+          open("phase1d-historical-receipt.json", "w", encoding="utf-8").write(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(asdict(metrics), sort_keys=True))
+          PY
+      - name: Upload historical receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1d-historical-receipt-${{ github.sha }}
+          path: phase1d-historical-receipt.json
+          if-no-files-found: error
+          retention-days: 90
