@@ -1,9 +1,8 @@
 """Deterministic dataset generation for neural-distinguisher experiments.
 
-The factory deliberately works on the fixed ToySPN interface and records only
-ciphertext pairs plus labels. Positive samples are generated from a fixed input
-difference; negative samples use an independently sampled second plaintext and
-explicitly avoid accidentally matching that difference.
+The factory works on the fixed ToySPN interface and records ciphertext pairs
+plus labels. It enforces unique unordered plaintext pairs before splitting,
+which prevents exact or reversed pair reuse across train, validation, and test.
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import random
 
-from .spn import MASK16, ToySPN
+from .spn import MASK32, ToySPN
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,10 +20,14 @@ class PairSample:
     label: int
 
     def __post_init__(self) -> None:
-        if not (0 <= self.left <= MASK16 and 0 <= self.right <= MASK16):
-            raise ValueError("sample values must be 16-bit integers")
+        if not (0 <= self.left <= MASK32 and 0 <= self.right <= MASK32):
+            raise ValueError("sample values must be 32-bit integers")
         if self.label not in (0, 1):
             raise ValueError("label must be 0 or 1")
+
+
+def _pair_id(left: int, right: int) -> tuple[int, int]:
+    return (left, right) if left <= right else (right, left)
 
 
 def generate_balanced_pairs(
@@ -35,40 +38,43 @@ def generate_balanced_pairs(
     seed: int,
     shuffle: bool = True,
 ) -> tuple[PairSample, ...]:
-    """Generate an exactly balanced binary classification dataset.
+    """Generate an exactly balanced, pair-unique classification dataset.
 
-    ``pair_count`` must be a positive even number. For label 1, plaintext pairs
-    satisfy ``p0 ^ p1 == input_difference``. For label 0, the second plaintext
-    is sampled independently while explicitly excluding that relation. The same
-    cipher instance is used for both classes, preventing key/cipher identity from
-    becoming a trivial label leak.
+    Positive plaintext pairs satisfy ``p0 ^ p1 == input_difference``. Negative
+    pairs are independent while excluding both that relation and equal-block
+    pairs. Exact and reversed plaintext-pair duplicates are rejected across both
+    classes before encryption. The same cipher/key is used for both labels.
     """
 
     if pair_count <= 0 or pair_count % 2:
         raise ValueError("pair_count must be a positive even integer")
-    if input_difference <= 0 or input_difference > MASK16:
-        raise ValueError("input_difference must be in [1, 65535]")
+    if input_difference <= 0 or input_difference > MASK32:
+        raise ValueError("input_difference must be in [1, 2**32 - 1]")
 
     rng = random.Random(seed)
     half = pair_count // 2
     samples: list[PairSample] = []
+    seen_plaintext_pairs: set[tuple[int, int]] = set()
 
-    for _ in range(half):
-        p0 = rng.randrange(MASK16 + 1)
+    while len(samples) < half:
+        p0 = rng.randrange(MASK32 + 1)
         p1 = p0 ^ input_difference
-        samples.append(
-            PairSample(cipher.encrypt_block(p0), cipher.encrypt_block(p1), 1)
-        )
+        identity = _pair_id(p0, p1)
+        if identity in seen_plaintext_pairs:
+            continue
+        seen_plaintext_pairs.add(identity)
+        samples.append(PairSample(cipher.encrypt_block(p0), cipher.encrypt_block(p1), 1))
 
-    for _ in range(half):
-        p0 = rng.randrange(MASK16 + 1)
-        forbidden = p0 ^ input_difference
-        p1 = rng.randrange(MASK16 + 1)
-        while p1 == forbidden:
-            p1 = rng.randrange(MASK16 + 1)
-        samples.append(
-            PairSample(cipher.encrypt_block(p0), cipher.encrypt_block(p1), 0)
-        )
+    while len(samples) < pair_count:
+        p0 = rng.randrange(MASK32 + 1)
+        p1 = rng.randrange(MASK32 + 1)
+        if p1 == p0 or (p0 ^ p1) == input_difference:
+            continue
+        identity = _pair_id(p0, p1)
+        if identity in seen_plaintext_pairs:
+            continue
+        seen_plaintext_pairs.add(identity)
+        samples.append(PairSample(cipher.encrypt_block(p0), cipher.encrypt_block(p1), 0))
 
     if shuffle:
         rng.shuffle(samples)
@@ -81,7 +87,7 @@ def split_dataset(
     train_fraction: float = 0.70,
     validation_fraction: float = 0.15,
 ) -> tuple[tuple[PairSample, ...], tuple[PairSample, ...], tuple[PairSample, ...]]:
-    """Split an already-shuffled immutable dataset without overlap."""
+    """Split an already-shuffled immutable dataset into disjoint slices."""
 
     if not samples:
         raise ValueError("samples must not be empty")
