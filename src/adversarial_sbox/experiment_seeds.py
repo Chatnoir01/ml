@@ -34,9 +34,13 @@ PHASE1C_CONFIRM_RESERVED_SEEDS = (601, 607, 613, 617, 619, 631, 641, 643, 647)
 PHASE1D_DEV_SEEDS = (701, 709, 719, 727, 733)
 PHASE1D_CONFIRM_RESERVED_SEEDS = (809, 811, 821, 823, 827, 829, 839, 853, 857)
 
-# Phase 1E hotspot-guided operator development, declared before results.
+# Phase 1E hotspot-guided operator development and completed confirmation.
 PHASE1E_DEV_SEEDS = (907, 911, 919, 929, 937)
 PHASE1E_CONFIRM_RESERVED_SEEDS = (1009, 1013, 1019, 1021, 1031, 1033, 1039, 1049, 1051)
+
+# Phase 1F fresh-population bridge experiment. Declared before any Phase-1F run.
+PHASE1F_DEV_SEEDS = (1103, 1109, 1117, 1123, 1129)
+PHASE1F_CONFIRM_RESERVED_SEEDS = (1201, 1213, 1217, 1223, 1229, 1231, 1237, 1249, 1259)
 
 USED_BEFORE_V2 = (
     BASELINE_SEEDS
@@ -62,6 +66,8 @@ def validate_seed_registry() -> None:
         ("PHASE1D_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1D_CONFIRM_RESERVED_SEEDS)),
         ("PHASE1E_DEV_SEEDS", _as_set(PHASE1E_DEV_SEEDS)),
         ("PHASE1E_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1E_CONFIRM_RESERVED_SEEDS)),
+        ("PHASE1F_DEV_SEEDS", _as_set(PHASE1F_DEV_SEEDS)),
+        ("PHASE1F_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1F_CONFIRM_RESERVED_SEEDS)),
     ]
 
     for name, values in blocks:

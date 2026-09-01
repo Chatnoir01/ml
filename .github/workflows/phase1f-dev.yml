@@ -1,0 +1,56 @@
+name: Phase 1F Fresh Bridge Development
+
+on:
+  push:
+    branches:
+      - research/phase1f-fresh-bridge
+    paths:
+      - '.github/workflows/phase1f-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: bridge10_c4
+            discovery_generations: 10
+          - name: bridge13_c4
+            discovery_generations: 13
+          - name: bridge16_c4
+            discovery_generations: 16
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run preregistered Phase 1F development
+        run: |
+          python -m adversarial_sbox.phase1f \
+            --discovery-generations ${{ matrix.discovery_generations }} \
+            --seeds 1103 1109 1117 1123 1129 \
+            --output phase1f-${{ matrix.name }}.json
+      - name: Show summary
+        if: always()
+        run: |
+          if [ -f phase1f-${{ matrix.name }}.json ]; then
+            python -c "import json; d=json.load(open('phase1f-${{ matrix.name }}.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True))"
+          fi
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1f-${{ matrix.name }}-${{ github.sha }}
+          path: phase1f-${{ matrix.name }}.json
+          if-no-files-found: error
+          retention-days: 90
