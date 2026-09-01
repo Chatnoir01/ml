@@ -48,6 +48,12 @@ PHASE1F_CONFIRM_RESERVED_SEEDS = (1201, 1213, 1217, 1223, 1229, 1231, 1237, 1249
 PHASE1G_DEV_SEEDS = (1301, 1303, 1307, 1319, 1321)
 PHASE1G_CONFIRM_RESERVED_SEEDS = (1409, 1423, 1427, 1429, 1433, 1439, 1447, 1451, 1453)
 
+# Phase 1H plateau-directed mutation experiment. Declared before implementation
+# results or any Phase-1H development execution. Confirmation seeds remain
+# quarantined until the preregistered development prerequisite is met.
+PHASE1H_DEV_SEEDS = (1501, 1511, 1523, 1531, 1543)
+PHASE1H_CONFIRM_RESERVED_SEEDS = (1601, 1607, 1609, 1613, 1619, 1621, 1627, 1637, 1657)
+
 USED_BEFORE_V2 = (
     BASELINE_SEEDS
     | DEV_V1_SEEDS
@@ -76,6 +82,8 @@ def validate_seed_registry() -> None:
         ("PHASE1F_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1F_CONFIRM_RESERVED_SEEDS)),
         ("PHASE1G_DEV_SEEDS", _as_set(PHASE1G_DEV_SEEDS)),
         ("PHASE1G_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1G_CONFIRM_RESERVED_SEEDS)),
+        ("PHASE1H_DEV_SEEDS", _as_set(PHASE1H_DEV_SEEDS)),
+        ("PHASE1H_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1H_CONFIRM_RESERVED_SEEDS)),
     ]
 
     for name, values in blocks:
