@@ -1,0 +1,70 @@
+name: Phase 1G Annealed Escape Development
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/phase1g-annealed-escape
+    paths:
+      - .github/workflows/phase1g-dev.yml
+
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: mild
+            du_cap: 10
+            corr_cap: 68
+            t_start: 1.0
+            t_end: 0.05
+            reset_after: 24
+          - label: mid
+            du_cap: 12
+            corr_cap: 72
+            t_start: 1.5
+            t_end: 0.05
+            reset_after: 32
+          - label: wide
+            du_cap: 14
+            corr_cap: 80
+            t_start: 2.0
+            t_end: 0.10
+            reset_after: 48
+          - label: hot_mid
+            du_cap: 12
+            corr_cap: 72
+            t_start: 3.0
+            t_end: 0.10
+            reset_after: 64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run preregistered Phase 1G development
+        run: |
+          python -m adversarial_sbox.phase1g \
+            --du-cap ${{ matrix.du_cap }} \
+            --corr-cap ${{ matrix.corr_cap }} \
+            --t-start ${{ matrix.t_start }} \
+            --t-end ${{ matrix.t_end }} \
+            --reset-after ${{ matrix.reset_after }} \
+            --evaluations 600 \
+            --seeds 1301 1303 1307 1319 1321 \
+            --output phase1g-${{ matrix.label }}.json
+      - name: Show summary
+        run: |
+          python -c "import json; d=json.load(open('phase1g-${{ matrix.label }}.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True))"
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1g-${{ matrix.label }}-${{ github.sha }}
+          path: phase1g-${{ matrix.label }}.json
+          if-no-files-found: error
+          retention-days: 90
