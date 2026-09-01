@@ -1,8 +1,9 @@
 """Central seed registry for Phase-1 experiments.
 
-A confirmatory seed becomes retired forever after first use. Development code may
-never use a confirmatory or retired seed. The registry also documents one
-historical overlap discovered after two concurrent research branches were merged.
+A confirmatory or reserved seed is never reused by development. The registry also
+documents one historical overlap discovered after two concurrent research branches
+were merged. Later phases register their development and reserved confirmation
+seeds before execution so accidental reuse becomes a test failure.
 """
 
 from __future__ import annotations
@@ -19,12 +20,23 @@ CONFIRM_V1_SEEDS = frozenset(
 # CONFIRM_V1 and therefore that run must not be described as fully blind.
 STRICT_HISTORICAL_SEEDS = frozenset({211, 223, 227, 229, 233, 239, 241, 251, 257})
 
-# Fresh V2 development seeds. These are development-only once this file lands.
+# Phase 1B / V2.
 DEV_V2_SEEDS = (307, 311, 313, 317, 331)
-
-# Reserved now, before V2 development results exist. Development code must not
-# consume them. They may be used only by a future frozen V2 confirmation.
 CONFIRM_V2_RESERVED_SEEDS = (401, 409, 419, 421, 431, 433, 439, 443, 449)
+
+# Phase 1C fresh-population DU-frontier experiment. Confirmation was not executed;
+# the reserved seeds remain quarantined rather than being silently recycled.
+PHASE1C_DEV_SEEDS = (503, 509, 521, 523, 541)
+PHASE1C_CONFIRM_RESERVED_SEEDS = (601, 607, 613, 617, 619, 631, 641, 643, 647)
+
+# Phase 1D verified warm-start continuation. Confirmation was not executed and the
+# reserved seeds remain quarantined.
+PHASE1D_DEV_SEEDS = (701, 709, 719, 727, 733)
+PHASE1D_CONFIRM_RESERVED_SEEDS = (809, 811, 821, 823, 827, 829, 839, 853, 857)
+
+# Phase 1E hotspot-guided operator development, declared before results.
+PHASE1E_DEV_SEEDS = (907, 911, 919, 929, 937)
+PHASE1E_CONFIRM_RESERVED_SEEDS = (1009, 1013, 1019, 1021, 1031, 1033, 1039, 1049, 1051)
 
 USED_BEFORE_V2 = (
     BASELINE_SEEDS
@@ -34,17 +46,36 @@ USED_BEFORE_V2 = (
 )
 
 
-def validate_seed_registry() -> None:
-    """Raise if V2 development/confirmation isolation is violated."""
+def _as_set(values) -> set[int]:
+    return set(values)
 
-    dev_v2 = set(DEV_V2_SEEDS)
-    confirm_v2 = set(CONFIRM_V2_RESERVED_SEEDS)
-    if dev_v2 & USED_BEFORE_V2:
-        raise ValueError("DEV_V2_SEEDS overlap an already-used seed")
-    if confirm_v2 & USED_BEFORE_V2:
-        raise ValueError("CONFIRM_V2_RESERVED_SEEDS overlap an already-used seed")
-    if dev_v2 & confirm_v2:
-        raise ValueError("V2 development and confirmation seeds overlap")
+
+def validate_seed_registry() -> None:
+    """Raise if any post-historical experiment reuses a seed unexpectedly."""
+
+    blocks = [
+        ("DEV_V2_SEEDS", _as_set(DEV_V2_SEEDS)),
+        ("CONFIRM_V2_RESERVED_SEEDS", _as_set(CONFIRM_V2_RESERVED_SEEDS)),
+        ("PHASE1C_DEV_SEEDS", _as_set(PHASE1C_DEV_SEEDS)),
+        ("PHASE1C_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1C_CONFIRM_RESERVED_SEEDS)),
+        ("PHASE1D_DEV_SEEDS", _as_set(PHASE1D_DEV_SEEDS)),
+        ("PHASE1D_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1D_CONFIRM_RESERVED_SEEDS)),
+        ("PHASE1E_DEV_SEEDS", _as_set(PHASE1E_DEV_SEEDS)),
+        ("PHASE1E_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1E_CONFIRM_RESERVED_SEEDS)),
+    ]
+
+    for name, values in blocks:
+        if values & USED_BEFORE_V2:
+            raise ValueError(f"{name} overlaps an already-used historical seed")
+
+    for index, (left_name, left) in enumerate(blocks):
+        for right_name, right in blocks[index + 1 :]:
+            overlap = left & right
+            if overlap:
+                raise ValueError(
+                    f"seed registry overlap between {left_name} and {right_name}: "
+                    f"{sorted(overlap)}"
+                )
 
 
 validate_seed_registry()
