@@ -1,0 +1,43 @@
+name: Phase 1E Frozen Confirmation
+
+on:
+  push:
+    branches:
+      - research/phase1e-hotspot-guided
+    paths:
+      - src/adversarial_sbox/phase1e_confirmation.py
+      - tests/test_phase1e_confirmation.py
+      - research/PHASE1E_CONFIRMATION_PROTOCOL.md
+      - .github/workflows/phase1e-confirmation.yml
+
+permissions:
+  contents: read
+
+jobs:
+  confirm:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [1009, 1013, 1019, 1021, 1031, 1033, 1039, 1049, 1051]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run frozen confirmation pair
+        run: >-
+          python -m adversarial_sbox.phase1e_confirmation
+          --seed ${{ matrix.seed }}
+          --output phase1e-confirm-${{ matrix.seed }}.json
+      - name: Show receipt
+        run: python -c "import json; d=json.load(open('phase1e-confirm-${{ matrix.seed }}.json')); print(json.dumps({'seed':d['seed'],'outcome':d['outcome'],'guided_target':d['guided']['found_target'],'unguided_target':d['unguided']['found_target'],'guided_admissible':d['guided']['found_admissible'],'unguided_admissible':d['unguided']['found_admissible'],'guided_metrics':d['guided']['best_metrics'],'unguided_metrics':d['unguided']['best_metrics']}, indent=2, sort_keys=True))"
+      - name: Upload confirmation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1e-confirm-${{ matrix.seed }}-${{ github.sha }}
+          path: phase1e-confirm-${{ matrix.seed }}.json
+          if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,67 @@
+name: Phase 1E Hotspot-Guided Development
+
+on:
+  push:
+    branches:
+      - research/phase1e-hotspot-guided
+    paths:
+      - src/adversarial_sbox/phase1e.py
+      - src/adversarial_sbox/experiment_seeds.py
+      - tests/test_phase1e.py
+      - tests/test_experiment_seeds.py
+      - research/PHASE1E_DEV_PROTOCOL.md
+      - .github/workflows/phase1e-dev.yml
+
+permissions:
+  contents: read
+
+jobs:
+  develop:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ddt_cycle2
+            guidance: ddt
+            cycle_length: 2
+          - name: ddt_cycle3
+            guidance: ddt
+            cycle_length: 3
+          - name: lat_cycle2
+            guidance: lat
+            cycle_length: 2
+          - name: lat_cycle3
+            guidance: lat
+            cycle_length: 3
+          - name: combined_cycle3
+            guidance: combined
+            cycle_length: 3
+          - name: combined_cycle4
+            guidance: combined
+            cycle_length: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run frozen hotspot-guided development configuration
+        run: >-
+          python -m adversarial_sbox.phase1e
+          --guidance ${{ matrix.guidance }}
+          --cycle-length ${{ matrix.cycle_length }}
+          --beam-width 8
+          --evaluations 600
+          --seeds 907 911 919 929 937
+          --output phase1e-${{ matrix.name }}.json
+      - name: Show summary
+        run: python -c "import json; d=json.load(open('phase1e-${{ matrix.name }}.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True))"
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1e-${{ matrix.name }}-${{ github.sha }}
+          path: phase1e-${{ matrix.name }}.json
+          if-no-files-found: error
+          retention-days: 30
