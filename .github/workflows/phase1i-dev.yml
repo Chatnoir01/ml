@@ -1,0 +1,123 @@
+name: Phase 1I Fresh Plateau Transfer Development
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/phase1i-fresh-plateau-transfer
+    paths:
+      - .github/workflows/phase1i-dev.yml
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Verify frozen Phase 1I design
+        run: |
+          python - <<'PY'
+          from adversarial_sbox.experiment_seeds import (
+              PHASE1I_CONFIRM_RESERVED_SEEDS,
+              PHASE1I_DEV_SEEDS,
+              validate_seed_registry,
+          )
+          from adversarial_sbox.phase1i import (
+              ARCHIVE_WIDTH,
+              DISCOVERY_BUDGET,
+              DISCOVERY_GENERATIONS,
+              FULL_GA_GENERATIONS,
+              PANEL_MODE,
+              PROPOSAL_POOL,
+              REPAIR_BUDGET,
+              TOTAL_BUDGET,
+          )
+          validate_seed_registry()
+          assert PHASE1I_DEV_SEEDS == (1709, 1721, 1723, 1733, 1741)
+          assert PHASE1I_CONFIRM_RESERVED_SEEDS == (1801, 1811, 1823, 1831, 1847, 1861, 1871, 1873, 1877)
+          assert DISCOVERY_GENERATIONS == 16
+          assert FULL_GA_GENERATIONS == 50
+          assert DISCOVERY_BUDGET == 532
+          assert REPAIR_BUDGET == 1088
+          assert TOTAL_BUDGET == 1620
+          assert ARCHIVE_WIDTH == 8
+          assert PROPOSAL_POOL == 96
+          assert PANEL_MODE == 'ties'
+          print('Phase 1I frozen preflight OK')
+          PY
+
+  develop:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [1709, 1721, 1723, 1733, 1741]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run frozen fresh-population transfer seed
+        run: |
+          python -m adversarial_sbox.phase1i \
+            --seeds ${{ matrix.seed }} \
+            --output phase1i-seed-${{ matrix.seed }}.json
+      - name: Show seed summary
+        run: |
+          python -c "import json; d=json.load(open('phase1i-seed-${{ matrix.seed }}.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True)); print(d['verdict'])"
+      - name: Upload seed evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1i-seed-${{ matrix.seed }}-${{ github.sha }}
+          path: phase1i-seed-${{ matrix.seed }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: develop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Download all seed evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase1i-seed-*-${{ github.sha }}
+          path: cells
+          merge-multiple: true
+      - name: Aggregate exact five-seed development result
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from adversarial_sbox.phase1i import aggregate_development_files
+
+          paths = tuple(sorted(Path('cells').glob('phase1i-seed-*.json')))
+          result = aggregate_development_files(paths)
+          Path('phase1i-development.json').write_text(
+              json.dumps(result, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(result['summary'], indent=2, sort_keys=True))
+          print(json.dumps(result['development_checks'], indent=2, sort_keys=True))
+          print('VERDICT:', result['verdict'])
+          PY
+      - name: Upload aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1i-development-summary-${{ github.sha }}
+          path: phase1i-development.json
+          if-no-files-found: error
+          retention-days: 90
