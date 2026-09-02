@@ -1,7 +1,7 @@
 """Phase 1I fresh-population transfer of the Phase-1H proposal selector.
 
-Every scientific run begins from a fresh GA population.  No historical S-box is
-loaded as a parent or archive member.  After a frozen 16-generation discovery
+Every scientific run begins from a fresh GA population. No historical S-box is
+loaded as a parent or archive member. After a frozen 16-generation discovery
 prefix, the transfer arm uses the Phase-1H exact local plateau projection to
 pre-screen cycle-4 proposals while charging only full CryptoShield evaluations to
 the matched evidence budget.
@@ -124,8 +124,8 @@ def fresh_plateau_repair(
 ) -> dict[str, Any]:
     """Spend exactly ``evaluations`` new full evaluations from a fresh cache.
 
-    This helper intentionally accepts smaller widths/pools for unit tests.  The
-    scientific runner below hard-freezes the preregistered Phase-1I constants.
+    Smaller widths/pools are accepted only to keep unit tests cheap. The scientific
+    runner hard-freezes the preregistered Phase-1I constants.
     """
 
     if evaluations < 0:
@@ -183,12 +183,7 @@ def fresh_plateau_repair(
                 duplicate_proposals_skipped += 1
                 continue
             proposal_seen.add(child)
-            score = score_proposal(
-                parent,
-                child,
-                diagnostics,
-                order=len(proposals),
-            )
+            score = score_proposal(parent, child, diagnostics, order=len(proposals))
             proposals.append((child, score, fallback))
 
         if len(proposals) != proposal_pool:
@@ -203,9 +198,7 @@ def fresh_plateau_repair(
         )
         seen.add(child)
         hotspot_fallbacks += int(selected_fallback)
-        selected_reduce_lat_max += int(
-            selected_score.projected_lat_max < diagnostics.lat_max
-        )
+        selected_reduce_lat_max += int(selected_score.projected_lat_max < diagnostics.lat_max)
         selected_reduce_lat_cell += int(selected_score.lat_max_cells_reduced > 0)
         selected_reduce_ddt_cell += int(selected_score.ddt_max_cells_reduced > 0)
         selected_lat_max_deltas.append(selected_score.projected_lat_max - diagnostics.lat_max)
@@ -238,8 +231,10 @@ def fresh_plateau_repair(
 
 def _run_transfer(seed: int, *, constraints: HardConstraints) -> dict[str, Any]:
     evaluator, cache = make_classical_evaluator(constraints, ranking_mode="feasibility_first")
-    discovery_config = ga_config(seed=seed, generations=DISCOVERY_GENERATIONS)
-    discovery = evolve_permutations(evaluator, discovery_config)
+    discovery = evolve_permutations(
+        evaluator,
+        ga_config(seed=seed, generations=DISCOVERY_GENERATIONS),
+    )
     if discovery.evaluations != DISCOVERY_BUDGET or len(cache) != DISCOVERY_BUDGET:
         raise RuntimeError("Phase-1I discovery evaluation accounting mismatch")
 
@@ -267,8 +262,10 @@ def _run_transfer(seed: int, *, constraints: HardConstraints) -> dict[str, Any]:
 
 def _run_continued_ga(seed: int, *, constraints: HardConstraints) -> dict[str, Any]:
     evaluator, cache = make_classical_evaluator(constraints, ranking_mode="feasibility_first")
-    config = ga_config(seed=seed, generations=FULL_GA_GENERATIONS)
-    result = evolve_permutations(evaluator, config)
+    result = evolve_permutations(
+        evaluator,
+        ga_config(seed=seed, generations=FULL_GA_GENERATIONS),
+    )
     if result.evaluations != TOTAL_BUDGET or len(cache) != TOTAL_BUDGET:
         raise RuntimeError("Phase-1I continued-GA arm did not consume exact budget")
     return _cache_summary(cache, constraints)
@@ -292,31 +289,24 @@ def _outcome(left: dict[str, Any], right: dict[str, Any]) -> str:
     return "transfer" if left_rank > right_rank else "other" if left_rank < right_rank else "tie"
 
 
-def run_development(
-    *,
-    seeds: tuple[int, ...] = PHASE1I_DEV_SEEDS,
-) -> dict[str, Any]:
-    if not seeds:
-        raise ValueError("at least one Phase-1I development seed is required")
-    if set(seeds) & set(PHASE1I_CONFIRM_RESERVED_SEEDS):
-        raise ValueError("Phase-1I confirmation seeds cannot be used for development")
+def _run_one(seed: int, *, constraints: HardConstraints) -> dict[str, Any]:
+    transfer = _run_transfer(seed, constraints=constraints)
+    continued_ga = _run_continued_ga(seed, constraints=constraints)
+    random_control = _run_random(seed, constraints=constraints)
+    return {
+        "seed": seed,
+        "transfer_vs_ga": _outcome(transfer, continued_ga),
+        "transfer_vs_random": _outcome(transfer, random_control),
+        "transfer": transfer,
+        "continued_ga": continued_ga,
+        "random": random_control,
+    }
 
-    constraints = HardConstraints()
-    rows: list[dict[str, Any]] = []
-    for seed in seeds:
-        transfer = _run_transfer(seed, constraints=constraints)
-        continued_ga = _run_continued_ga(seed, constraints=constraints)
-        random_control = _run_random(seed, constraints=constraints)
-        rows.append(
-            {
-                "seed": seed,
-                "transfer_vs_ga": _outcome(transfer, continued_ga),
-                "transfer_vs_random": _outcome(transfer, random_control),
-                "transfer": transfer,
-                "continued_ga": continued_ga,
-                "random": random_control,
-            }
-        )
+
+def _build_development_payload(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    if not rows:
+        raise ValueError("Phase-1I development rows cannot be empty")
+    rows = sorted(rows, key=lambda row: int(row["seed"]))
 
     def median(side: str, metric: str) -> float:
         return float(statistics.median(row[side]["best_metrics"][metric] for row in rows))
@@ -367,7 +357,7 @@ def run_development(
         "experiment": "phase1i_fresh_population_plateau_transfer_development",
         "scientific_status": "fresh_population_development_not_gate1",
         "configuration": {
-            "seeds": list(seeds),
+            "seeds": [int(row["seed"]) for row in rows],
             "reserved_confirmation_seeds": list(PHASE1I_CONFIRM_RESERVED_SEEDS),
             "discovery_generations": DISCOVERY_GENERATIONS,
             "discovery_evaluations": DISCOVERY_BUDGET,
@@ -390,12 +380,45 @@ def run_development(
     }
 
 
+def run_development(*, seeds: tuple[int, ...] = PHASE1I_DEV_SEEDS) -> dict[str, Any]:
+    if not seeds:
+        raise ValueError("at least one Phase-1I development seed is required")
+    if set(seeds) & set(PHASE1I_CONFIRM_RESERVED_SEEDS):
+        raise ValueError("Phase-1I confirmation seeds cannot be used for development")
+    constraints = HardConstraints()
+    return _build_development_payload([_run_one(seed, constraints=constraints) for seed in seeds])
+
+
+def aggregate_development_files(paths: tuple[Path, ...]) -> dict[str, Any]:
+    """Combine the five independently executed development seed artifacts."""
+
+    rows: list[dict[str, Any]] = []
+    for path in paths:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        rows.extend(payload.get("runs", []))
+
+    seeds = [int(row["seed"]) for row in rows]
+    if len(seeds) != len(set(seeds)):
+        raise ValueError("duplicate Phase-1I seed in aggregate inputs")
+    if set(seeds) != set(PHASE1I_DEV_SEEDS):
+        raise ValueError(
+            f"aggregate must contain exact Phase-1I development seeds: {sorted(seeds)}"
+        )
+    return _build_development_payload(rows)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seeds", type=int, nargs="+", default=list(PHASE1I_DEV_SEEDS))
+    parser.add_argument("--aggregate", type=Path, nargs="+")
     parser.add_argument("--output", type=Path, default=Path("phase1i-dev.json"))
     args = parser.parse_args()
-    result = run_development(seeds=tuple(args.seeds))
+
+    if args.aggregate:
+        result = aggregate_development_files(tuple(args.aggregate))
+    else:
+        result = run_development(seeds=tuple(args.seeds))
+
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps({"summary": result["summary"], "verdict": result["verdict"]}, sort_keys=True))
 
