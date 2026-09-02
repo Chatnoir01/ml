@@ -14,6 +14,8 @@ from adversarial_sbox.experiment_seeds import (
     PHASE1G_DEV_SEEDS,
     PHASE1H_CONFIRM_RESERVED_SEEDS,
     PHASE1H_DEV_SEEDS,
+    PHASE1I_CONFIRM_RESERVED_SEEDS,
+    PHASE1I_DEV_SEEDS,
     STRICT_HISTORICAL_SEEDS,
     USED_BEFORE_V2,
     validate_seed_registry,
@@ -37,6 +39,8 @@ def test_seed_registry_is_disjoint_after_historical_overlap():
         set(PHASE1G_CONFIRM_RESERVED_SEEDS),
         set(PHASE1H_DEV_SEEDS),
         set(PHASE1H_CONFIRM_RESERVED_SEEDS),
+        set(PHASE1I_DEV_SEEDS),
+        set(PHASE1I_CONFIRM_RESERVED_SEEDS),
     ]
     for block in blocks:
         assert block.isdisjoint(USED_BEFORE_V2)
