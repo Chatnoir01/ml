@@ -1,0 +1,52 @@
+name: Phase 1I Fresh VNS Batch Development
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/phase1i-fresh-vns-batch
+    paths:
+      - .github/workflows/phase1i-dev.yml
+
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        configuration:
+          - c2_p96
+          - c3_p96
+          - c4_p32
+          - c4_p96
+          - c5_p96
+          - c6_p96
+          - c8_p96
+          - mix234_p96
+          - mix456_p96
+          - mix2468_p96
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run preregistered Phase 1I development
+        run: |
+          python -m adversarial_sbox.phase1i \
+            --configuration ${{ matrix.configuration }} \
+            --seeds 1709 1721 1723 1733 1741 \
+            --output phase1i-${{ matrix.configuration }}.json
+      - name: Show summary
+        run: |
+          python -c "import json; d=json.load(open('phase1i-${{ matrix.configuration }}.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True))"
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1i-${{ matrix.configuration }}-${{ github.sha }}
+          path: phase1i-${{ matrix.configuration }}.json
+          if-no-files-found: error
+          retention-days: 90
