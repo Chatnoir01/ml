@@ -1,0 +1,112 @@
+name: Neural S-box Heterogeneity Challenge
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/neural-heterogeneity-challenge
+    paths:
+      - .github/workflows/neural-heterogeneity.yml
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install neural extra
+        run: python -m pip install -e '.[neural]'
+      - name: Verify frozen design and all matched S-boxes
+        run: |
+          python - <<'PY'
+          from adversarial_sbox.neural100 import _verify_candidate
+          from adversarial_sbox.neural_heterogeneity import (
+              ARCHITECTURES, INPUT_DIFFERENCES, REGIMES, REPLICATES, ROUND_COUNTS
+          )
+          assert ROUND_COUNTS == (3, 4, 5)
+          assert INPUT_DIFFERENCES == (0x00000001, 0x00000100, 0x00010001, 0x01010101)
+          assert ARCHITECTURES == ('bit_relu_mlp', 'byte_tanh_mlp')
+          assert REPLICATES == 5
+          assert len(REGIMES) == 12
+          for candidate_index in range(10):
+              _, metrics = _verify_candidate(candidate_index)
+              assert metrics['nonlinearity'] == 100
+              assert metrics['differential_uniformity'] == 8
+              assert metrics['max_linear_correlation'] == 56
+              assert metrics['algebraic_degree'] == 7
+              assert metrics['sac_score'] == 0.5
+          assert 10 * len(REGIMES) * len(ARCHITECTURES) * REPLICATES == 1200
+          print('frozen 1200-training design verified')
+          PY
+
+  train:
+    needs: preflight
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 24
+      matrix:
+        rounds: [3, 4, 5]
+        input_difference: ['0x00000001', '0x00000100', '0x00010001', '0x01010101']
+        architecture: ['bit_relu_mlp', 'byte_tanh_mlp']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install neural extra
+        run: python -m pip install -e '.[neural]'
+      - name: Run fifty frozen trainings for cell
+        env:
+          ROUNDS: ${{ matrix.rounds }}
+          INPUT_DIFFERENCE: ${{ matrix.input_difference }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          mkdir -p out
+          python -m adversarial_sbox.neural_heterogeneity train-cell \
+            --rounds "$ROUNDS" \
+            --input-difference "$INPUT_DIFFERENCE" \
+            --architecture "$ARCHITECTURE" \
+            --output "out/neural-heterogeneity-cell-r${ROUNDS}-d${INPUT_DIFFERENCE}-${ARCHITECTURE}.json"
+      - name: Upload cell evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: neural-heterogeneity-cell-r${{ matrix.rounds }}-d${{ matrix.input_difference }}-${{ matrix.architecture }}-${{ github.sha }}
+          path: out/neural-heterogeneity-cell-*.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: train
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install neural extra
+        run: python -m pip install -e '.[neural]'
+      - name: Download all 24 cell artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: neural-heterogeneity-cell-*-${{ github.sha }}
+          path: evidence
+          merge-multiple: true
+      - name: Aggregate frozen challenge
+        run: |
+          mkdir -p out
+          python -m adversarial_sbox.neural_heterogeneity aggregate \
+            --input-dir evidence \
+            --output out/neural-heterogeneity-summary.json
+      - name: Upload aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: neural-heterogeneity-summary-${{ github.sha }}
+          path: out/neural-heterogeneity-summary.json
+          if-no-files-found: error
+          retention-days: 90
