@@ -54,6 +54,12 @@ PHASE1G_CONFIRM_RESERVED_SEEDS = (1409, 1423, 1427, 1429, 1433, 1439, 1447, 1451
 PHASE1H_DEV_SEEDS = (1501, 1511, 1523, 1531, 1543)
 PHASE1H_CONFIRM_RESERVED_SEEDS = (1601, 1607, 1609, 1613, 1619, 1621, 1627, 1637, 1657)
 
+# Phase 1I accelerated fresh-population variable-neighborhood batch. All ten
+# development configurations share these exact fresh seeds. Confirmation seeds are
+# quarantined until one configuration meets the preregistered development gate.
+PHASE1I_DEV_SEEDS = (1709, 1721, 1723, 1733, 1741)
+PHASE1I_CONFIRM_RESERVED_SEEDS = (1801, 1811, 1823, 1831, 1847, 1861, 1871, 1873, 1877)
+
 USED_BEFORE_V2 = (
     BASELINE_SEEDS
     | DEV_V1_SEEDS
@@ -84,6 +90,8 @@ def validate_seed_registry() -> None:
         ("PHASE1G_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1G_CONFIRM_RESERVED_SEEDS)),
         ("PHASE1H_DEV_SEEDS", _as_set(PHASE1H_DEV_SEEDS)),
         ("PHASE1H_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1H_CONFIRM_RESERVED_SEEDS)),
+        ("PHASE1I_DEV_SEEDS", _as_set(PHASE1I_DEV_SEEDS)),
+        ("PHASE1I_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1I_CONFIRM_RESERVED_SEEDS)),
     ]
 
     for name, values in blocks:
