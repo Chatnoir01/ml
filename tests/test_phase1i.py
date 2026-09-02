@@ -1,3 +1,4 @@
+import json
 import random
 
 import pytest
@@ -21,6 +22,7 @@ from adversarial_sbox.phase1i import (
     PROPOSAL_POOL,
     REPAIR_BUDGET,
     TOTAL_BUDGET,
+    aggregate_development_files,
     fresh_plateau_repair,
     ga_config,
     run_development,
@@ -50,6 +52,13 @@ def test_phase1i_frozen_transfer_shape():
 def test_phase1i_development_rejects_confirmation_seed_before_execution():
     with pytest.raises(ValueError, match="confirmation seeds"):
         run_development(seeds=(PHASE1I_CONFIRM_RESERVED_SEEDS[0],))
+
+
+def test_phase1i_aggregate_requires_exact_five_development_seeds(tmp_path):
+    partial = tmp_path / "partial.json"
+    partial.write_text(json.dumps({"runs": [{"seed": 1709}]}), encoding="utf-8")
+    with pytest.raises(ValueError, match="exact Phase-1I development seeds"):
+        aggregate_development_files((partial,))
 
 
 def test_fresh_plateau_repair_charges_exact_new_full_evaluations():
