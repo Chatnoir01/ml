@@ -44,7 +44,7 @@ BEAM_WIDTH = 8
 BRIDGE_DU_CAP = 12
 BRIDGE_CORR_CAP = 72
 PANEL_MODE = "ties"
-REPAIR_SEED_XOR = 0x1I1 if False else 0x1A1B1C1D  # stable integer salt
+REPAIR_SEED_XOR = 0x1A1B1C1D
 
 CONFIGURATIONS: dict[str, tuple[tuple[int, ...], int]] = {
     "c2_p96": ((2,), 96),
@@ -206,7 +206,8 @@ def _initial_archive(
     eligible.sort(key=lambda candidate: repair_rank(cache[candidate], constraints), reverse=True)
     archive = eligible[:beam_width]
     if len(archive) < beam_width:
-        remaining = [candidate for candidate in cache if candidate not in set(archive)]
+        archive_set = set(archive)
+        remaining = [candidate for candidate in cache if candidate not in archive_set]
         remaining.sort(
             key=lambda candidate: repair_rank(cache[candidate], constraints),
             reverse=True,
