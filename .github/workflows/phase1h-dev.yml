@@ -1,0 +1,56 @@
+name: Phase 1H Plateau-Directed Development
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/phase1h-plateau-directed
+    paths:
+      - .github/workflows/phase1h-dev.yml
+
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ties_p32
+            panel_mode: ties
+            proposal_pool: 32
+          - label: ties_p96
+            panel_mode: ties
+            proposal_pool: 96
+          - label: band_p32
+            panel_mode: band
+            proposal_pool: 32
+          - label: band_p96
+            panel_mode: band
+            proposal_pool: 96
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run preregistered Phase 1H development
+        run: |
+          python -m adversarial_sbox.phase1h \
+            --panel-mode ${{ matrix.panel_mode }} \
+            --proposal-pool ${{ matrix.proposal_pool }} \
+            --beam-width 8 \
+            --evaluations 600 \
+            --seeds 1501 1511 1523 1531 1543 \
+            --output phase1h-${{ matrix.label }}.json
+      - name: Show summary
+        run: |
+          python -c "import json; d=json.load(open('phase1h-${{ matrix.label }}.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True))"
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1h-${{ matrix.label }}-${{ github.sha }}
+          path: phase1h-${{ matrix.label }}.json
+          if-no-files-found: error
+          retention-days: 90
