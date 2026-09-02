@@ -1,0 +1,99 @@
+name: Neural Residual 100 Training Screen
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/neural-residual-100
+    paths:
+      - .github/workflows/neural100.yml
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural extra
+        run: python -m pip install -e '.[neural]'
+      - name: Verify frozen panel and numerical stack
+        run: |
+          python - <<'PY'
+          import numpy as np
+          from adversarial_sbox.neural100 import _auc_from_scores, _verify_candidate
+          from adversarial_sbox.neural100_candidates import CANDIDATES
+          assert len(CANDIDATES) == 10
+          for index in range(10):
+              _sbox, metrics = _verify_candidate(index)
+              assert metrics['nonlinearity'] == 100
+              assert metrics['differential_uniformity'] == 8
+              assert metrics['max_linear_correlation'] == 56
+              assert metrics['algebraic_degree'] == 7
+              assert metrics['sac_score'] == 0.5
+          assert _auc_from_scores([0, 0, 1, 1], [0.1, 0.2, 0.8, 0.9]) == 1.0
+          print({'numpy': np.__version__, 'matched_candidates': len(CANDIDATES)})
+          PY
+
+  train:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        candidate_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural extra
+        run: python -m pip install -e '.[neural]'
+      - name: Run ten frozen trainings for candidate
+        run: |
+          python -m adversarial_sbox.neural100 train \
+            --candidate-index ${{ matrix.candidate_index }} \
+            --output neural100-candidate-${{ matrix.candidate_index }}.json
+      - name: Upload candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: neural100-candidate-${{ matrix.candidate_index }}-${{ github.sha }}
+          path: neural100-candidate-${{ matrix.candidate_index }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: train
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Download all ten candidate artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: neural100-candidate-*-${{ github.sha }}
+          path: neural100-parts
+          merge-multiple: true
+      - name: Aggregate exactly 100 trainings
+        run: |
+          python -m adversarial_sbox.neural100 aggregate \
+            --input-dir neural100-parts \
+            --output neural100-summary.json
+      - name: Show frozen diagnostic
+        run: |
+          python -c "import json; d=json.load(open('neural100-summary.json')); print(json.dumps(d['summary'], indent=2, sort_keys=True))"
+      - name: Upload aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: neural100-summary-${{ github.sha }}
+          path: neural100-summary.json
+          if-no-files-found: error
+          retention-days: 90
