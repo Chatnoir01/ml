@@ -6,6 +6,7 @@ from adversarial_sbox.cryptoshield import (
     algebraic_degree,
     differential_distribution_table,
     differential_uniformity,
+    improved_transparency_order,
     is_bijective,
     linear_approximation_table,
     max_linear_correlation,
@@ -34,6 +35,16 @@ def test_aes_reference_max_linear_correlation_is_32():
 
 def test_aes_reference_algebraic_degree_is_7():
     assert algebraic_degree(AES_SBOX) == 7
+
+
+def test_aes_improved_transparency_order_matches_reference():
+    assert improved_transparency_order(AES_SBOX) == pytest.approx(6.916054, abs=1e-6)
+
+
+def test_improved_transparency_order_rejects_non_balanced_8x8_mapping():
+    non_balanced = tuple(0 for _ in range(256))
+    with pytest.raises(ValueError, match="balanced"):
+        improved_transparency_order(non_balanced)
 
 
 def test_aes_sac_scalar_is_close_to_half():
