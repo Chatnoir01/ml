@@ -165,3 +165,67 @@ def algebraic_degree(sbox: Sequence[int]) -> int:
             if coefficient:
                 best = max(best, monomial.bit_count())
     return best
+
+
+def improved_transparency_order(sbox: Sequence[int]) -> float:
+    """Return the Improved Transparency Order (ITO) of a balanced 8x8 S-Box.
+
+    This is the corrected transparency-order criterion of Chakraborty et al.
+    based on cross-correlations between coordinate functions.  For a balanced
+    8x8 mapping, lower values indicate lower modeled leakage under the metric;
+    ITO is not a standalone proof of physical side-channel resistance.
+
+    The core implementation is intentionally dependency-free so Phase 0 remains
+    reproducible without NumPy or any ML stack.
+    """
+
+    values = validate_sbox(sbox)
+    if not is_bijective(values):
+        raise ValueError(
+            "improved transparency order requires a balanced 8x8 S-Box"
+        )
+
+    output_bits = 8
+    component_signs = tuple(
+        tuple(1 if ((value >> bit) & 1) == 0 else -1 for value in values)
+        for bit in range(output_bits)
+    )
+
+    # C_Fi,Fj(a) = sum_x (-1)^(Fi(x) xor Fj(x xor a)), for a != 0.
+    cross_correlations: list[list[list[int]]] = []
+    for input_difference in range(1, SBOX_SIZE):
+        matrix = [[0] * output_bits for _ in range(output_bits)]
+        for left_bit in range(output_bits):
+            left_signs = component_signs[left_bit]
+            for right_bit in range(output_bits):
+                right_signs = component_signs[right_bit]
+                matrix[left_bit][right_bit] = sum(
+                    left_signs[x] * right_signs[x ^ input_difference]
+                    for x in range(SBOX_SIZE)
+                )
+        cross_correlations.append(matrix)
+
+    denominator = SBOX_SIZE * (SBOX_SIZE - 1)  # 2^(2n) - 2^n for n=8.
+    best = float("-inf")
+
+    for beta in range(SBOX_SIZE):
+        beta_signs = tuple(
+            -1 if beta & (1 << bit) else 1 for bit in range(output_bits)
+        )
+        absolute_sum = 0
+
+        for matrix in cross_correlations:
+            for right_bit in range(output_bits):
+                right_beta_sign = beta_signs[right_bit]
+                weighted_correlation = sum(
+                    beta_signs[left_bit]
+                    * right_beta_sign
+                    * matrix[left_bit][right_bit]
+                    for left_bit in range(output_bits)
+                )
+                absolute_sum += abs(weighted_correlation)
+
+        score = output_bits - (absolute_sum / denominator)
+        best = max(best, score)
+
+    return best
