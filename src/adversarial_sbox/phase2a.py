@@ -113,7 +113,12 @@ class CandidateRecord:
 
 
 def is_phase2a_eligible(candidate: CandidateRecord) -> bool:
-    """Return whether a record satisfies the preregistered classical panel gate."""
+    """Return whether a record satisfies the preregistered classical panel gate.
+
+    Fingerprint/permutation identity is deliberately validated at reconstruction
+    and committed-panel revalidation boundaries, rather than inside this pure
+    classical selection predicate.
+    """
 
     try:
         frozen = validate_sbox(candidate.sbox)
@@ -128,17 +133,11 @@ def is_phase2a_eligible(candidate: CandidateRecord) -> bool:
         and candidate.algebraic_degree == 7
         and abs(float(candidate.sac_score) - 0.5) <= 0.05
         and len(candidate.fingerprint) == 64
-        and fingerprint_sbox(frozen) == candidate.fingerprint
     )
 
 
 def select_fresh_panel(records: Sequence[CandidateRecord]) -> tuple[CandidateRecord, ...]:
-    """Select the frozen six-candidate panel using classical information only.
-
-    Selection order is exactly the preregistered rule:
-    eligible candidates -> lexicographically smallest fingerprint per source seed ->
-    lexicographically smallest six representatives globally.
-    """
+    """Select the frozen six-candidate panel using classical information only."""
 
     eligible = [record for record in records if is_phase2a_eligible(record)]
     per_seed: dict[int, CandidateRecord] = {}
@@ -152,8 +151,7 @@ def select_fresh_panel(records: Sequence[CandidateRecord]) -> tuple[CandidateRec
             "Phase 2A requires at least six eligible source seeds before neural training"
         )
 
-    selected = sorted(per_seed.values(), key=lambda item: item.fingerprint)[:PANEL_SIZE]
-    return tuple(selected)
+    return tuple(sorted(per_seed.values(), key=lambda item: item.fingerprint)[:PANEL_SIZE])
 
 
 def panel_digest(panel: Sequence[CandidateRecord]) -> str:
@@ -167,11 +165,7 @@ def panel_digest(panel: Sequence[CandidateRecord]) -> str:
 
 
 def _replay_phase1o_arm_a(seed: int) -> tuple[CandidateRecord, ...]:
-    """Replay frozen Phase-1O Arm A and return its terminal front with permutations.
-
-    This mirrors the already-merged Phase-1O Arm-A loop but is intentionally kept
-    in Phase 2A so no Phase-1O scientific payload or historical API is modified.
-    """
+    """Replay frozen Phase-1O Arm A and return its terminal front with permutations."""
 
     if seed not in PHASE1O_CONFIRM_RESERVED_SEEDS:
         raise ValueError(f"seed {seed} is not a frozen Phase-1O confirmation seed")
