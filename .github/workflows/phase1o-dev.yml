@@ -1,0 +1,165 @@
+name: Phase 1O Multi-Hotspot NL Repair Development
+
+on:
+  push:
+    branches:
+      - research/phase1o-multihotspot-nl-repair
+    paths:
+      - research/PHASE1O_EXECUTE.md
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Verify frozen Phase 1O design and execution lock
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from adversarial_sbox.experiment_seeds import (
+              PHASE1O_CONFIRM_RESERVED_SEEDS,
+              PHASE1O_DEV_SEEDS,
+              validate_seed_registry,
+          )
+          from adversarial_sbox.phase1o import (
+              CLASSICAL_BUDGET,
+              GENERATIONS,
+              ITO_NONINFERIORITY_TOLERANCE,
+              PARENT_COUNT,
+              POPULATION_SIZE,
+              PROPOSALS_PER_GENERATION,
+              PROPOSALS_PER_PARENT,
+              SHORTLIST_SIZE,
+          )
+
+          validate_seed_registry()
+          assert PHASE1O_DEV_SEEDS == (2503, 2521, 2531, 2539, 2543)
+          assert PHASE1O_CONFIRM_RESERVED_SEEDS == (
+              2609, 2617, 2621, 2633, 2647, 2657, 2663, 2671, 2683
+          )
+          assert CLASSICAL_BUDGET == 340
+          assert POPULATION_SIZE == 20
+          assert SHORTLIST_SIZE == 8
+          assert PARENT_COUNT == 4
+          assert PROPOSALS_PER_PARENT == 4
+          assert PROPOSALS_PER_GENERATION == 16
+          assert GENERATIONS == 20
+          assert ITO_NONINFERIORITY_TOLERANCE == 0.02
+          assert Path('research/PHASE1O_PROTOCOL.md').is_file()
+          marker = Path('research/PHASE1O_EXECUTE.md')
+          assert marker.is_file()
+          assert 'AUTHORIZED_PHASE1O_SCIENTIFIC_RUN' in marker.read_text()
+          print('Phase 1O frozen preflight OK')
+          PY
+      - name: Record scientific SHA
+        run: git rev-parse HEAD
+
+  develop:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [2503, 2521, 2531, 2539, 2543]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run frozen Phase 1O seed with deterministic rerun
+        run: |
+          python -m adversarial_sbox.phase1o \
+            --seeds ${{ matrix.seed }} \
+            --output phase1o-seed-${{ matrix.seed }}.json
+      - name: Show compact seed summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          seed = os.environ['SEED']
+          data = json.loads(Path(f'phase1o-seed-{seed}.json').read_text())
+          compact = {
+              'seed': data['seed'],
+              'best_du_a': data['arm_a']['best_du'],
+              'best_du_b': data['arm_b']['best_du'],
+              'du8_a': data['arm_a']['du8_count'],
+              'du8_b': data['arm_b']['du8_count'],
+              'joint_a': data['arm_a']['joint_target_count'],
+              'joint_b': data['arm_b']['joint_target_count'],
+              'protected_a': data['arm_a']['protected_classical_count'],
+              'protected_b': data['arm_b']['protected_classical_count'],
+              'min_ito_a': data['arm_a']['min_ito'],
+              'min_ito_b': data['arm_b']['min_ito'],
+              'multihotspot_guided_proposals': data['arm_a']['multihotspot_guided_proposals'],
+              'fallback_proposals': data['arm_a']['fallback_proposals'],
+              'budgets': [
+                  data['arm_a']['classical_evaluations'],
+                  data['arm_b']['classical_evaluations'],
+                  data['arm_c']['classical_evaluations'],
+              ],
+              'deterministic': data['deterministic_payload_match'],
+              'payload_sha256': data['scientific_payload_sha256'],
+              'neural_oracle_executed': data['neural_oracle_executed'],
+          }
+          print(json.dumps(compact, indent=2, sort_keys=True))
+          PY
+        env:
+          SEED: ${{ matrix.seed }}
+      - name: Upload seed evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1o-seed-${{ matrix.seed }}-${{ github.sha }}
+          path: phase1o-seed-${{ matrix.seed }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: develop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Download seed evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase1o-seed-*-${{ github.sha }}
+          path: cells
+          merge-multiple: true
+      - name: Aggregate frozen development result
+        run: |
+          python -m adversarial_sbox.phase1o \
+            --aggregate-files cells/phase1o-seed-*.json \
+            --output phase1o-development.json
+      - name: Show aggregate verdict
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase1o-development.json'))
+          print(json.dumps(data['summary'], indent=2, sort_keys=True))
+          print(json.dumps(data['development_checks'], indent=2, sort_keys=True))
+          print('VERDICT:', data['verdict'])
+          PY
+      - name: Upload aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1o-development-summary-${{ github.sha }}
+          path: phase1o-development.json
+          if-no-files-found: error
+          retention-days: 90
