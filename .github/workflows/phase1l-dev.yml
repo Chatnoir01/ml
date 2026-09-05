@@ -1,0 +1,164 @@
+name: Phase 1L Fresh ITO Pareto Development
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/phase1l-ito-pareto-development
+    paths:
+      - .github/workflows/phase1l-dev.yml
+      - research/PHASE1L_PROTOCOL.md
+      - src/adversarial_sbox/phase1l.py
+      - src/adversarial_sbox/experiment_seeds.py
+      - src/adversarial_sbox/pareto.py
+      - src/adversarial_sbox/evolution.py
+      - src/adversarial_sbox/cryptoshield.py
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Verify frozen Phase 1L design
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from adversarial_sbox.experiment_seeds import (
+              PHASE1L_CONFIRM_RESERVED_SEEDS,
+              PHASE1L_DEV_SEEDS,
+              validate_seed_registry,
+          )
+          from adversarial_sbox.phase1l import (
+              CLASSICAL_BUDGET,
+              CROSSOVER_RATE,
+              GA_GENERATIONS,
+              MUTATION_SWAPS,
+              PARENT_COUNT,
+              PARETO_GENERATIONS,
+              POPULATION_SIZE,
+              SHORTLIST_SIZE,
+          )
+
+          validate_seed_registry()
+          assert PHASE1L_DEV_SEEDS == (1901, 1907, 1913, 1931, 1933)
+          assert PHASE1L_CONFIRM_RESERVED_SEEDS == (
+              2003, 2011, 2017, 2027, 2029, 2039, 2053, 2063, 2069
+          )
+          assert POPULATION_SIZE == 20
+          assert PARETO_GENERATIONS == 20
+          assert GA_GENERATIONS == 10
+          assert SHORTLIST_SIZE == 8
+          assert PARENT_COUNT == 4
+          assert MUTATION_SWAPS == 3
+          assert CROSSOVER_RATE == 0.0
+          assert CLASSICAL_BUDGET == 340
+          assert Path('research/PHASE1L_PROTOCOL.md').is_file()
+          print('Phase 1L frozen preflight OK')
+          PY
+      - name: Record experimental SHA
+        run: git rev-parse HEAD
+
+  develop:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [1901, 1907, 1913, 1931, 1933]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run frozen Phase 1L seed
+        run: |
+          python -m adversarial_sbox.phase1l \
+            --seeds ${{ matrix.seed }} \
+            --output phase1l-seed-${{ matrix.seed }}.json
+      - name: Show compact seed summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          seed = os.environ['SEED']
+          data = json.loads(Path(f'phase1l-seed-{seed}.json').read_text())
+          compact = {
+              'seed': data['seed'],
+              'coverage_a_b': data['coverage_a_b'],
+              'coverage_b_a': data['coverage_b_a'],
+              'coverage_outcome': data['coverage_outcome'],
+              'arm_a_min_ito': data['arm_a']['min_ito'],
+              'arm_b_min_ito': data['arm_b']['min_ito'],
+              'arm_a_hard': data['arm_a']['hard_admissible_count'],
+              'arm_b_hard': data['arm_b']['hard_admissible_count'],
+              'arm_a_structural': data['arm_a']['structural_target_count'],
+              'arm_b_structural': data['arm_b']['structural_target_count'],
+              'budgets': [
+                  data['arm_a']['classical_evaluations'],
+                  data['arm_b']['classical_evaluations'],
+                  data['arm_c']['classical_evaluations'],
+              ],
+              'arm_a_actual_ito_evaluations': data['arm_a']['actual_ito_evaluations'],
+          }
+          print(json.dumps(compact, indent=2, sort_keys=True))
+          PY
+        env:
+          SEED: ${{ matrix.seed }}
+      - name: Upload seed evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1l-seed-${{ matrix.seed }}-${{ github.sha }}
+          path: phase1l-seed-${{ matrix.seed }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: develop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Download seed evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase1l-seed-*-${{ github.sha }}
+          path: cells
+          merge-multiple: true
+      - name: Aggregate frozen development result
+        run: |
+          python -m adversarial_sbox.phase1l \
+            --aggregate-files cells/phase1l-seed-*.json \
+            --output phase1l-development.json
+      - name: Show aggregate verdict
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase1l-development.json'))
+          print(json.dumps(data['summary'], indent=2, sort_keys=True))
+          print(json.dumps(data['development_checks'], indent=2, sort_keys=True))
+          print('VERDICT:', data['verdict'])
+          PY
+      - name: Upload aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1l-development-summary-${{ github.sha }}
+          path: phase1l-development.json
+          if-no-files-found: error
+          retention-days: 90

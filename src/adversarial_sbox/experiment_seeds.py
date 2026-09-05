@@ -58,6 +58,12 @@ PHASE1H_CONFIRM_RESERVED_SEEDS = (1601, 1607, 1609, 1613, 1619, 1621, 1627, 1637
 PHASE1I_DEV_SEEDS = (1709, 1721, 1723, 1733, 1741)
 PHASE1I_CONFIRM_RESERVED_SEEDS = (1801, 1811, 1823, 1831, 1847, 1861, 1871, 1873, 1877)
 
+# Phase 1L fresh-population ITO-aware Pareto development. Declared before any
+# Phase-1L scientific execution. Reserved confirmation seeds remain quarantined
+# unless the preregistered five-seed development gate passes.
+PHASE1L_DEV_SEEDS = (1901, 1907, 1913, 1931, 1933)
+PHASE1L_CONFIRM_RESERVED_SEEDS = (2003, 2011, 2017, 2027, 2029, 2039, 2053, 2063, 2069)
+
 USED_BEFORE_V2 = (
     BASELINE_SEEDS
     | DEV_V1_SEEDS
@@ -90,6 +96,8 @@ def validate_seed_registry() -> None:
         ("PHASE1H_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1H_CONFIRM_RESERVED_SEEDS)),
         ("PHASE1I_DEV_SEEDS", _as_set(PHASE1I_DEV_SEEDS)),
         ("PHASE1I_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1I_CONFIRM_RESERVED_SEEDS)),
+        ("PHASE1L_DEV_SEEDS", _as_set(PHASE1L_DEV_SEEDS)),
+        ("PHASE1L_CONFIRM_RESERVED_SEEDS", _as_set(PHASE1L_CONFIRM_RESERVED_SEEDS)),
     ]
 
     for name, values in blocks:
