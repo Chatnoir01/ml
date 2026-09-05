@@ -1,0 +1,85 @@
+name: Phase 2A Frozen Panel Reconstruction
+
+on:
+  push:
+    branches:
+      - research/phase2a-oracle-qualification
+    paths:
+      - research/PHASE2A_PANEL_EXECUTE.md
+
+permissions:
+  contents: read
+
+jobs:
+  reconstruct-panel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Verify Phase 2A panel lock
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from adversarial_sbox.experiment_seeds import PHASE1O_CONFIRM_RESERVED_SEEDS
+          from adversarial_sbox.phase2a import (
+              CHALLENGER_ARCHITECTURE,
+              CHALLENGER_DIFFERENCES,
+              CHALLENGER_ROUNDS,
+              DATASET_SEEDS,
+              MODEL_SEEDS,
+              ORACLE_ARCHITECTURE,
+              ORACLE_DIFFERENCES,
+              ORACLE_ROUNDS,
+              PANEL_SIZE,
+              PHASE1O_CONFIRM_ARTIFACT_SHA256,
+              TOTAL_TRAININGS,
+          )
+
+          assert PHASE1O_CONFIRM_RESERVED_SEEDS == (
+              2609, 2617, 2621, 2633, 2647, 2657, 2663, 2671, 2683
+          )
+          assert PANEL_SIZE == 6
+          assert ORACLE_ARCHITECTURE == 'bit_relu_mlp'
+          assert ORACLE_ROUNDS == 4
+          assert ORACLE_DIFFERENCES == (0x00000001, 0x00000100)
+          assert CHALLENGER_ARCHITECTURE == 'byte_tanh_mlp'
+          assert CHALLENGER_ROUNDS == 5
+          assert CHALLENGER_DIFFERENCES == (0x00010000, 0x01000000)
+          assert DATASET_SEEDS == (51001, 51007, 51011, 51031, 51047)
+          assert MODEL_SEEDS == (61001, 61007, 61027, 61031, 61043)
+          assert TOTAL_TRAININGS == 120
+          assert PHASE1O_CONFIRM_ARTIFACT_SHA256 == '8ea2b8f01a19095882aa56e9c335e6abefc0f2100225b6779d40e19381a2cf99'
+          gate = Path('research/GATE1_STATUS.md').read_text(encoding='utf-8')
+          assert 'Status: **GREEN**' in gate
+          assert Path('research/PHASE2A_PROTOCOL.md').is_file()
+          marker = Path('research/PHASE2A_PANEL_EXECUTE.md')
+          assert marker.is_file()
+          assert 'AUTHORIZED_PHASE2A_PANEL_RECONSTRUCTION' in marker.read_text(encoding='utf-8')
+          print('Phase 2A panel preflight OK')
+          PY
+      - name: Record panel reconstruction SHA
+        run: git rev-parse HEAD
+      - name: Reconstruct frozen classical panel twice and revalidate
+        run: python scripts/build_phase2a_panel.py --output phase2a-panel.json
+      - name: Show compact panel receipt
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2a-panel.json'))
+          print('PANEL_DIGEST:', data['panel_digest_sha256'])
+          for candidate in data['candidates']:
+              print(candidate['source_seed'], candidate['fingerprint'], candidate['sac_score'])
+          print('NEURAL_TRAINING_EXECUTED:', data['neural_training_executed'])
+          PY
+      - name: Upload frozen panel evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2a-panel-${{ github.sha }}
+          path: phase2a-panel.json
+          if-no-files-found: error
+          retention-days: 90
