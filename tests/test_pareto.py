@@ -1,9 +1,12 @@
+import math
+
 import pytest
 
 from adversarial_sbox.evolution import ClassicalMetrics
 from adversarial_sbox.pareto import (
     ITOAwareMetrics,
     StagedParetoConfig,
+    crowding_distance,
     dominates,
     evolve_staged_pareto,
     non_dominated_sort,
@@ -52,6 +55,14 @@ def test_non_dominated_sort_keeps_tradeoffs_on_first_front():
 
     assert set(fronts[0]) == {1, 2, 3}
     assert fronts[1] == (0,)
+
+
+def test_constant_objective_front_does_not_create_fake_infinite_crowding():
+    metrics = tuple(_m(100, 8, 56, 6.5, fingerprint=str(i)) for i in range(3))
+    distances = crowding_distance(metrics, (0, 1, 2))
+
+    assert distances == {0: 0.0, 1: 0.0, 2: 0.0}
+    assert not any(math.isinf(value) for value in distances.values())
 
 
 def test_nsga2_selection_is_deterministic_and_preserves_first_front_before_dominated():
@@ -110,6 +121,7 @@ def test_staged_pareto_search_is_deterministic_and_caps_expensive_ito_work():
     assert first == second
     assert first.pareto_sboxes
     assert len(first.pareto_sboxes) == len(first.pareto_metrics)
+    assert first.classical_evaluations == 20
     assert first.classical_evaluations > first.ito_evaluations
     assert first.ito_evaluations <= config.shortlist_size * (config.generations + 1)
     assert len(first.front_size_history) == config.generations
