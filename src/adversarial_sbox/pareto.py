@@ -193,13 +193,12 @@ def crowding_distance(
         )
         minimum = vectors[ordered[0]][objective_index]
         maximum = vectors[ordered[-1]][objective_index]
-        distances[ordered[0]] = math.inf
-        distances[ordered[-1]] = math.inf
-
         span = maximum - minimum
         if span == 0:
             continue
 
+        distances[ordered[0]] = math.inf
+        distances[ordered[-1]] = math.inf
         for position in range(1, len(ordered) - 1):
             index = ordered[position]
             if math.isinf(distances[index]):
@@ -261,7 +260,8 @@ def evolve_staged_pareto(
     ``shortlist_size`` candidates under the already-frozen feasibility-first
     ordering receive the expensive ITO metric. Parent selection inside that
     shortlist is then Pareto/NSGA-II, so ITO is never collapsed into an
-    arbitrary scalar weight.
+    arbitrary scalar weight. New offspring are globally unique within the run,
+    making classical and ITO evaluation counts auditable.
     """
 
     frozen_constraints = constraints or HardConstraints()
@@ -276,19 +276,19 @@ def evolve_staged_pareto(
         return value
 
     population: list[SBox] = []
-    seen_population: set[SBox] = set()
+    seen_ever: set[SBox] = set()
     for candidate in initial_population or ():
         frozen = freeze(candidate)
-        if frozen not in seen_population:
-            seen_population.add(frozen)
+        if frozen not in seen_ever:
+            seen_ever.add(frozen)
             population.append(frozen)
         if len(population) == config.population_size:
             break
 
     while len(population) < config.population_size:
         candidate = random_sbox(rng)
-        if candidate not in seen_population:
-            seen_population.add(candidate)
+        if candidate not in seen_ever:
+            seen_ever.add(candidate)
             population.append(candidate)
 
     def classical(candidate: SBox) -> ClassicalMetrics:
@@ -319,12 +319,6 @@ def evolve_staged_pareto(
         )
         return tuple(ranked[: config.shortlist_size])
 
-    def pareto_parents(current: Sequence[SBox]) -> tuple[SBox, ...]:
-        candidates = shortlist(current)
-        metrics = tuple(with_ito(candidate) for candidate in candidates)
-        selected = select_nsga2(metrics, config.parent_count)
-        return tuple(candidates[index] for index in selected)
-
     history: list[int] = []
     for _ in range(config.generations):
         shortlisted = shortlist(population)
@@ -345,9 +339,10 @@ def evolve_staged_pareto(
             else:
                 child = parent_a
             child = swap_mutation(child, rng, swaps=config.mutation_swaps)
-            if child in next_seen:
+            if child in next_seen or child in seen_ever:
                 continue
             next_seen.add(child)
+            seen_ever.add(child)
             next_population.append(child)
         population = next_population
 
