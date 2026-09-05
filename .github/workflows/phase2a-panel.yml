@@ -1,0 +1,130 @@
+name: Phase 2A Frozen Panel Reconstruction
+
+on:
+  push:
+    branches:
+      - research/phase2a-oracle-qualification
+    paths:
+      - research/PHASE2A_PANEL_PARALLEL_EXECUTE.md
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Verify unchanged Phase 2A panel lock
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from adversarial_sbox.experiment_seeds import PHASE1O_CONFIRM_RESERVED_SEEDS
+          from adversarial_sbox.phase2a import (
+              PANEL_SIZE,
+              PHASE1O_CONFIRM_ARTIFACT_SHA256,
+              TOTAL_TRAININGS,
+          )
+
+          assert PHASE1O_CONFIRM_RESERVED_SEEDS == (
+              2609, 2617, 2621, 2633, 2647, 2657, 2663, 2671, 2683
+          )
+          assert PANEL_SIZE == 6
+          assert TOTAL_TRAININGS == 120
+          assert PHASE1O_CONFIRM_ARTIFACT_SHA256 == '8ea2b8f01a19095882aa56e9c335e6abefc0f2100225b6779d40e19381a2cf99'
+          assert 'Status: **GREEN**' in Path('research/GATE1_STATUS.md').read_text(encoding='utf-8')
+          assert Path('research/PHASE2A_PROTOCOL.md').is_file()
+          marker = Path('research/PHASE2A_PANEL_PARALLEL_EXECUTE.md')
+          assert marker.is_file()
+          text = marker.read_text(encoding='utf-8')
+          assert 'AUTHORIZED_PHASE2A_PARALLEL_PANEL_RECONSTRUCTION' in text
+          assert 'NO_SCIENTIFIC_DESIGN_CHANGE' in text
+          print('Phase 2A parallel panel preflight OK')
+          PY
+      - name: Record panel reconstruction SHA
+        run: git rev-parse HEAD
+
+  replay-seed:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [2609, 2617, 2621, 2633, 2647, 2657, 2663, 2671, 2683]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Replay frozen Phase 1O Arm A twice for this seed
+        run: |
+          python scripts/build_phase2a_panel.py \
+            --seed ${{ matrix.seed }} \
+            --output phase2a-panel-seed-${{ matrix.seed }}.json
+      - name: Show seed replay receipt
+        run: |
+          python - <<'PY'
+          import glob, json
+          path = glob.glob('phase2a-panel-seed-*.json')[0]
+          data = json.load(open(path))
+          print('SEED:', data['seed'])
+          print('DETERMINISTIC:', data['deterministic_replay'])
+          print('TERMINAL_FINGERPRINTS:', [item['fingerprint'] for item in data['terminal_records']])
+          print('NEURAL_TRAINING_EXECUTED:', data['neural_training_executed'])
+          PY
+      - name: Upload seed replay evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2a-panel-seed-${{ matrix.seed }}-${{ github.sha }}
+          path: phase2a-panel-seed-${{ matrix.seed }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate-panel:
+    needs: replay-seed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Download all nine seed replay receipts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase2a-panel-seed-*-${{ github.sha }}
+          path: cells
+          merge-multiple: true
+      - name: Aggregate the unchanged frozen panel twice
+        run: |
+          python scripts/build_phase2a_panel.py \
+            --aggregate-files cells/phase2a-panel-seed-*.json \
+            --output phase2a-panel.json
+      - name: Show compact panel receipt
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2a-panel.json'))
+          print('PANEL_DIGEST:', data['panel_digest_sha256'])
+          for candidate in data['candidates']:
+              print(candidate['source_seed'], candidate['fingerprint'], candidate['sac_score'])
+          print('DETERMINISTIC_REPLAY:', data['deterministic_replay'])
+          print('CLASSICAL_REVALIDATION:', data['classical_revalidation'])
+          print('NEURAL_TRAINING_EXECUTED:', data['neural_training_executed'])
+          PY
+      - name: Upload frozen panel evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2a-panel-${{ github.sha }}
+          path: phase2a-panel.json
+          if-no-files-found: error
+          retention-days: 90
