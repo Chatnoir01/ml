@@ -3,14 +3,18 @@ import random
 import pytest
 
 from adversarial_sbox.cryptoshield import is_bijective
+from adversarial_sbox.evolution import ClassicalMetrics
 from adversarial_sbox.experiment_seeds import (
     PHASE1M_CONFIRM_RESERVED_SEEDS,
     PHASE1M_DEV_SEEDS,
     validate_seed_registry,
 )
+from adversarial_sbox.phase1l import CLASSICAL_BUDGET as PHASE1L_CLASSICAL_BUDGET
+from adversarial_sbox.phase1l import POPULATION_SIZE as PHASE1L_POPULATION_SIZE
 from adversarial_sbox.phase1m import (
     CLASSICAL_BUDGET,
     ITO_NONINFERIORITY_TOLERANCE,
+    ClassicalEvaluationLedger,
     aggregate_development,
     du_hotspot_swap_proposals,
     run_seed,
@@ -33,9 +37,45 @@ def test_phase1m_seed_registry_is_frozen_and_disjoint():
     )
 
 
-def test_phase1m_budget_and_ito_guard_are_frozen():
+def test_phase1m_budget_and_ito_guard_are_frozen_without_mutating_phase1l_defaults():
     assert CLASSICAL_BUDGET == 340
     assert ITO_NONINFERIORITY_TOLERANCE == pytest.approx(0.02)
+    assert PHASE1L_CLASSICAL_BUDGET == 340
+    assert PHASE1L_POPULATION_SIZE == 20
+
+
+def test_classical_ledger_counts_unique_full_evaluations_only_and_enforces_cap():
+    calls = []
+
+    def evaluator(sbox):
+        frozen = tuple(sbox)
+        calls.append(frozen)
+        return ClassicalMetrics(
+            nonlinearity=100,
+            differential_uniformity=10,
+            max_linear_correlation=60,
+            sac_score=0.5,
+            algebraic_degree=7,
+            fingerprint=str(frozen[0]),
+        )
+
+    ledger = ClassicalEvaluationLedger(evaluator, budget=2)
+    a = tuple(range(256))
+    b = tuple(reversed(range(256)))
+    c = a[1:] + a[:1]
+
+    first = ledger.evaluate(a)
+    again = ledger.evaluate(a)
+    assert first is again
+    assert ledger.evaluations == 1
+    assert len(calls) == 1
+
+    ledger.evaluate(b)
+    assert ledger.evaluations == 2
+    assert ledger.remaining == 0
+
+    with pytest.raises(RuntimeError, match="budget exhausted"):
+        ledger.evaluate(c)
 
 
 def test_du_hotspot_proposals_are_bijective_deterministic_unique_and_auditable():
