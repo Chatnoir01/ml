@@ -68,7 +68,8 @@ For every regime/candidate, score = mean neural advantage over the candidate's 1
 
 For each regime independently:
 - blocked S-box heterogeneity permutation test preserving `(difference, paired replicate)` blocks;
-- 10,000 deterministic permutations;
+- exactly 10,000 deterministic permutations;
+- fixed permutation RNG seeds: A=`91001`, B=`91009`, C=`91023`, D=`91039`;
 - candidate score range;
 - same Phase-2A signal condition.
 
