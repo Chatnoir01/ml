@@ -1,0 +1,187 @@
+name: Phase 1M DDT-First Fresh Repair Development
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/phase1m-ddt-first-repair
+    paths:
+      - .github/workflows/phase1m-dev.yml
+      - research/PHASE1M_PROTOCOL.md
+      - src/adversarial_sbox/phase1m.py
+      - src/adversarial_sbox/experiment_seeds.py
+      - src/adversarial_sbox/phase1i.py
+      - src/adversarial_sbox/phase1h.py
+      - src/adversarial_sbox/phase1e.py
+      - src/adversarial_sbox/evolution.py
+      - src/adversarial_sbox/cryptoshield.py
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Verify frozen Phase 1M design
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          from adversarial_sbox.experiment_seeds import (
+              PHASE1M_CONFIRM_RESERVED_SEEDS,
+              PHASE1M_DEV_SEEDS,
+              validate_seed_registry,
+          )
+          from adversarial_sbox.phase1m import (
+              ARCHIVE_WIDTH,
+              CYCLE_LENGTH,
+              DISCOVERY_BUDGET,
+              DISCOVERY_GENERATIONS,
+              FULL_GA_GENERATIONS,
+              PANEL_MODE,
+              PROPOSAL_POOL,
+              REPAIR_BUDGET,
+              REPAIR_SEED_XOR,
+              TOTAL_BUDGET,
+              validate_frozen_design,
+          )
+
+          validate_seed_registry()
+          validate_frozen_design()
+          assert PHASE1M_DEV_SEEDS == (2111, 2113, 2129, 2131, 2137)
+          assert PHASE1M_CONFIRM_RESERVED_SEEDS == (
+              2203, 2207, 2213, 2221, 2237, 2239, 2243, 2251, 2267
+          )
+          assert DISCOVERY_GENERATIONS == 16
+          assert FULL_GA_GENERATIONS == 50
+          assert DISCOVERY_BUDGET == 532
+          assert REPAIR_BUDGET == 1088
+          assert TOTAL_BUDGET == 1620
+          assert ARCHIVE_WIDTH == 8
+          assert PROPOSAL_POOL == 96
+          assert CYCLE_LENGTH == 4
+          assert PANEL_MODE == 'ties'
+          assert REPAIR_SEED_XOR == 0x2D2D2D2D
+          assert Path('research/PHASE1M_PROTOCOL.md').is_file()
+
+          source_path = Path('src/adversarial_sbox/phase1m.py')
+          tree = ast.parse(source_path.read_text())
+          imported_modules = []
+          for node in ast.walk(tree):
+              if isinstance(node, ast.ImportFrom) and node.module:
+                  imported_modules.append(node.module)
+              elif isinstance(node, ast.Import):
+                  imported_modules.extend(alias.name for alias in node.names)
+          assert not any('neural' in module.lower() for module in imported_modules)
+          print('Phase 1M frozen preflight OK')
+          PY
+      - name: Record experimental SHA
+        run: git rev-parse HEAD
+
+  develop:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [2111, 2113, 2129, 2131, 2137]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run frozen Phase 1M seed
+        run: |
+          python -m adversarial_sbox.phase1m \
+            --seeds ${{ matrix.seed }} \
+            --output phase1m-seed-${{ matrix.seed }}.json
+      - name: Show compact seed summary
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          seed = os.environ['SEED']
+          data = json.loads(Path(f'phase1m-seed-{seed}.json').read_text())
+          compact = {
+              'seed': data['seed'],
+              'a_vs_b': data['a_vs_b'],
+              'a_best': data['arm_a']['best_metrics'],
+              'b_best': data['arm_b']['best_metrics'],
+              'c_best': data['arm_c']['best_metrics'],
+              'a_ito': data['arm_a']['posthoc_ito'],
+              'b_ito': data['arm_b']['posthoc_ito'],
+              'a_target': data['arm_a']['found_structural_target'],
+              'b_target': data['arm_b']['found_structural_target'],
+              'a_admissible': data['arm_a']['found_admissible'],
+              'b_admissible': data['arm_b']['found_admissible'],
+              'a_du8_at': data['arm_a']['found_du8_at_evaluation'],
+              'budgets': [
+                  data['arm_a']['unique_evaluations'],
+                  data['arm_b']['unique_evaluations'],
+                  data['arm_c']['unique_evaluations'],
+              ],
+              'a_selected_reduce_ddt_max': data['arm_a']['repair']['selected_reduce_ddt_max'],
+              'b_selected_reduce_ddt_max': data['arm_b']['repair']['selected_reduce_ddt_max'],
+              'a_lat_guard_violations': data['arm_a']['repair']['selected_lat_guard_violations'],
+          }
+          print(json.dumps(compact, indent=2, sort_keys=True))
+          PY
+        env:
+          SEED: ${{ matrix.seed }}
+      - name: Upload seed evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1m-seed-${{ matrix.seed }}-${{ github.sha }}
+          path: phase1m-seed-${{ matrix.seed }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: develop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Download seed evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase1m-seed-*-${{ github.sha }}
+          path: cells
+          merge-multiple: true
+      - name: Aggregate frozen development result
+        run: |
+          python -m adversarial_sbox.phase1m \
+            --aggregate-files cells/phase1m-seed-*.json \
+            --output phase1m-development.json
+      - name: Show aggregate verdict
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase1m-development.json'))
+          print(json.dumps(data['summary'], indent=2, sort_keys=True))
+          print(json.dumps(data['development_checks'], indent=2, sort_keys=True))
+          print('VERDICT:', data['verdict'])
+          PY
+      - name: Upload aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1m-development-summary-${{ github.sha }}
+          path: phase1m-development.json
+          if-no-files-found: error
+          retention-days: 90
