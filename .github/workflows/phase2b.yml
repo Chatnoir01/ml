@@ -25,14 +25,16 @@ jobs:
         run: |
           python - <<'PY'
           import inspect
+          import random
           from pathlib import Path
           import adversarial_sbox.phase2b_runner as runner
           from adversarial_sbox.phase2_evolution_seed_registry import phase2b_evolution_seeds_are_fresh
           from adversarial_sbox.phase2b import (
               CLASSICAL_BUDGET_PER_ARM_SEED, EVOLUTION_SEEDS,
               FITNESS_TRAININGS_PER_ARM_SEED, ORACLE_SCORE_BUDGET_PER_ARM_SEED,
-              ORACLE_TRAININGS_PER_SCORE,
+              ORACLE_TRAININGS_PER_SCORE, SHUFFLE_SEED_OFFSET,
           )
+          from adversarial_sbox.phase2b_runner import make_shuffled_control_rng
           from adversarial_sbox.phase2b_validation import validation_seed_gate
 
           marker = Path('research/PHASE2B_EXECUTE.md').read_text(encoding='utf-8')
@@ -42,6 +44,8 @@ jobs:
           assert 'issue #98' in protocol
           assert 'issue #99' in protocol
           assert 'issue #101' in protocol
+          clarifications = Path('research/PHASE2B_CLARIFICATIONS.md').read_text(encoding='utf-8')
+          assert 'issue #102' in clarifications
           u2 = Path('research/PHASE2AU2_RESULT.md').read_text(encoding='utf-8')
           assert 'phase2au2_oracle_qualified' in u2
           assert CLASSICAL_BUDGET_PER_ARM_SEED == 340
@@ -51,6 +55,10 @@ jobs:
           assert phase2b_evolution_seeds_are_fresh(EVOLUTION_SEEDS)
           assert validation_seed_gate()
           assert 'phase2b_validation' not in inspect.getsource(runner)
+          probe = 326011
+          lhs = make_shuffled_control_rng(probe)
+          rhs = random.Random(probe + SHUFFLE_SEED_OFFSET)
+          assert [lhs.random() for _ in range(16)] == [rhs.random() for _ in range(16)]
           print('PHASE2B_EXECUTION_LOCK_GREEN')
           PY
       - name: Run complete regression suite
