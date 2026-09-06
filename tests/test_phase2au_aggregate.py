@@ -1,4 +1,4 @@
-"""Synthetic aggregation contract for Phase 2A-U; no neural training is executed."""
+"""Synthetic aggregation contract for historical Phase 2A-U; no neural training."""
 
 import hashlib
 import json
@@ -59,7 +59,7 @@ def _cell(block: str, difference: int, scores: list[float]) -> dict:
     return payload
 
 
-def test_phase2au_synthetic_qualified_path_is_deterministic():
+def test_phase2au_historical_stats_remain_deterministic_but_provenance_is_inconclusive():
     scores_a = [0.42, 0.36, 0.30, 0.24, 0.18, 0.12]
     scores_b = [0.41, 0.35, 0.29, 0.23, 0.17, 0.11]
     cells = [
@@ -72,7 +72,8 @@ def test_phase2au_synthetic_qualified_path_is_deterministic():
     second = aggregate_cells(cells)
     assert first == second
     assert first["total_trainings"] == 192
-    assert first["prerequisites_pass"] is True
+    assert first["fresh_seed_registry_exact_and_disjoint"] is False
+    assert first["prerequisites_pass"] is False
     assert all(first["qualification_checks"].values())
-    assert first["verdict"] == "phase2au_oracle_qualified"
+    assert first["verdict"] == "phase2au_inconclusive_prerequisites"
     assert first["neural_evolutionary_pressure"] is False
