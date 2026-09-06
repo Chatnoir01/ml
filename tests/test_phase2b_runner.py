@@ -1,11 +1,18 @@
 """RED-first runner plumbing tests for Phase 2B; no neural training is executed."""
 
 import inspect
+import random
 
 from adversarial_sbox.evolution import ClassicalMetrics, HardConstraints
 from adversarial_sbox.phase1m import _initial_population, _population_digest
 from adversarial_sbox.phase1o import _run_multihotspot_arm
-from adversarial_sbox.phase2b_runner import OracleScoreLedger, cutoff_order, run_arm
+from adversarial_sbox.phase2b import SHUFFLE_SEED_OFFSET
+from adversarial_sbox.phase2b_runner import (
+    OracleScoreLedger,
+    cutoff_order,
+    make_shuffled_control_rng,
+    run_arm,
+)
 import adversarial_sbox.phase2b_runner as phase2b_runner
 
 
@@ -43,6 +50,17 @@ def test_runner_source_cannot_import_held_out_validation_module():
     assert "phase2b_validation" not in inspect.getsource(phase2b_runner)
 
 
+def test_shuffled_control_rng_is_initialized_once_from_exact_preregistered_seed_offset():
+    seed = 326011
+    rng = make_shuffled_control_rng(seed)
+    reference = random.Random(seed + SHUFFLE_SEED_OFFSET)
+    assert [rng.random() for _ in range(12)] == [reference.random() for _ in range(12)]
+
+    source = inspect.getsource(phase2b_runner.run_arm)
+    assert source.count("make_shuffled_control_rng") == 1
+    assert "generation * 2" not in source
+
+
 def test_oracle_ledger_enforces_exact_candidate_score_cap():
     ledger = OracleScoreLedger(_fake_scorer, budget=2)
     left = _fake_sbox(1)
@@ -77,7 +95,7 @@ def test_cutoff_oracle_scores_only_complete_exact_key_boundary_group():
         cutoff=2,
         mode="oracle",
         oracle=ledger,
-        shuffle_seed=9,
+        shuffle_rng=None,
     )
     assert ordered[0] == strong
     assert set(ordered[1:]) == {tied_a, tied_b}
@@ -96,9 +114,42 @@ def test_boundary_group_is_not_partially_scored_when_budget_cannot_fit_it():
         cutoff=1,
         mode="oracle",
         oracle=ledger,
-        shuffle_seed=5,
+        shuffle_rng=None,
     )
     assert ledger.score_count == 0
+
+
+def test_shuffled_ties_consume_one_persistent_rng_stream():
+    constraints = HardConstraints()
+    a, b, c = _fake_sbox(1), _fake_sbox(2), _fake_sbox(3)
+    d, e, f = _fake_sbox(4), _fake_sbox(5), _fake_sbox(6)
+    metrics = {
+        a: _metrics("a"), b: _metrics("b"), c: _metrics("c"),
+        d: _metrics("d"), e: _metrics("e"), f: _metrics("f"),
+    }
+    ledger = OracleScoreLedger(_fake_scorer, budget=6)
+    rng = make_shuffled_control_rng(326011)
+
+    first = cutoff_order(
+        [a, b, c], metrics=metrics, constraints=constraints, cutoff=1,
+        mode="shuffled", oracle=ledger, shuffle_rng=rng,
+    )
+    second = cutoff_order(
+        [d, e, f], metrics=metrics, constraints=constraints, cutoff=1,
+        mode="shuffled", oracle=ledger, shuffle_rng=rng,
+    )
+
+    # Replaying from one identically seeded RNG must reproduce both calls in sequence.
+    replay_ledger = OracleScoreLedger(_fake_scorer, budget=6)
+    replay_rng = make_shuffled_control_rng(326011)
+    assert first == cutoff_order(
+        [a, b, c], metrics=metrics, constraints=constraints, cutoff=1,
+        mode="shuffled", oracle=replay_ledger, shuffle_rng=replay_rng,
+    )
+    assert second == cutoff_order(
+        [d, e, f], metrics=metrics, constraints=constraints, cutoff=1,
+        mode="shuffled", oracle=replay_ledger, shuffle_rng=replay_rng,
+    )
 
 
 def test_control_arm_replays_confirmed_phase1o_fighter_exactly():
