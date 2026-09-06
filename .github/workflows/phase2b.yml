@@ -1,0 +1,175 @@
+name: Phase 2B GA-Oracle Pressure
+
+on:
+  push:
+    branches:
+      - research/phase2b-ga-oracle
+    paths:
+      - research/PHASE2B_EXECUTE.md
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install full test and neural dependencies
+        run: python -m pip install -e '.[dev,neural]'
+      - name: Verify frozen Phase 2B execution lock
+        run: |
+          python - <<'PY'
+          import inspect
+          import random
+          from pathlib import Path
+          import adversarial_sbox.phase2b_runner as runner
+          from adversarial_sbox.phase2_evolution_seed_registry import phase2b_evolution_seeds_are_fresh
+          from adversarial_sbox.phase2b import (
+              CLASSICAL_BUDGET_PER_ARM_SEED, EVOLUTION_SEEDS,
+              FITNESS_TRAININGS_PER_ARM_SEED, ORACLE_SCORE_BUDGET_PER_ARM_SEED,
+              ORACLE_TRAININGS_PER_SCORE, SHUFFLE_SEED_OFFSET,
+          )
+          from adversarial_sbox.phase2b_runner import make_shuffled_control_rng
+          from adversarial_sbox.phase2b_validation import validation_seed_gate
+
+          marker = Path('research/PHASE2B_EXECUTE.md').read_text(encoding='utf-8')
+          assert 'AUTHORIZED_PHASE2B_GA_ORACLE_PRESSURE' in marker
+          protocol = Path('research/PHASE2B_PROTOCOL.md').read_text(encoding='utf-8')
+          assert 'issue #97' in protocol
+          assert 'issue #98' in protocol
+          assert 'issue #99' in protocol
+          assert 'issue #101' in protocol
+          clarifications = Path('research/PHASE2B_CLARIFICATIONS.md').read_text(encoding='utf-8')
+          assert 'issue #102' in clarifications
+          u2 = Path('research/PHASE2AU2_RESULT.md').read_text(encoding='utf-8')
+          assert 'phase2au2_oracle_qualified' in u2
+          assert CLASSICAL_BUDGET_PER_ARM_SEED == 340
+          assert ORACLE_TRAININGS_PER_SCORE == 16
+          assert ORACLE_SCORE_BUDGET_PER_ARM_SEED == 32
+          assert FITNESS_TRAININGS_PER_ARM_SEED == 512
+          assert phase2b_evolution_seeds_are_fresh(EVOLUTION_SEEDS)
+          assert validation_seed_gate()
+          assert 'phase2b_validation' not in inspect.getsource(runner)
+          probe = 326011
+          lhs = make_shuffled_control_rng(probe)
+          rhs = random.Random(probe + SHUFFLE_SEED_OFFSET)
+          assert [lhs.random() for _ in range(16)] == [rhs.random() for _ in range(16)]
+          print('PHASE2B_EXECUTION_LOCK_GREEN')
+          PY
+      - name: Run complete regression suite
+        run: pytest
+      - name: Re-run historical Phase 1 benchmark
+        run: |
+          python -m adversarial_sbox.benchmark \
+            --seeds 11 23 37 \
+            --population-size 8 \
+            --generations 3 \
+            --output phase1-benchmark.json
+      - name: Record scientific SHA
+        run: echo "PHASE2B_SCIENTIFIC_SHA=${GITHUB_SHA}"
+
+  arm:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [control, oracle, shuffled]
+        seed: [326011, 326023, 326033, 326047, 326051, 326063, 326071, 326087, 326099]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - name: Run frozen GA-fitness-Oracle arm
+        run: |
+          python scripts/run_phase2b.py \
+            --seed '${{ matrix.seed }}' \
+            --arm '${{ matrix.arm }}' \
+            --output arm.json
+      - name: Freeze terminal then run held-out Block V
+        run: |
+          python scripts/run_phase2b.py \
+            --seed '${{ matrix.seed }}' \
+            --arm '${{ matrix.arm }}' \
+            --validate-arm-result arm.json \
+            --output validation.json
+      - name: Show compact receipt
+        run: |
+          python - <<'PY'
+          import json
+          arm = json.load(open('arm.json'))
+          validation = json.load(open('validation.json'))
+          print('SEED:', arm['seed'])
+          print('ARM:', arm['arm'])
+          print('CLASSICAL_EVALUATIONS:', arm['classical_evaluations'])
+          print('ORACLE_CANDIDATE_SCORES:', arm['oracle_candidate_scores'])
+          print('ORACLE_FITNESS_TRAININGS:', arm['oracle_fitness_trainings'])
+          print('TERMINAL_FINGERPRINT:', arm['terminal_fingerprint'])
+          print('BLOCK_V_ADVANTAGE:', validation['score']['neural_advantage'])
+          print('ARM_SHA256:', arm['scientific_payload_sha256'])
+          print('VALIDATION_SHA256:', validation['score']['scientific_payload_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2b-${{ matrix.arm }}-${{ matrix.seed }}-${{ github.sha }}
+          path: |
+            arm.json
+            validation.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: arm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e '.[neural]'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2b-*-${{ github.sha }}
+          path: results
+      - name: Aggregate twice and require byte identity
+        run: |
+          python scripts/run_phase2b.py \
+            --aggregate-arm-files results/phase2b-*/arm.json \
+            --aggregate-validation-files results/phase2b-*/validation.json \
+            --output phase2b-result-1.json
+          python scripts/run_phase2b.py \
+            --aggregate-arm-files results/phase2b-*/arm.json \
+            --aggregate-validation-files results/phase2b-*/validation.json \
+            --output phase2b-result-2.json
+          cmp phase2b-result-1.json phase2b-result-2.json
+          cp phase2b-result-1.json phase2b-result.json
+      - name: Show frozen classification
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2b-result.json'))
+          print('PREREQUISITES:', json.dumps(data['prerequisites'], sort_keys=True))
+          print('CLASSICAL_NON_DEGRADATION:', data['classical_non_degradation'])
+          print('SUPPORT_CHECKS:', json.dumps(data['support']['checks'], sort_keys=True))
+          print('PAIRED_O_VS_C:', json.dumps(data['support']['paired_o_vs_c'], sort_keys=True))
+          print('SPECIFICITY_O_VS_S:', json.dumps(data['support']['specificity_o_vs_s'], sort_keys=True))
+          print('VERDICT:', data['verdict'])
+          print('AGGREGATE_SHA256:', data['aggregate_payload_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2b-summary-${{ github.sha }}
+          path: phase2b-result.json
+          if-no-files-found: error
+          retention-days: 90

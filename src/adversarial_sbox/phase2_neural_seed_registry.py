@@ -49,6 +49,36 @@ def phase2au_blocks() -> tuple[SeedBlock, ...]:
     )
 
 
+def phase2au2_blocks() -> tuple[SeedBlock, ...]:
+    """Frozen U2 requalification blocks, including the Phase-2B fitness block."""
+
+    from .phase2au2 import (
+        BLOCK_A_DATASET_SEEDS,
+        BLOCK_A_MODEL_SEEDS,
+        BLOCK_B_DATASET_SEEDS,
+        BLOCK_B_MODEL_SEEDS,
+    )
+
+    return (
+        ("phase2au2-A", _freeze(BLOCK_A_DATASET_SEEDS), _freeze(BLOCK_A_MODEL_SEEDS)),
+        ("phase2au2-B", _freeze(BLOCK_B_DATASET_SEEDS), _freeze(BLOCK_B_MODEL_SEEDS)),
+    )
+
+
+def phase2b_reserved_blocks() -> tuple[SeedBlock, ...]:
+    """Fresh Phase-2B terminal-validation block reserved before execution."""
+
+    from .phase2b import VALIDATION_DATASET_SEEDS, VALIDATION_MODEL_SEEDS
+
+    return (
+        (
+            "phase2b-validation-V",
+            _freeze(VALIDATION_DATASET_SEEDS),
+            _freeze(VALIDATION_MODEL_SEEDS),
+        ),
+    )
+
+
 def seed_union(blocks: Iterable[SeedBlock]) -> tuple[int, ...]:
     values: set[int] = set()
     for _name, dataset_seeds, model_seeds in blocks:
@@ -65,6 +95,27 @@ def prior_seed_registry_before_phase2au2() -> tuple[int, ...]:
     return seed_union((*prior_blocks_before_phase2au(), *phase2au_blocks()))
 
 
+def prior_seed_registry_before_phase2b() -> tuple[int, ...]:
+    """Complete frozen/executed neural registry before Phase-2B validation seeds."""
+
+    return seed_union(
+        (*prior_blocks_before_phase2au(), *phase2au_blocks(), *phase2au2_blocks())
+    )
+
+
+def complete_seed_registry_through_phase2b() -> tuple[int, ...]:
+    """Complete registry including the reserved Phase-2B held-out Block V."""
+
+    return seed_union(
+        (
+            *prior_blocks_before_phase2au(),
+            *phase2au_blocks(),
+            *phase2au2_blocks(),
+            *phase2b_reserved_blocks(),
+        )
+    )
+
+
 def overlap_with_prior(
     dataset_seeds: Iterable[int],
     model_seeds: Iterable[int],
@@ -78,6 +129,8 @@ def overlap_with_prior(
         prior = set(prior_seed_registry_before_phase2au())
     elif before == "phase2au2":
         prior = set(prior_seed_registry_before_phase2au2())
+    elif before == "phase2b":
+        prior = set(prior_seed_registry_before_phase2b())
     else:
         raise ValueError(f"unsupported Phase-2 provenance boundary {before!r}")
     return tuple(sorted(candidate & prior))
