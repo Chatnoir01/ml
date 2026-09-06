@@ -2,7 +2,8 @@
 
 This module contains only preregistered constants and pure selection/statistical
 contracts. It does not train a neural model and does not authorize scientific
-execution. The execution gate remains issue #98.
+execution. The execution gate remains issue #98. Issue #101 freezes the ex-ante
+matched Oracle scoring budget before any scientific Phase-2B run.
 """
 
 from __future__ import annotations
@@ -82,6 +83,10 @@ PARENT_COUNT = 4
 PROPOSALS_PER_PARENT = 4
 PROPOSALS_PER_GENERATION = 16
 ORACLE_TRAININGS_PER_SCORE = len(DIFFERENCES) * len(FITNESS_DATASET_SEEDS)
+ORACLE_SCORE_BUDGET_PER_ARM_SEED = 32
+FITNESS_TRAININGS_PER_ARM_SEED = (
+    ORACLE_SCORE_BUDGET_PER_ARM_SEED * ORACLE_TRAININGS_PER_SCORE
+)
 
 SUPPORT_CHECKS = (
     "o_wins_c_8_of_9",
