@@ -125,7 +125,7 @@ def apply_oracle_tiebreak(
     *,
     constraints: HardConstraints,
     mode: str,
-    shuffle_seed: int,
+    shuffle_rng: random.Random | None,
 ) -> list[tuple[Any, ClassicalMetrics, float]]:
     """Apply Phase-2B ordering without allowing cross-key neural compensation.
 
@@ -135,14 +135,16 @@ def apply_oracle_tiebreak(
 
     ``control`` preserves the input ordering inside each exact-key group.
     ``oracle`` prefers lower real neural advantage.
-    ``shuffled`` deterministically permutes score assignment inside each group
-    before ordering, preserving score distribution but destroying association.
+    ``shuffled`` consumes the caller-owned persistent RNG stream to permute score
+    assignment inside each group, preserving score distribution but destroying
+    candidate-score association.
     """
 
     if mode not in {"control", "oracle", "shuffled"}:
         raise ValueError(f"unsupported Phase 2B arm mode {mode!r}")
+    if mode == "shuffled" and shuffle_rng is None:
+        raise ValueError("Phase 2B shuffled tiebreak requires a persistent RNG")
     groups = _group_by_protected_key(items, constraints)
-    rng = random.Random(int(shuffle_seed))
     ordered: list[tuple[Any, ClassicalMetrics, float]] = []
 
     for group in groups:
@@ -154,7 +156,8 @@ def apply_oracle_tiebreak(
             continue
 
         scores = [float(item[2]) for item in group]
-        rng.shuffle(scores)
+        assert shuffle_rng is not None
+        shuffle_rng.shuffle(scores)
         decorated = list(zip(group, scores))
         decorated.sort(key=lambda pair: pair[1])
         ordered.extend(item for item, _assigned_score in decorated)
