@@ -1,0 +1,155 @@
+name: Phase 2A-U Oracle Qualification
+
+on:
+  push:
+    branches:
+      - research/phase2au-oracle-qualification
+    paths:
+      - research/PHASE2AU_EXECUTE.md
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - name: Verify frozen Phase 2A-U lock
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from adversarial_sbox.phase2au import (
+              ARCHITECTURE, BLOCK_A_DATASET_SEEDS, BLOCK_A_MODEL_SEEDS,
+              BLOCK_B_DATASET_SEEDS, BLOCK_B_MODEL_SEEDS, DEPTH, DIFFERENCES,
+              HETEROGENEITY_P_MAX, MAD_MAX, MIN_SCORE_RANGE,
+              PANEL_DIGEST_SHA256, PAIRED_REPLICATES, PERMUTATION_REPETITIONS,
+              PERMUTATION_SEEDS, SPEARMAN_MIN, TOP2_OVERLAP_MIN,
+              TOTAL_TRAININGS, fresh_seeds_disjoint_from_prior,
+          )
+          from adversarial_sbox.phase2au_runner import expected_cell_keys, load_frozen_panel
+
+          marker = Path('research/PHASE2AU_EXECUTE.md').read_text()
+          assert 'AUTHORIZED_PHASE2AU_ORACLE_QUALIFICATION' in marker
+          protocol = Path('research/PHASE2AU_PROTOCOL.md').read_text()
+          assert 'phase2au_oracle_qualified' in protocol
+          assert ARCHITECTURE == 'byte_tanh_mlp'
+          assert DEPTH == 4
+          assert DIFFERENCES == (0x00000001, 0x00000100)
+          assert PANEL_DIGEST_SHA256 == '35898535a0df0cfe64431e5f0b6142115d40e3dbeed4a973faa9ba70b1028a30'
+          assert len(load_frozen_panel()) == 6
+          assert BLOCK_A_DATASET_SEEDS == (74003,74017,74027,74047,74059,74071,74093,74101)
+          assert BLOCK_A_MODEL_SEEDS == (84011,84017,84029,84043,84061,84067,84089,84103)
+          assert BLOCK_B_DATASET_SEEDS == (75011,75017,75029,75041,75061,75083,75109,75121)
+          assert BLOCK_B_MODEL_SEEDS == (85009,85021,85027,85049,85061,85081,85093,85109)
+          assert fresh_seeds_disjoint_from_prior()
+          assert PAIRED_REPLICATES == 8
+          assert PERMUTATION_REPETITIONS == 10000
+          assert PERMUTATION_SEEDS == {'A': 94007, 'B': 94009}
+          assert HETEROGENEITY_P_MAX == 0.05
+          assert MIN_SCORE_RANGE == 0.05
+          assert SPEARMAN_MIN == 0.80
+          assert TOP2_OVERLAP_MIN == 1
+          assert MAD_MAX == 0.05
+          assert TOTAL_TRAININGS == 192
+          assert expected_cell_keys() == (
+              ('A', 0x00000001), ('A', 0x00000100),
+              ('B', 0x00000001), ('B', 0x00000100),
+          )
+          print('PHASE2AU_PREFLIGHT_GREEN')
+          PY
+      - name: Record scientific SHA
+        run: echo "PHASE2AU_SCIENTIFIC_SHA=${GITHUB_SHA}"
+
+  cell:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { block: 'A', difference: '0x00000001', label: 'A-d1' }
+          - { block: 'A', difference: '0x00000100', label: 'A-d100' }
+          - { block: 'B', difference: '0x00000001', label: 'B-d1' }
+          - { block: 'B', difference: '0x00000100', label: 'B-d100' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - name: Run frozen 48-training qualification cell
+        run: |
+          python scripts/run_phase2au.py \
+            --block '${{ matrix.block }}' \
+            --difference '${{ matrix.difference }}' \
+            --output 'phase2au-${{ matrix.label }}.json'
+      - name: Show compact cell receipt
+        run: |
+          python - <<'PY'
+          import glob, json
+          path = glob.glob('phase2au-*.json')[0]
+          data = json.load(open(path))
+          print('BLOCK:', data['block'])
+          print('DEPTH:', data['depth'])
+          print('ARCHITECTURE:', data['architecture'])
+          print('DIFFERENCE:', hex(data['input_difference']))
+          print('TRAININGS:', len(data['runs']))
+          print('PAYLOAD_SHA256:', data['scientific_payload_sha256'])
+          print('NEURAL_EVOLUTIONARY_PRESSURE:', data['neural_evolutionary_pressure'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2au-cell-${{ matrix.label }}-${{ github.sha }}
+          path: phase2au-${{ matrix.label }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: cell
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2au-cell-*-${{ github.sha }}
+          path: cells
+          merge-multiple: true
+      - name: Aggregate qualification twice
+        run: |
+          python scripts/run_phase2au.py --aggregate-files cells/phase2au-*.json --output phase2au-result-1.json
+          python scripts/run_phase2au.py --aggregate-files cells/phase2au-*.json --output phase2au-result-2.json
+          cmp phase2au-result-1.json phase2au-result-2.json
+          cp phase2au-result-1.json phase2au-result.json
+      - name: Show official Phase 2A-U classification
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2au-result.json'))
+          print('TOTAL_TRAININGS:', data['total_trainings'])
+          print('PREREQUISITES_PASS:', data['prerequisites_pass'])
+          for block, summary in data['block_summaries'].items():
+              print('BLOCK', block, 'p=', summary['heterogeneity_permutation_p'], 'range=', summary['candidate_score_range'], 'mean=', summary['mean_neural_advantage'], 'signal=', summary['signal_condition'])
+          print('CROSS_BLOCK:', json.dumps(data['cross_block'], sort_keys=True))
+          print('CHECKS:', json.dumps(data['qualification_checks'], sort_keys=True))
+          print('VERDICT:', data['verdict'])
+          print('AGGREGATE_SHA256:', data['aggregate_payload_sha256'])
+          print('NEURAL_EVOLUTIONARY_PRESSURE:', data['neural_evolutionary_pressure'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2au-summary-${{ github.sha }}
+          path: phase2au-result.json
+          if-no-files-found: error
+          retention-days: 90
