@@ -4,6 +4,7 @@ import random
 
 from adversarial_sbox.evolution import ClassicalMetrics, HardConstraints, primary_security_key
 from adversarial_sbox.phase2_evolution_seed_registry import (
+    PHASE2B_RESERVED_EVOLUTION_SEEDS,
     phase2b_evolution_seeds_are_fresh,
     prior_evolution_seed_registry,
 )
@@ -70,7 +71,8 @@ def test_phase2b_validation_neural_seeds_are_fresh_against_complete_prior_regist
     )
 
 
-def test_phase2b_evolution_seeds_are_fresh_and_unique():
+def test_phase2b_evolution_seeds_are_centrally_reserved_fresh_and_unique():
+    assert EVOLUTION_SEEDS == PHASE2B_RESERVED_EVOLUTION_SEEDS
     assert len(EVOLUTION_SEEDS) == len(set(EVOLUTION_SEEDS)) == 9
     assert phase2b_evolution_seeds_are_fresh(EVOLUTION_SEEDS) is True
     assert set(EVOLUTION_SEEDS).isdisjoint(prior_evolution_seed_registry())
