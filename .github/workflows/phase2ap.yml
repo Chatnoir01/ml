@@ -1,0 +1,170 @@
+name: Phase 2A-P R4 Peak Confirmation
+
+on:
+  push:
+    branches:
+      - research/phase2ap-r4-peak-confirmation
+    paths:
+      - research/PHASE2AP_PREFLIGHT.md
+      - research/PHASE2AP_EXECUTE.md
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    outputs:
+      execute: ${{ steps.mode.outputs.execute }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install engineering and neural dependencies
+        run: python -m pip install -e '.[dev,neural]'
+      - name: Run repository tests before any Phase 2A-P training
+        run: pytest -q
+      - name: Verify frozen Phase 2A-P lock
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from adversarial_sbox.phase2ap import (
+              ALPHA_PER_SIDE,
+              ARCHITECTURE,
+              DATASET_SEEDS,
+              DEPTHS,
+              DIFFERENCES,
+              EFFECT_RATIO_MAX,
+              HETEROGENEITY_PERMUTATION_SEEDS,
+              MODEL_SEEDS,
+              PANEL_DIGEST_SHA256,
+              PEAK_PERMUTATION_SEEDS,
+              PERMUTATION_REPETITIONS,
+              TOTAL_TRAININGS,
+          )
+          from adversarial_sbox.phase2ap_runner import expected_cell_keys, load_frozen_panel
+
+          previous = Path('research/PHASE2AD_RESULT.md').read_text()
+          assert 'phase2ad_depth_attenuation_not_supported' in previous
+          assert PANEL_DIGEST_SHA256 == '35898535a0df0cfe64431e5f0b6142115d40e3dbeed4a973faa9ba70b1028a30'
+          assert len(load_frozen_panel()) == 6
+          assert ARCHITECTURE == 'byte_tanh_mlp'
+          assert DEPTHS == (3, 4, 5)
+          assert DIFFERENCES == (0x00000001, 0x00000100)
+          assert len(DATASET_SEEDS) == 20 and len(set(DATASET_SEEDS)) == 20
+          assert len(MODEL_SEEDS) == 20 and len(set(MODEL_SEEDS)) == 20
+          assert PEAK_PERMUTATION_SEEDS == {(4, 3): 94043, (4, 5): 94045}
+          assert HETEROGENEITY_PERMUTATION_SEEDS == {3: 95003, 4: 95004, 5: 95005}
+          assert PERMUTATION_REPETITIONS == 20000
+          assert ALPHA_PER_SIDE == 0.025
+          assert EFFECT_RATIO_MAX == 0.75
+          assert TOTAL_TRAININGS == 720
+          assert len(expected_cell_keys()) == 6
+          print('PHASE2AP_PREFLIGHT_GREEN')
+          PY
+      - name: Determine execution authorization
+        id: mode
+        shell: bash
+        run: |
+          if [[ -f research/PHASE2AP_EXECUTE.md ]] && grep -q 'AUTHORIZED_PHASE2AP_R4_PEAK_CONFIRMATION' research/PHASE2AP_EXECUTE.md; then
+            echo 'execute=true' >> "$GITHUB_OUTPUT"
+            echo 'PHASE2AP_EXECUTION_AUTHORIZED'
+          else
+            echo 'execute=false' >> "$GITHUB_OUTPUT"
+            echo 'PHASE2AP_PREFLIGHT_ONLY_NO_TRAINING'
+          fi
+      - name: Record scientific SHA
+        if: steps.mode.outputs.execute == 'true'
+        run: echo "PHASE2AP_SCIENTIFIC_SHA=${GITHUB_SHA}"
+
+  cell:
+    needs: preflight
+    if: needs.preflight.outputs.execute == 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { depth: 3, difference: '0x00000001', label: 'R3-d1' }
+          - { depth: 3, difference: '0x00000100', label: 'R3-d100' }
+          - { depth: 4, difference: '0x00000001', label: 'R4-d1' }
+          - { depth: 4, difference: '0x00000100', label: 'R4-d100' }
+          - { depth: 5, difference: '0x00000001', label: 'R5-d1' }
+          - { depth: 5, difference: '0x00000100', label: 'R5-d100' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - name: Run frozen 120-training peak cell
+        run: |
+          python scripts/run_phase2ap.py \
+            --depth '${{ matrix.depth }}' \
+            --difference '${{ matrix.difference }}' \
+            --output 'phase2ap-${{ matrix.label }}.json'
+      - name: Show compact cell receipt
+        run: |
+          python - <<'PY'
+          import glob, json
+          path = glob.glob('phase2ap-*.json')[0]
+          data = json.load(open(path))
+          print('DEPTH:', data['depth'])
+          print('ARCHITECTURE:', data['architecture'])
+          print('DIFFERENCE:', hex(data['input_difference']))
+          print('TRAININGS:', len(data['runs']))
+          print('PAYLOAD_SHA256:', data['scientific_payload_sha256'])
+          print('NEURAL_EVOLUTIONARY_PRESSURE:', data['neural_evolutionary_pressure'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2ap-cell-${{ matrix.label }}-${{ github.sha }}
+          path: phase2ap-${{ matrix.label }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: [preflight, cell]
+    if: needs.preflight.outputs.execute == 'true' && needs.cell.result == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2ap-cell-*-${{ github.sha }}
+          path: cells
+          merge-multiple: true
+      - name: Aggregate frozen peak test twice
+        run: |
+          python scripts/run_phase2ap.py --aggregate-files cells/phase2ap-*.json --output phase2ap-result-1.json
+          python scripts/run_phase2ap.py --aggregate-files cells/phase2ap-*.json --output phase2ap-result-2.json
+          cmp phase2ap-result-1.json phase2ap-result-2.json
+          cp phase2ap-result-1.json phase2ap-result.json
+      - name: Show official R4 peak classification
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2ap-result.json'))
+          print('TOTAL_TRAININGS:', data['total_trainings'])
+          print('REQUIREMENTS_PASS:', data['requirements_pass'])
+          for name, summary in data['depths'].items():
+              print(name, 'p=', summary['heterogeneity_permutation_p'], 'range=', summary['candidate_score_range'], 'mean_block_dispersion=', summary['mean_block_dispersion'])
+          print('R4_GT_R3:', json.dumps(data['primary_peak']['R4_gt_R3'], sort_keys=True))
+          print('R4_GT_R5:', json.dumps(data['primary_peak']['R4_gt_R5'], sort_keys=True))
+          print('VERDICT:', data['verdict'])
+          print('AGGREGATE_SHA256:', data['aggregate_payload_sha256'])
+          print('NEURAL_EVOLUTIONARY_PRESSURE:', data['neural_evolutionary_pressure'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2ap-summary-${{ github.sha }}
+          path: phase2ap-result.json
+          if-no-files-found: error
+          retention-days: 90
