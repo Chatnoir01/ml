@@ -49,6 +49,20 @@ def phase2au_blocks() -> tuple[SeedBlock, ...]:
     )
 
 
+def phase2au2_blocks() -> tuple[SeedBlock, ...]:
+    from .phase2au2 import (
+        BLOCK_A_DATASET_SEEDS,
+        BLOCK_A_MODEL_SEEDS,
+        BLOCK_B_DATASET_SEEDS,
+        BLOCK_B_MODEL_SEEDS,
+    )
+
+    return (
+        ("phase2au2-A", _freeze(BLOCK_A_DATASET_SEEDS), _freeze(BLOCK_A_MODEL_SEEDS)),
+        ("phase2au2-B", _freeze(BLOCK_B_DATASET_SEEDS), _freeze(BLOCK_B_MODEL_SEEDS)),
+    )
+
+
 def seed_union(blocks: Iterable[SeedBlock]) -> tuple[int, ...]:
     values: set[int] = set()
     for _name, dataset_seeds, model_seeds in blocks:
@@ -65,6 +79,14 @@ def prior_seed_registry_before_phase2au2() -> tuple[int, ...]:
     return seed_union((*prior_blocks_before_phase2au(), *phase2au_blocks()))
 
 
+def prior_seed_registry_before_phase2b() -> tuple[int, ...]:
+    """Complete neural seed provenance known before first GA <- Oracle pressure."""
+
+    return seed_union(
+        (*prior_blocks_before_phase2au(), *phase2au_blocks(), *phase2au2_blocks())
+    )
+
+
 def overlap_with_prior(
     dataset_seeds: Iterable[int],
     model_seeds: Iterable[int],
@@ -78,6 +100,8 @@ def overlap_with_prior(
         prior = set(prior_seed_registry_before_phase2au())
     elif before == "phase2au2":
         prior = set(prior_seed_registry_before_phase2au2())
+    elif before == "phase2b":
+        prior = set(prior_seed_registry_before_phase2b())
     else:
         raise ValueError(f"unsupported Phase-2 provenance boundary {before!r}")
     return tuple(sorted(candidate & prior))
