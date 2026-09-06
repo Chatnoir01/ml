@@ -1,0 +1,173 @@
+name: Phase 2A-U2 Oracle Requalification
+
+on:
+  push:
+    branches:
+      - research/phase2au2-provenance-repair
+    paths:
+      - research/PHASE2AU2_EXECUTE.md
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - name: Verify frozen Phase 2A-U2 lock
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from adversarial_sbox.neural100 import PAIR_COUNT
+          from adversarial_sbox.phase2au2 import (
+              ARCHITECTURE, BLOCK_A_DATASET_SEEDS, BLOCK_A_MODEL_SEEDS,
+              BLOCK_B_DATASET_SEEDS, BLOCK_B_MODEL_SEEDS, DEPTH, DIFFERENCES,
+              HETEROGENEITY_P_MAX, MAD_MAX, MIN_SCORE_RANGE,
+              PANEL_DIGEST_SHA256, PAIRED_REPLICATES, PERMUTATION_REPETITIONS,
+              PERMUTATION_SEEDS, SPEARMAN_MIN, TOP2_OVERLAP_MIN,
+              TOTAL_TRAININGS, fresh_seed_registry, fresh_seeds_disjoint_from_prior,
+          )
+          from adversarial_sbox.phase2_neural_seed_registry import prior_seed_registry_before_phase2au2
+          from adversarial_sbox.phase2au2_runner import (
+              EXPECTED_TEST_SIZE, EXPECTED_TRAIN_SIZE, EXPECTED_VALIDATION_SIZE,
+              expected_cell_keys, load_frozen_panel,
+          )
+
+          marker = Path('research/PHASE2AU2_EXECUTE.md').read_text()
+          assert 'AUTHORIZED_PHASE2AU2_FRESH_ORACLE_REQUALIFICATION' in marker
+          protocol = Path('research/PHASE2AU2_PROTOCOL.md').read_text()
+          audit = Path('research/PHASE2AU_AUDIT.md').read_text()
+          assert 'phase2au2_oracle_qualified' in protocol
+          assert '13 values' in audit
+          assert ARCHITECTURE == 'byte_tanh_mlp'
+          assert DEPTH == 4
+          assert DIFFERENCES == (0x00000001, 0x00000100)
+          assert PANEL_DIGEST_SHA256 == '35898535a0df0cfe64431e5f0b6142115d40e3dbeed4a973faa9ba70b1028a30'
+          assert len(load_frozen_panel()) == 6
+          assert BLOCK_A_DATASET_SEEDS == (176003,176017,176029,176041,176057,176069,176081,176093)
+          assert BLOCK_A_MODEL_SEEDS == (186007,186019,186031,186043,186061,186073,186091,186103)
+          assert BLOCK_B_DATASET_SEEDS == (177011,177023,177037,177049,177061,177077,177089,177101)
+          assert BLOCK_B_MODEL_SEEDS == (187009,187021,187033,187047,187063,187079,187097,187109)
+          assert len(fresh_seed_registry()) == 32
+          assert set(fresh_seed_registry()).isdisjoint(prior_seed_registry_before_phase2au2())
+          assert fresh_seeds_disjoint_from_prior()
+          assert PAIR_COUNT == 8192
+          assert EXPECTED_TRAIN_SIZE == 5734
+          assert EXPECTED_VALIDATION_SIZE == 1228
+          assert EXPECTED_TEST_SIZE == 1230
+          assert EXPECTED_TRAIN_SIZE + EXPECTED_VALIDATION_SIZE + EXPECTED_TEST_SIZE == PAIR_COUNT
+          assert PAIRED_REPLICATES == 8
+          assert PERMUTATION_REPETITIONS == 10000
+          assert PERMUTATION_SEEDS == {'A': 196007, 'B': 196009}
+          assert HETEROGENEITY_P_MAX == 0.05
+          assert MIN_SCORE_RANGE == 0.05
+          assert SPEARMAN_MIN == 0.80
+          assert TOP2_OVERLAP_MIN == 1
+          assert MAD_MAX == 0.05
+          assert TOTAL_TRAININGS == 192
+          assert expected_cell_keys() == (
+              ('A', 0x00000001), ('A', 0x00000100),
+              ('B', 0x00000001), ('B', 0x00000100),
+          )
+          print('PHASE2AU2_PREFLIGHT_GREEN')
+          PY
+      - name: Record scientific SHA
+        run: echo "PHASE2AU2_SCIENTIFIC_SHA=${GITHUB_SHA}"
+
+  cell:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { block: 'A', difference: '0x00000001', label: 'A-d1' }
+          - { block: 'A', difference: '0x00000100', label: 'A-d100' }
+          - { block: 'B', difference: '0x00000001', label: 'B-d1' }
+          - { block: 'B', difference: '0x00000100', label: 'B-d100' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - name: Run frozen 48-training U2 cell
+        run: |
+          python scripts/run_phase2au2.py \
+            --block '${{ matrix.block }}' \
+            --difference '${{ matrix.difference }}' \
+            --output 'phase2au2-${{ matrix.label }}.json'
+      - name: Show compact cell receipt
+        run: |
+          python - <<'PY'
+          import glob, json
+          path = glob.glob('phase2au2-*.json')[0]
+          data = json.load(open(path))
+          print('BLOCK:', data['block'])
+          print('DEPTH:', data['depth'])
+          print('ARCHITECTURE:', data['architecture'])
+          print('DIFFERENCE:', hex(data['input_difference']))
+          print('PAIR_COUNT:', data['pair_count'])
+          print('TRAININGS:', len(data['runs']))
+          print('PAYLOAD_SHA256:', data['scientific_payload_sha256'])
+          print('NEURAL_EVOLUTIONARY_PRESSURE:', data['neural_evolutionary_pressure'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2au2-cell-${{ matrix.label }}-${{ github.sha }}
+          path: phase2au2-${{ matrix.label }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: cell
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2au2-cell-*-${{ github.sha }}
+          path: cells
+          merge-multiple: true
+      - name: Aggregate U2 qualification twice
+        run: |
+          python scripts/run_phase2au2.py --aggregate-files cells/phase2au2-*.json --output phase2au2-result-1.json
+          python scripts/run_phase2au2.py --aggregate-files cells/phase2au2-*.json --output phase2au2-result-2.json
+          cmp phase2au2-result-1.json phase2au2-result-2.json
+          cp phase2au2-result-1.json phase2au2-result.json
+      - name: Show official Phase 2A-U2 classification
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2au2-result.json'))
+          print('TOTAL_TRAININGS:', data['total_trainings'])
+          print('PAIR_COUNT:', data['pair_count'])
+          print('SPLIT_SIZES:', json.dumps(data['expected_split_sizes'], sort_keys=True))
+          print('FRESH_SEEDS:', data['fresh_seed_registry_exact_and_disjoint'])
+          print('PREREQUISITES_PASS:', data['prerequisites_pass'])
+          for block, summary in data['block_summaries'].items():
+              print('BLOCK', block, 'p=', summary['heterogeneity_permutation_p'], 'range=', summary['candidate_score_range'], 'mean=', summary['mean_neural_advantage'], 'signal=', summary['signal_condition'])
+          print('CROSS_BLOCK:', json.dumps(data['cross_block'], sort_keys=True))
+          print('CHECKS:', json.dumps(data['qualification_checks'], sort_keys=True))
+          print('VERDICT:', data['verdict'])
+          print('AGGREGATE_SHA256:', data['aggregate_payload_sha256'])
+          print('NEURAL_EVOLUTIONARY_PRESSURE:', data['neural_evolutionary_pressure'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2au2-summary-${{ github.sha }}
+          path: phase2au2-result.json
+          if-no-files-found: error
+          retention-days: 90

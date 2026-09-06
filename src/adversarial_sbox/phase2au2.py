@@ -1,4 +1,9 @@
-"""Frozen scientific contract for Phase 2A-U 4-round Neural Oracle qualification."""
+"""Frozen scientific contract for Phase 2A-U2 provenance-repair qualification.
+
+U2 exists because the post-hoc audit found that the historical Phase 2A-U
+freshness check omitted earlier executed Phase 2A-P/2A-D seed registries. U2 uses
+new seeds and the complete central Phase-2 neural provenance registry.
+"""
 
 from __future__ import annotations
 
@@ -9,12 +14,12 @@ DEPTH = 4
 DIFFERENCES = (0x00000001, 0x00000100)
 PANEL_DIGEST_SHA256 = "35898535a0df0cfe64431e5f0b6142115d40e3dbeed4a973faa9ba70b1028a30"
 
-BLOCK_A_DATASET_SEEDS = (74003, 74017, 74027, 74047, 74059, 74071, 74093, 74101)
-BLOCK_A_MODEL_SEEDS = (84011, 84017, 84029, 84043, 84061, 84067, 84089, 84103)
-BLOCK_B_DATASET_SEEDS = (75011, 75017, 75029, 75041, 75061, 75083, 75109, 75121)
-BLOCK_B_MODEL_SEEDS = (85009, 85021, 85027, 85049, 85061, 85081, 85093, 85109)
+BLOCK_A_DATASET_SEEDS = (176003, 176017, 176029, 176041, 176057, 176069, 176081, 176093)
+BLOCK_A_MODEL_SEEDS = (186007, 186019, 186031, 186043, 186061, 186073, 186091, 186103)
+BLOCK_B_DATASET_SEEDS = (177011, 177023, 177037, 177049, 177061, 177077, 177089, 177101)
+BLOCK_B_MODEL_SEEDS = (187009, 187021, 187033, 187047, 187063, 187079, 187097, 187109)
 
-PERMUTATION_SEEDS = {"A": 94007, "B": 94009}
+PERMUTATION_SEEDS = {"A": 196007, "B": 196009}
 PERMUTATION_REPETITIONS = 10_000
 
 CANDIDATE_COUNT = 6
@@ -57,16 +62,9 @@ def fresh_seed_registry() -> tuple[int, ...]:
 
 
 def prior_frozen_neural_seed_registry() -> tuple[int, ...]:
-    """Return the complete prior Phase-2 neural registry before Phase 2A-U.
+    from .phase2_neural_seed_registry import prior_seed_registry_before_phase2au2
 
-    The original Phase 2A-U implementation omitted earlier executed Phase 2A-D
-    and Phase 2A-P registries. The post-hoc provenance audit keeps the historical
-    result artifact immutable while correcting this callable for future replay.
-    """
-
-    from .phase2_neural_seed_registry import prior_seed_registry_before_phase2au
-
-    return prior_seed_registry_before_phase2au()
+    return prior_seed_registry_before_phase2au2()
 
 
 def fresh_seeds_disjoint_from_prior() -> bool:
@@ -94,15 +92,12 @@ def build_qualification_checks(
     }
 
 
-def qualification_verdict(
-    prerequisites_pass: bool,
-    checks: Mapping[str, bool],
-) -> str:
+def qualification_verdict(prerequisites_pass: bool, checks: Mapping[str, bool]) -> str:
     if not bool(prerequisites_pass):
-        return "phase2au_inconclusive_prerequisites"
+        return "phase2au2_inconclusive_prerequisites"
     missing = [name for name in REQUIRED_QUALIFICATION_CHECKS if name not in checks]
     if missing:
-        raise ValueError(f"missing Phase 2A-U qualification checks: {', '.join(missing)}")
+        raise ValueError(f"missing Phase 2A-U2 qualification checks: {', '.join(missing)}")
     if all(bool(checks[name]) for name in REQUIRED_QUALIFICATION_CHECKS):
-        return "phase2au_oracle_qualified"
-    return "phase2au_oracle_not_qualified"
+        return "phase2au2_oracle_qualified"
+    return "phase2au2_oracle_not_qualified"
