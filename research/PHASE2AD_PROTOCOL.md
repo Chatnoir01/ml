@@ -71,8 +71,11 @@ For each candidate at each depth:
 For each depth independently:
 - blocked S-box heterogeneity permutation test preserving `(difference, paired replicate)` blocks;
 - 10,000 deterministic permutations;
+- fixed heterogeneity permutation seeds: R3=`92103`, R4=`92104`, R5=`92105`;
 - candidate score range;
 - between-candidate dispersion `V_r = population variance(candidate mean advantages)`.
+
+The heterogeneity seeds were searched on current `main` before implementation and had no repository matches. The same pre-implementation amendment is recorded publicly in issue #62.
 
 ## Primary confirmatory attenuation test: 4→5 rounds
 
