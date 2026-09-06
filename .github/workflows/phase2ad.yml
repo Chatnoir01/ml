@@ -5,6 +5,7 @@ on:
     branches:
       - research/phase2ad-depth-attenuation
     paths:
+      - research/PHASE2AD_PREFLIGHT.md
       - research/PHASE2AD_EXECUTE.md
 
 permissions:
@@ -13,13 +14,17 @@ permissions:
 jobs:
   preflight:
     runs-on: ubuntu-24.04
+    outputs:
+      execute: ${{ steps.mode.outputs.execute }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install neural package
-        run: python -m pip install -e '.[neural]'
+      - name: Install engineering and neural dependencies
+        run: python -m pip install -e '.[dev,neural]'
+      - name: Run repository tests before any Phase 2A-D training
+        run: pytest -q
       - name: Verify frozen Phase 2A-D lock
         run: |
           python - <<'PY'
@@ -40,8 +45,6 @@ jobs:
           )
           from adversarial_sbox.phase2ad_runner import expected_cell_keys, load_frozen_panel
 
-          marker = Path('research/PHASE2AD_EXECUTE.md').read_text()
-          assert 'AUTHORIZED_PHASE2AD_DEPTH_ATTENUATION' in marker
           previous = Path('research/PHASE2AR_RESULT.md').read_text()
           assert 'phase2ar_inconclusive_signal' in previous
           assert PANEL_DIGEST_SHA256 == '35898535a0df0cfe64431e5f0b6142115d40e3dbeed4a973faa9ba70b1028a30'
@@ -60,11 +63,24 @@ jobs:
           assert len(expected_cell_keys()) == 6
           print('PHASE2AD_PREFLIGHT_GREEN')
           PY
+      - name: Determine execution authorization
+        id: mode
+        shell: bash
+        run: |
+          if [[ -f research/PHASE2AD_EXECUTE.md ]] && grep -q 'AUTHORIZED_PHASE2AD_DEPTH_ATTENUATION' research/PHASE2AD_EXECUTE.md; then
+            echo 'execute=true' >> "$GITHUB_OUTPUT"
+            echo 'PHASE2AD_EXECUTION_AUTHORIZED'
+          else
+            echo 'execute=false' >> "$GITHUB_OUTPUT"
+            echo 'PHASE2AD_PREFLIGHT_ONLY_NO_TRAINING'
+          fi
       - name: Record scientific SHA
+        if: steps.mode.outputs.execute == 'true'
         run: echo "PHASE2AD_SCIENTIFIC_SHA=${GITHUB_SHA}"
 
   cell:
     needs: preflight
+    if: needs.preflight.outputs.execute == 'true'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -110,7 +126,8 @@ jobs:
           retention-days: 90
 
   aggregate:
-    needs: cell
+    needs: [preflight, cell]
+    if: needs.preflight.outputs.execute == 'true' && needs.cell.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
