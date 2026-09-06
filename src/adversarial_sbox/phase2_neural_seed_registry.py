@@ -50,7 +50,7 @@ def phase2au_blocks() -> tuple[SeedBlock, ...]:
 
 
 def phase2au2_blocks() -> tuple[SeedBlock, ...]:
-    """Frozen U2 requalification blocks, including both fitness-candidate blocks."""
+    """Frozen U2 requalification blocks, including the Phase-2B fitness block."""
 
     from .phase2au2 import (
         BLOCK_A_DATASET_SEEDS,
@@ -62,6 +62,20 @@ def phase2au2_blocks() -> tuple[SeedBlock, ...]:
     return (
         ("phase2au2-A", _freeze(BLOCK_A_DATASET_SEEDS), _freeze(BLOCK_A_MODEL_SEEDS)),
         ("phase2au2-B", _freeze(BLOCK_B_DATASET_SEEDS), _freeze(BLOCK_B_MODEL_SEEDS)),
+    )
+
+
+def phase2b_reserved_blocks() -> tuple[SeedBlock, ...]:
+    """Fresh Phase-2B terminal-validation block reserved before execution."""
+
+    from .phase2b import VALIDATION_DATASET_SEEDS, VALIDATION_MODEL_SEEDS
+
+    return (
+        (
+            "phase2b-validation-V",
+            _freeze(VALIDATION_DATASET_SEEDS),
+            _freeze(VALIDATION_MODEL_SEEDS),
+        ),
     )
 
 
@@ -82,10 +96,23 @@ def prior_seed_registry_before_phase2au2() -> tuple[int, ...]:
 
 
 def prior_seed_registry_before_phase2b() -> tuple[int, ...]:
-    """Complete frozen/executed neural registry before Phase 2B validation seeds."""
+    """Complete frozen/executed neural registry before Phase-2B validation seeds."""
 
     return seed_union(
         (*prior_blocks_before_phase2au(), *phase2au_blocks(), *phase2au2_blocks())
+    )
+
+
+def complete_seed_registry_through_phase2b() -> tuple[int, ...]:
+    """Complete registry including the reserved Phase-2B held-out Block V."""
+
+    return seed_union(
+        (
+            *prior_blocks_before_phase2au(),
+            *phase2au_blocks(),
+            *phase2au2_blocks(),
+            *phase2b_reserved_blocks(),
+        )
     )
 
 
