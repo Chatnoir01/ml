@@ -1,0 +1,137 @@
+name: Phase 2A-U Fresh Panel Reconstruction
+
+on:
+  push:
+    branches:
+      - research/phase2au-fresh-panel-depth4-oracle
+    paths:
+      - research/PHASE2AU_PANEL_EXECUTE.md
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Verify frozen Phase 2A-U panel lock
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from adversarial_sbox.phase2au import (
+              CLASSICAL_BUDGET,
+              CLASSICAL_SOURCE_SEEDS,
+              PANEL_SIZE,
+              TOTAL_NEURAL_TRAININGS,
+          )
+
+          assert CLASSICAL_SOURCE_SEEDS == (
+              90601, 90617, 90631, 90641, 90647, 90659,
+              90671, 90677, 90679, 90697, 90703, 90709,
+          )
+          assert CLASSICAL_BUDGET == 340
+          assert PANEL_SIZE == 6
+          assert TOTAL_NEURAL_TRAININGS == 192
+          assert Path('research/PHASE2AU_PROTOCOL.md').is_file()
+          assert Path('research/PHASE2AU_SEEDS.md').is_file()
+          marker = Path('research/PHASE2AU_PANEL_EXECUTE.md')
+          assert marker.is_file()
+          text = marker.read_text(encoding='utf-8')
+          assert 'AUTHORIZED_PHASE2AU_FRESH_PANEL_RECONSTRUCTION' in text
+          assert 'NO_NEURAL_TRAINING' in text
+          print('Phase 2A-U fresh-panel preflight OK')
+          PY
+      - name: Record panel reconstruction SHA
+        run: git rev-parse HEAD
+
+  replay-seed:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [90601, 90617, 90631, 90641, 90647, 90659, 90671, 90677, 90679, 90697, 90703, 90709]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Replay frozen Phase 1O Arm A twice for this fresh seed
+        run: |
+          python scripts/build_phase2au_panel.py \
+            --seed ${{ matrix.seed }} \
+            --output phase2au-panel-seed-${{ matrix.seed }}.json
+      - name: Show seed replay receipt
+        run: |
+          python - <<'PY'
+          import glob, json
+          path = glob.glob('phase2au-panel-seed-*.json')[0]
+          data = json.load(open(path))
+          print('SEED:', data['seed'])
+          print('EVALS_PER_REPLAY:', data['classical_evaluations_per_replay'])
+          print('REPLAYS:', data['replays'])
+          print('DETERMINISTIC:', data['deterministic_replay'])
+          print('TERMINAL_FINGERPRINTS:', [item['fingerprint'] for item in data['terminal_records']])
+          print('NEURAL_TRAINING_EXECUTED:', data['neural_training_executed'])
+          PY
+      - name: Upload seed replay evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2au-panel-seed-${{ matrix.seed }}-${{ github.sha }}
+          path: phase2au-panel-seed-${{ matrix.seed }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate-panel:
+    needs: replay-seed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Download all twelve seed replay receipts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase2au-panel-seed-*-${{ github.sha }}
+          path: cells
+          merge-multiple: true
+      - name: Aggregate fresh panel deterministically
+        run: |
+          python scripts/build_phase2au_panel.py \
+            --aggregate-files cells/phase2au-panel-seed-*.json \
+            --output phase2au-panel.json
+      - name: Show compact Phase 2A-U panel receipt
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2au-panel.json'))
+          print('CLASSIFICATION:', data['classification'])
+          print('PANEL_READY:', data['panel_ready'])
+          print('ELIGIBLE_SOURCE_SEEDS:', data['eligible_source_seed_count'])
+          print('PANEL_SIZE:', data['panel_size'])
+          print('PANEL_DIGEST:', data['panel_digest_sha256'])
+          for candidate in data['candidates']:
+              print(candidate['source_seed'], candidate['fingerprint'], candidate['sac_score'])
+          print('DETERMINISTIC_REPLAY:', data['deterministic_replay'])
+          print('CLASSICAL_REVALIDATION:', data['classical_revalidation'])
+          print('NEURAL_TRAINING_EXECUTED:', data['neural_training_executed'])
+          PY
+      - name: Upload fresh panel evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2au-panel-${{ github.sha }}
+          path: phase2au-panel.json
+          if-no-files-found: error
+          retention-days: 90
