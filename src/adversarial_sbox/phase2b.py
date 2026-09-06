@@ -13,6 +13,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .evolution import ClassicalMetrics, HardConstraints, primary_security_key
+from .phase2_evolution_seed_registry import PHASE2B_RESERVED_EVOLUTION_SEEDS
 
 ARCHITECTURE = "byte_tanh_mlp"
 DEPTH = 4
@@ -20,17 +21,8 @@ DIFFERENCES = (0x00000001, 0x00000100)
 PAIR_COUNT = 8192
 SPLIT_SIZES = (5734, 1228, 1230)
 
-EVOLUTION_SEEDS = (
-    326011,
-    326023,
-    326033,
-    326047,
-    326051,
-    326063,
-    326071,
-    326087,
-    326099,
-)
+# Authoritative reservation lives in the central Phase-2 evolution seed registry.
+EVOLUTION_SEEDS = PHASE2B_RESERVED_EVOLUTION_SEEDS
 
 FITNESS_DATASET_SEEDS = (
     176003,
