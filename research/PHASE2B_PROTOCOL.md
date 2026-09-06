@@ -3,6 +3,7 @@
 Public preregistration: issue #97  
 Execution lock: issue #98  
 RED-first implementation contract: issue #99  
+Ex-ante budget amendment: issue #101  
 Base `main`: `685bfdc47bd5ae8a45ecb8b4fca2d93030d847d8`
 
 ## Status
@@ -10,6 +11,8 @@ Base `main`: `685bfdc47bd5ae8a45ecb8b4fca2d93030d847d8`
 **PREREGISTERED / NOT EXECUTED**
 
 Phase 2A-U2 is frozen as `phase2au2_oracle_qualified` and explicitly makes this separately preregistered matched-budget Phase 2B eligible. Full GA↔NN co-evolution remains out of scope.
+
+Issue #101 was filed before any scientific Phase-2B execution. It replaces only the future-dependent neural opportunity-cap language from the original #97 preregistration with the fixed ex-ante budget below. The hypothesis, arms, Oracle regime, held-out validation, endpoints, thresholds and classical non-degradation gate are unchanged.
 
 ## Scientific question
 
@@ -63,11 +66,11 @@ No architecture, seed, pair count, split, depth, difference, optimizer/training 
 
 ### Arm C — classical control
 
-Run the frozen Phase-1O search. At every eligible exact protected-key tie opportunity, compute the same real Oracle scores required by the matched ledger, but ignore those scores in selection. Classical ordering remains authoritative.
+Run the frozen Phase-1O search. At every eligible exact protected-key tie opportunity that fits within the fixed score budget, compute the same real Oracle scores but ignore those scores in selection. Classical ordering remains authoritative.
 
 ### Arm O — real Oracle pressure
 
-At an eligible exact protected-key tie, lower frozen fitness-Oracle score is the first tie-breaker among candidates in that tie group. Outside exact protected-key equality, behavior is identical to Arm C.
+At an eligible exact protected-key tie that fits within the fixed score budget, lower frozen fitness-Oracle score is the first tie-breaker among candidates in that tie group. Outside exact protected-key equality, behavior is identical to Arm C.
 
 ### Arm S — shuffled-score negative control
 
@@ -87,21 +90,32 @@ Before execution, these seeds must be centrally registered and proven disjoint f
 
 No seed replacement or retry based on outcomes is allowed.
 
-## Matched neural-scoring budget
+## Fixed ex-ante matched neural-scoring budget
+
+Issue #101 freezes the replacement budget before any scientific Phase-2B run:
+
+- `ORACLE_SCORE_BUDGET_PER_ARM_SEED = 32` candidate scores;
+- each candidate score costs exactly `16` frozen U2-Block-A neural trainings;
+- exact fitness-Oracle compute per arm/seed = `512` neural trainings;
+- exact fitness-Oracle compute over 3 arms × 9 seeds = `13,824` neural trainings.
+
+Held-out Block V is separate and never counts toward the fitness budget.
 
 Neural scoring is permitted only for exact protected-key tie groups that can change a selection decision.
 
-Requirements:
+Online rules:
 
 1. no hidden candidate-wide neural prescoring;
-2. every scored candidate is fingerprinted and receipted;
-3. Arm C/O/S record exact eligible tie groups, candidate fingerprints, score counts and training counts;
-4. every candidate score costs exactly 16 neural trainings;
-5. within each seed, selection may use neural scores only up to a frozen matched opportunity cap shared by all three arms;
-6. if raw eligible opportunity counts diverge across arms, the shared cap is the minimum realized eligible opportunity count among C/O/S for that seed;
-7. extra opportunities beyond that cap are logged but cannot influence selection.
+2. opportunities are processed in deterministic generation/order sequence;
+3. an exact-key tie group may use Oracle information only if scoring the **entire group** fits in the arm's remaining 32-score budget;
+4. no partial group scoring is allowed;
+5. once a full eligible group does not fit, that group and all later groups use classical ordering only;
+6. every scored candidate is fingerprinted and receipted;
+7. every candidate score costs exactly 16 neural trainings.
 
-This preserves a matched information/compute budget without allowing result-driven candidate-wide scoring.
+If an arm uses fewer than 32 decision-relevant score slots, remaining slots are consumed only **after its terminal candidate is frozen** as audit-only padding. Padding candidates are selected deterministically from already classically evaluated candidates by ascending fingerprint, excluding candidates already Oracle-scored for selection. Padding scores use the same U2 Block-A regime, cannot alter evolution, and cannot enter the primary endpoint.
+
+If an arm lacks enough distinct eligible padding candidates to reach exactly 32 total candidate scores, the run is `phase2b_inconclusive_prerequisites`. No candidate may be rescored merely to consume budget.
 
 ## Held-out terminal validation block V
 
@@ -175,6 +189,7 @@ Required before interpretation:
 
 - exact 340-classical-evaluation ledger per arm/seed;
 - same initial population digest across C/O/S per seed;
+- exact 32 candidate scores / 512 fitness-Oracle trainings per arm/seed;
 - exact neural training ledger for each candidate Oracle score;
 - candidate fingerprint attached to each Oracle score;
 - deterministic score payload SHA-256 receipts;
