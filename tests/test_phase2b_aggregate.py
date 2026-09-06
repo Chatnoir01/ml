@@ -1,6 +1,62 @@
 """RED-first aggregate statistics for Phase 2B; synthetic inputs only."""
 
-from adversarial_sbox.phase2b_aggregate import exact_one_sided_sign_p, summarize_support
+import copy
+import hashlib
+import json
+
+from adversarial_sbox.phase2b import (
+    ARCHITECTURE,
+    DEPTH,
+    DIFFERENCES,
+    FITNESS_DATASET_SEEDS,
+    FITNESS_MODEL_SEEDS,
+    PAIR_COUNT,
+    SPLIT_SIZES,
+)
+from adversarial_sbox.phase2b_aggregate import (
+    exact_one_sided_sign_p,
+    score_payload_integrity,
+    summarize_support,
+)
+
+
+def _synthetic_score_payload() -> dict:
+    runs = []
+    for difference in DIFFERENCES:
+        for replicate, (dataset_seed, model_seed) in enumerate(
+            zip(FITNESS_DATASET_SEEDS, FITNESS_MODEL_SEEDS)
+        ):
+            runs.append(
+                {
+                    "difference": int(difference),
+                    "replicate": replicate,
+                    "dataset_seed": int(dataset_seed),
+                    "model_seed": int(model_seed),
+                    "train_size": SPLIT_SIZES[0],
+                    "validation_size": SPLIT_SIZES[1],
+                    "test_size": SPLIT_SIZES[2],
+                    "neural_advantage": 0.4,
+                    "null_advantage": 0.02,
+                }
+            )
+    payload = {
+        "schema_version": 1,
+        "experiment": "phase2b_candidate_oracle_score",
+        "purpose": "fitness",
+        "architecture": ARCHITECTURE,
+        "depth": DEPTH,
+        "differences": list(DIFFERENCES),
+        "pair_count": PAIR_COUNT,
+        "split_sizes": list(SPLIT_SIZES),
+        "fingerprint": "synthetic-fingerprint",
+        "training_count": 16,
+        "neural_advantage": 0.4,
+        "null_advantage": 0.02,
+        "runs": runs,
+    }
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    payload["scientific_payload_sha256"] = hashlib.sha256(blob).hexdigest()
+    return payload
 
 
 def test_exact_sign_test_for_eight_of_nine_wins_is_preregistered_significant():
@@ -9,8 +65,35 @@ def test_exact_sign_test_for_eight_of_nine_wins_is_preregistered_significant():
 
 
 def test_zero_differences_are_excluded_from_sign_test_not_counted_as_wins():
-    # 8 positive, 0 negative, 1 exact tie -> denominator n=8.
     assert exact_one_sided_sign_p(8, 0) == 1 / 256
+
+
+def test_full_score_payload_integrity_rejects_seed_or_receipt_tampering():
+    payload = _synthetic_score_payload()
+    assert score_payload_integrity(
+        payload,
+        purpose="fitness",
+        dataset_seeds=FITNESS_DATASET_SEEDS,
+        model_seeds=FITNESS_MODEL_SEEDS,
+    ) is True
+
+    tampered_seed = copy.deepcopy(payload)
+    tampered_seed["runs"][0]["dataset_seed"] += 1
+    assert score_payload_integrity(
+        tampered_seed,
+        purpose="fitness",
+        dataset_seeds=FITNESS_DATASET_SEEDS,
+        model_seeds=FITNESS_MODEL_SEEDS,
+    ) is False
+
+    tampered_hash = copy.deepcopy(payload)
+    tampered_hash["scientific_payload_sha256"] = "0" * 64
+    assert score_payload_integrity(
+        tampered_hash,
+        purpose="fitness",
+        dataset_seeds=FITNESS_DATASET_SEEDS,
+        model_seeds=FITNESS_MODEL_SEEDS,
+    ) is False
 
 
 def test_synthetic_supported_summary_requires_all_six_gates():
