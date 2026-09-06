@@ -22,7 +22,7 @@ from .evolution import (
     feasibility_rank,
     primary_security_key,
 )
-from .pareto import ITOAwareMetrics, select_nsga2
+from .pareto import ITOAwareMetrics, non_dominated_sort, select_nsga2
 from .phase1m import ClassicalEvaluationLedger, _initial_population, _population_digest
 from .phase1o import _collect_unique_batch, _proposal_audit_digest
 from .phase2_evolution_seed_registry import phase2b_evolution_seeds_are_fresh
@@ -142,10 +142,9 @@ class OracleScoreLedger:
         """Consume unused score slots after terminal freeze without affecting evolution."""
 
         terminal = validate_sbox(terminal)
-        ordered = sorted(
-            {validate_sbox(candidate) for candidate in candidates if validate_sbox(candidate) != terminal},
-            key=fingerprint_sbox,
-        )
+        frozen_candidates = {validate_sbox(candidate) for candidate in candidates}
+        frozen_candidates.discard(terminal)
+        ordered = sorted(frozen_candidates, key=fingerprint_sbox)
         for candidate in ordered:
             if self.score_count >= self._budget:
                 break
@@ -164,10 +163,11 @@ def _base_order(
     metrics: dict[SBox, ClassicalMetrics],
     constraints: HardConstraints,
 ) -> list[SBox]:
+    """Exact Phase-1O historical order before any neural tie-break intervention."""
+
     return sorted(
         candidates,
         key=lambda candidate: (
-            primary_security_key(metrics[candidate], constraints),
             feasibility_rank(metrics[candidate], constraints),
             candidate,
         ),
@@ -188,8 +188,10 @@ def cutoff_order(
 ) -> list[SBox]:
     """Order one selection pool, allowing neural pressure only at the cutoff tie.
 
-    Only an exact protected-key group that straddles the requested cutoff can
-    affect membership. The entire group must fit the remaining score budget.
+    The underlying order is byte-for-byte equivalent in semantics to Phase 1O's
+    historical feasibility ranking. Neural information may replace only the final
+    within-group ordering for one exact protected-key group that straddles the
+    requested cutoff; it can never move a candidate across protected keys.
     """
 
     if mode not in {"control", "oracle", "shuffled"}:
@@ -237,6 +239,8 @@ def cutoff_order(
         reordered = [candidate for candidate, _score in assigned_pairs]
         assigned = {fingerprint_sbox(candidate): score for candidate, score in assigned_pairs}
     else:
+        # Control still pays the exact same kind of score receipt at an eligible
+        # boundary, but preserves historical Phase-1O ordering exactly.
         reordered = list(group)
         assigned = {fingerprint_sbox(candidate): score for candidate, score in scored}
 
@@ -342,17 +346,30 @@ def run_arm(
     if ledger.evaluations != CLASSICAL_BUDGET_PER_ARM_SEED:
         raise RuntimeError("Phase 2B classical budget drift")
 
-    terminal_order = cutoff_order(
+    # Preserve the confirmed Phase-1O terminal rule: shortlist -> ITO-aware
+    # non-dominated front -> best feasibility-ranked member. Oracle pressure may
+    # affect shortlist membership only through an eligible exact-key boundary.
+    final_ranked = cutoff_order(
         population,
         metrics=ledger.cache,
         constraints=constraints,
-        cutoff=1,
+        cutoff=SHORTLIST_SIZE,
         mode=mode,
         oracle=oracle,
         shuffle_seed=int(seed) + SHUFFLE_SEED_OFFSET + EVOLUTION_GENERATIONS * 2,
         audit_events=oracle_events,
     )
-    terminal = terminal_order[0]
+    final_shortlist = tuple(final_ranked[:SHORTLIST_SIZE])
+    final_ito = tuple(with_ito(candidate) for candidate in final_shortlist)
+    front_indices = non_dominated_sort(final_ito)[0]
+    terminal_front = tuple(final_shortlist[index] for index in front_indices)
+    terminal = max(
+        terminal_front,
+        key=lambda candidate: (
+            feasibility_rank(ledger.cache[candidate], constraints),
+            candidate,
+        ),
+    )
     terminal_metrics = ledger.cache[terminal]
 
     # Terminal is frozen before audit-only compute padding.
