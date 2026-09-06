@@ -1,5 +1,7 @@
 """RED-first scientific contract for Phase 2B GA <- frozen Neural Oracle pressure."""
 
+import random
+
 from adversarial_sbox.evolution import ClassicalMetrics, HardConstraints, primary_security_key
 from adversarial_sbox.phase2_evolution_seed_registry import (
     phase2b_evolution_seeds_are_fresh,
@@ -84,7 +86,7 @@ def test_neural_score_cannot_cross_protected_classical_key():
         [("stronger", stronger, 0.90), ("weaker", weaker, 0.01)],
         constraints=constraints,
         mode="oracle",
-        shuffle_seed=1,
+        shuffle_rng=None,
     )
     assert ordered[0][0] == "stronger"
 
@@ -99,7 +101,7 @@ def test_real_oracle_only_breaks_exact_classical_ties_toward_lower_signal():
         [("left", left, 0.30), ("right", right, 0.10)],
         constraints=constraints,
         mode="oracle",
-        shuffle_seed=7,
+        shuffle_rng=None,
     )
     assert ordered[0][0] == "right"
 
@@ -112,9 +114,44 @@ def test_control_ignores_oracle_scores():
         [("left", left, 0.90), ("right", right, 0.01)],
         constraints=constraints,
         mode="control",
-        shuffle_seed=7,
+        shuffle_rng=None,
     )
     assert [item[0] for item in ordered] == ["left", "right"]
+
+
+def test_pure_shuffled_tiebreak_consumes_caller_owned_rng_stream():
+    constraints = HardConstraints()
+    left = _metrics(sac=0.49)
+    right = _metrics(sac=0.51)
+    rng = random.Random(12345)
+    reference = random.Random(12345)
+
+    first = apply_oracle_tiebreak(
+        [("left", left, 0.90), ("right", right, 0.01)],
+        constraints=constraints,
+        mode="shuffled",
+        shuffle_rng=rng,
+    )
+    second = apply_oracle_tiebreak(
+        [("left", left, 0.90), ("right", right, 0.01)],
+        constraints=constraints,
+        mode="shuffled",
+        shuffle_rng=rng,
+    )
+    replay_first = apply_oracle_tiebreak(
+        [("left", left, 0.90), ("right", right, 0.01)],
+        constraints=constraints,
+        mode="shuffled",
+        shuffle_rng=reference,
+    )
+    replay_second = apply_oracle_tiebreak(
+        [("left", left, 0.90), ("right", right, 0.01)],
+        constraints=constraints,
+        mode="shuffled",
+        shuffle_rng=reference,
+    )
+    assert first == replay_first
+    assert second == replay_second
 
 
 def test_phase2b_verdict_requires_every_preregistered_support_gate():
