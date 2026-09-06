@@ -43,6 +43,7 @@ def _fake_scorer(sbox):
         "training_count": 16,
         "neural_advantage": score,
         "scientific_payload_sha256": f"fake-{sbox[0]}",
+        "runs": [{"synthetic": True, "index": i} for i in range(16)],
     }
 
 
@@ -75,6 +76,17 @@ def test_oracle_ledger_enforces_exact_candidate_score_cap():
         pass
     else:
         raise AssertionError("Oracle score budget must be hard")
+
+
+def test_oracle_ledger_retains_full_score_payload_for_later_audit():
+    ledger = OracleScoreLedger(_fake_scorer, budget=1)
+    candidate = _fake_sbox(1)
+    ledger.score(candidate)
+    receipt = ledger.receipts[0]
+    assert receipt.score_payload["purpose"] == "fitness"
+    assert receipt.score_payload["training_count"] == 16
+    assert len(receipt.score_payload["runs"]) == 16
+    assert receipt.score_payload["scientific_payload_sha256"] == receipt.payload_sha256
 
 
 def test_cutoff_oracle_scores_only_complete_exact_key_boundary_group():
@@ -139,7 +151,6 @@ def test_shuffled_ties_consume_one_persistent_rng_stream():
         mode="shuffled", oracle=ledger, shuffle_rng=rng,
     )
 
-    # Replaying from one identically seeded RNG must reproduce both calls in sequence.
     replay_ledger = OracleScoreLedger(_fake_scorer, budget=6)
     replay_rng = make_shuffled_control_rng(326011)
     assert first == cutoff_order(
