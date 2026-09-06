@@ -3,7 +3,9 @@
 import inspect
 
 from adversarial_sbox.evolution import ClassicalMetrics, HardConstraints
-from adversarial_sbox.phase2b_runner import OracleScoreLedger, cutoff_order
+from adversarial_sbox.phase1m import _initial_population, _population_digest
+from adversarial_sbox.phase1o import _run_multihotspot_arm
+from adversarial_sbox.phase2b_runner import OracleScoreLedger, cutoff_order, run_arm
 import adversarial_sbox.phase2b_runner as phase2b_runner
 
 
@@ -97,3 +99,23 @@ def test_boundary_group_is_not_partially_scored_when_budget_cannot_fit_it():
         shuffle_seed=5,
     )
     assert ledger.score_count == 0
+
+
+def test_control_arm_replays_confirmed_phase1o_fighter_exactly():
+    seed = 326011
+    initial = _initial_population(seed)
+    digest = _population_digest(initial)
+    historical = _run_multihotspot_arm(initial, seed=seed, initial_digest=digest)
+    control = run_arm(seed=seed, mode="control", scorer=_fake_scorer)
+
+    assert control["initial_population_digest_sha256"] == digest
+    assert control["classical_evaluations"] == historical["classical_evaluations"] == 340
+    assert control["proposal_audit_sha256"] == historical["proposal_audit_sha256"]
+
+    best = historical["best_feasibility_metrics"]
+    terminal = control["terminal_classical"]
+    assert terminal["nonlinearity"] == best["nonlinearity"]
+    assert terminal["differential_uniformity"] == best["differential_uniformity"]
+    assert terminal["max_linear_correlation"] == best["max_linear_correlation"]
+    assert terminal["algebraic_degree"] == best["algebraic_degree"]
+    assert terminal["fingerprint"] == best["fingerprint"]
