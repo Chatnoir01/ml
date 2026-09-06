@@ -1,0 +1,132 @@
+name: Phase 2C-A Artifact Diagnostics
+
+on:
+  push:
+    branches:
+      - research/phase2c-oracle-pressure-diagnostics
+    paths:
+      - research/PHASE2C_EXECUTE.md
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install package without neural extras
+        run: python -m pip install -e .
+
+      - name: Verify frozen Phase 2C-A lock
+        run: |
+          grep -qx 'AUTHORIZED_PHASE2C_ARTIFACT_DIAGNOSTICS' research/PHASE2C_EXECUTE.md
+          grep -q 'phase2c_artifacts_insufficient' research/PHASE2C_PROTOCOL.md
+          grep -q 'phase2b_oracle_pressure_not_supported' research/PHASE2B_RESULT.md
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('src/adversarial_sbox/phase2c_diagnostics.py').read_text()
+          forbidden = ('phase2b_oracle', 'phase2b_validation', 'score_fitness_candidate', 'run_arm')
+          assert all(token not in source for token in forbidden), forbidden
+          PY
+
+      - name: Download exact frozen Phase 2B artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase2b-*-59066ad943fc85f24a21b4c2941cbcee4d23aeae
+          path: results
+          merge-multiple: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Chatnoir01/ml
+          run-id: '34064310593'
+
+      - name: Freeze source artifact manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/Chatnoir01/ml/actions/runs/34064310593/artifacts > artifacts-api.json
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          source_sha = '59066ad943fc85f24a21b4c2941cbcee4d23aeae'
+          raw = json.loads(Path('artifacts-api.json').read_text())
+          artifacts = []
+          for item in raw['artifacts']:
+              name = str(item['name'])
+              if not name.startswith('phase2b-') or name.startswith('phase2b-summary-'):
+                  continue
+              run = item.get('workflow_run') or {}
+              assert run.get('id') == 34064310593
+              assert run.get('head_sha') == source_sha
+              assert item.get('expired') is False
+              digest = str(item.get('digest', ''))
+              assert digest.startswith('sha256:') and len(digest) == 71
+              artifacts.append({
+                  'artifact_id': int(item['id']),
+                  'name': name,
+                  'digest': digest,
+                  'size_in_bytes': int(item['size_in_bytes']),
+              })
+          artifacts.sort(key=lambda value: value['name'])
+          assert len(artifacts) == 27, len(artifacts)
+          payload = {
+              'source_scientific_sha': source_sha,
+              'source_workflow_run_id': 34064310593,
+              'artifact_count': len(artifacts),
+              'artifacts': artifacts,
+          }
+          canonical = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
+          payload['manifest_payload_sha256'] = hashlib.sha256(canonical).hexdigest()
+          Path('phase2c-source-artifacts.json').write_text(
+              json.dumps(payload, sort_keys=True, indent=2) + '\n'
+          )
+          PY
+
+      - name: Analyze twice and require byte identity
+        shell: bash
+        run: |
+          mapfile -t ARM_FILES < <(find results -type f -name arm.json | sort)
+          mapfile -t ARM_FILES_REVERSED < <(find results -type f -name arm.json | sort -r)
+          test "${#ARM_FILES[@]}" -eq 27
+          test "${#ARM_FILES_REVERSED[@]}" -eq 27
+          python scripts/run_phase2c.py --arm-files "${ARM_FILES[@]}" --output phase2c-result-1.json
+          python scripts/run_phase2c.py --arm-files "${ARM_FILES_REVERSED[@]}" --output phase2c-result-2.json
+          cmp phase2c-result-1.json phase2c-result-2.json
+          cp phase2c-result-1.json phase2c-result.json
+
+      - name: Verify frozen diagnostic classification
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2c-result.json'))
+          assert data['cell_count'] == 27
+          assert data['classification'] == 'phase2c_artifacts_insufficient'
+          assert data['new_neural_trainings'] == 0
+          assert data['new_evolution_runs'] == 0
+          assert data['phase2b_replays'] == 0
+          required_missing = {'generation', 'group_start', 'group_end', 'selected_before', 'selected_after'}
+          assert required_missing.issubset(set(data['missing_trace_fields']))
+          print('CLASSIFICATION:', data['classification'])
+          print('DIAGNOSTIC_SHA256:', data['diagnostic_payload_sha256'])
+          print('ORACLE_SUMMARY:', json.dumps(data['arm_summaries']['oracle'], sort_keys=True))
+          PY
+
+      - name: Upload frozen Phase 2C-A receipts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2c-a-diagnostics-${{ github.sha }}
+          path: |
+            phase2c-result.json
+            phase2c-source-artifacts.json
+          if-no-files-found: error
+          retention-days: 90
