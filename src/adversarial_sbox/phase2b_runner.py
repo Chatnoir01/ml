@@ -157,6 +157,12 @@ class OracleScoreLedger:
             raise RuntimeError("Phase 2B exact fitness training budget drift")
 
 
+def make_shuffled_control_rng(seed: int) -> random.Random:
+    """Return the single preregistered shuffled-control RNG stream for one seed."""
+
+    return random.Random(int(seed) + SHUFFLE_SEED_OFFSET)
+
+
 def _base_order(
     candidates: Sequence[SBox],
     *,
@@ -183,7 +189,7 @@ def cutoff_order(
     cutoff: int,
     mode: str,
     oracle: OracleScoreLedger,
-    shuffle_seed: int,
+    shuffle_rng: random.Random | None,
     audit_events: list[dict[str, Any]] | None = None,
 ) -> list[SBox]:
     """Order one selection pool, allowing neural pressure only at the cutoff tie.
@@ -196,6 +202,8 @@ def cutoff_order(
 
     if mode not in {"control", "oracle", "shuffled"}:
         raise ValueError(f"unsupported Phase 2B arm mode {mode!r}")
+    if mode == "shuffled" and shuffle_rng is None:
+        raise ValueError("Phase 2B shuffled arm requires one persistent RNG stream")
     if not 1 <= int(cutoff) <= len(candidates):
         raise ValueError("Phase 2B cutoff outside candidate pool")
     base = _base_order(candidates, metrics=metrics, constraints=constraints)
@@ -232,8 +240,8 @@ def cutoff_order(
         assigned = {fingerprint_sbox(candidate): score for candidate, score in scored}
     elif mode == "shuffled":
         scores = [score for _candidate, score in scored]
-        rng = random.Random(int(shuffle_seed))
-        rng.shuffle(scores)
+        assert shuffle_rng is not None
+        shuffle_rng.shuffle(scores)
         assigned_pairs = list(zip([candidate for candidate, _score in scored], scores))
         assigned_pairs.sort(key=lambda item: item[1])
         reordered = [candidate for candidate, _score in assigned_pairs]
@@ -293,6 +301,7 @@ def run_arm(
     initial_digest = _population_digest(initial)
     ledger = ClassicalEvaluationLedger(evaluate_classical, budget=CLASSICAL_BUDGET_PER_ARM_SEED)
     oracle = OracleScoreLedger(scorer)
+    shuffle_rng = make_shuffled_control_rng(int(seed)) if mode == "shuffled" else None
     rng = random.Random(int(seed))
     population = list(initial)
     seen_ever = set(initial)
@@ -313,7 +322,7 @@ def run_arm(
             ito_cache[candidate] = cached
         return cached
 
-    for generation in range(EVOLUTION_GENERATIONS):
+    for _generation in range(EVOLUTION_GENERATIONS):
         ranked = cutoff_order(
             population,
             metrics=ledger.cache,
@@ -321,7 +330,7 @@ def run_arm(
             cutoff=SHORTLIST_SIZE,
             mode=mode,
             oracle=oracle,
-            shuffle_seed=int(seed) + SHUFFLE_SEED_OFFSET + generation * 2,
+            shuffle_rng=shuffle_rng,
             audit_events=oracle_events,
         )
         shortlist = tuple(ranked[:SHORTLIST_SIZE])
@@ -339,7 +348,7 @@ def run_arm(
             cutoff=POPULATION_SIZE,
             mode=mode,
             oracle=oracle,
-            shuffle_seed=int(seed) + SHUFFLE_SEED_OFFSET + generation * 2 + 1,
+            shuffle_rng=shuffle_rng,
             audit_events=oracle_events,
         )[:POPULATION_SIZE]
 
@@ -356,7 +365,7 @@ def run_arm(
         cutoff=SHORTLIST_SIZE,
         mode=mode,
         oracle=oracle,
-        shuffle_seed=int(seed) + SHUFFLE_SEED_OFFSET + EVOLUTION_GENERATIONS * 2,
+        shuffle_rng=shuffle_rng,
         audit_events=oracle_events,
     )
     final_shortlist = tuple(final_ranked[:SHORTLIST_SIZE])
