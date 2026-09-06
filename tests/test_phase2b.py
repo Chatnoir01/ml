@@ -1,6 +1,14 @@
 """RED-first scientific contract for Phase 2B GA <- frozen Neural Oracle pressure."""
 
 from adversarial_sbox.evolution import ClassicalMetrics, HardConstraints, primary_security_key
+from adversarial_sbox.phase2_evolution_seed_registry import (
+    phase2b_evolution_seeds_are_fresh,
+    prior_evolution_seed_registry,
+)
+from adversarial_sbox.phase2_neural_seed_registry import (
+    prior_seed_registry_before_phase2b,
+    registry_is_disjoint,
+)
 from adversarial_sbox.phase2b import (
     ARCHITECTURE,
     DEPTH,
@@ -8,6 +16,9 @@ from adversarial_sbox.phase2b import (
     EVOLUTION_SEEDS,
     FITNESS_DATASET_SEEDS,
     FITNESS_MODEL_SEEDS,
+    FITNESS_TRAININGS_PER_ARM_SEED,
+    ORACLE_SCORE_BUDGET_PER_ARM_SEED,
+    ORACLE_TRAININGS_PER_SCORE,
     PAIR_COUNT,
     SPLIT_SIZES,
     VALIDATION_DATASET_SEEDS,
@@ -39,6 +50,28 @@ def test_phase2b_frozen_contract():
     assert FITNESS_MODEL_SEEDS == (186007, 186019, 186031, 186043, 186061, 186073, 186091, 186103)
     assert VALIDATION_DATASET_SEEDS == (276003, 276017, 276029, 276041, 276053, 276067, 276079, 276091)
     assert VALIDATION_MODEL_SEEDS == (286007, 286019, 286031, 286043, 286057, 286069, 286081, 286103)
+    assert ORACLE_TRAININGS_PER_SCORE == 16
+    assert ORACLE_SCORE_BUDGET_PER_ARM_SEED == 32
+    assert FITNESS_TRAININGS_PER_ARM_SEED == 512
+
+
+def test_phase2b_validation_neural_seeds_are_fresh_against_complete_prior_registry():
+    prior = set(prior_seed_registry_before_phase2b())
+    validation = set(VALIDATION_DATASET_SEEDS) | set(VALIDATION_MODEL_SEEDS)
+    fitness = set(FITNESS_DATASET_SEEDS) | set(FITNESS_MODEL_SEEDS)
+    assert validation.isdisjoint(prior)
+    assert validation.isdisjoint(fitness)
+    assert registry_is_disjoint(
+        VALIDATION_DATASET_SEEDS,
+        VALIDATION_MODEL_SEEDS,
+        before="phase2b",
+    )
+
+
+def test_phase2b_evolution_seeds_are_fresh_and_unique():
+    assert len(EVOLUTION_SEEDS) == len(set(EVOLUTION_SEEDS)) == 9
+    assert phase2b_evolution_seeds_are_fresh(EVOLUTION_SEEDS) is True
+    assert set(EVOLUTION_SEEDS).isdisjoint(prior_evolution_seed_registry())
 
 
 def test_neural_score_cannot_cross_protected_classical_key():
