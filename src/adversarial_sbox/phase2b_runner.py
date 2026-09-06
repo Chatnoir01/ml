@@ -52,6 +52,7 @@ class OracleReceipt:
     payload_sha256: str
     training_count: int
     role: str
+    score_payload: dict[str, Any]
 
 
 class OracleScoreLedger:
@@ -124,12 +125,14 @@ class OracleScoreLedger:
         if not payload_sha:
             raise RuntimeError("Phase 2B fitness scorer receipt missing")
 
+        frozen_payload = json.loads(json.dumps(payload, sort_keys=True))
         self._cache[frozen] = OracleReceipt(
             fingerprint=expected_fingerprint,
             neural_advantage=score,
             payload_sha256=payload_sha,
             training_count=ORACLE_TRAININGS_PER_SCORE,
             role=role,
+            score_payload=frozen_payload,
         )
         return score
 
@@ -194,10 +197,10 @@ def cutoff_order(
 ) -> list[SBox]:
     """Order one selection pool, allowing neural pressure only at the cutoff tie.
 
-    The underlying order is byte-for-byte equivalent in semantics to Phase 1O's
-    historical feasibility ranking. Neural information may replace only the final
-    within-group ordering for one exact protected-key group that straddles the
-    requested cutoff; it can never move a candidate across protected keys.
+    The underlying order is equivalent in semantics to Phase 1O's historical
+    feasibility ranking. Neural information may replace only the final within-
+    group ordering for one exact protected-key group that straddles the requested
+    cutoff; it can never move a candidate across protected keys.
     """
 
     if mode not in {"control", "oracle", "shuffled"}:
@@ -247,8 +250,6 @@ def cutoff_order(
         reordered = [candidate for candidate, _score in assigned_pairs]
         assigned = {fingerprint_sbox(candidate): score for candidate, score in assigned_pairs}
     else:
-        # Control still pays the exact same kind of score receipt at an eligible
-        # boundary, but preserves historical Phase-1O ordering exactly.
         reordered = list(group)
         assigned = {fingerprint_sbox(candidate): score for candidate, score in scored}
 
@@ -355,9 +356,6 @@ def run_arm(
     if ledger.evaluations != CLASSICAL_BUDGET_PER_ARM_SEED:
         raise RuntimeError("Phase 2B classical budget drift")
 
-    # Preserve the confirmed Phase-1O terminal rule: shortlist -> ITO-aware
-    # non-dominated front -> best feasibility-ranked member. Oracle pressure may
-    # affect shortlist membership only through an eligible exact-key boundary.
     final_ranked = cutoff_order(
         population,
         metrics=ledger.cache,
@@ -374,10 +372,7 @@ def run_arm(
     terminal_front = tuple(final_shortlist[index] for index in front_indices)
     terminal = max(
         terminal_front,
-        key=lambda candidate: (
-            feasibility_rank(ledger.cache[candidate], constraints),
-            candidate,
-        ),
+        key=lambda candidate: feasibility_rank(ledger.cache[candidate], constraints),
     )
     terminal_metrics = ledger.cache[terminal]
 
@@ -404,6 +399,7 @@ def run_arm(
                 "payload_sha256": receipt.payload_sha256,
                 "training_count": receipt.training_count,
                 "role": receipt.role,
+                "score_payload": receipt.score_payload,
             }
             for receipt in oracle.receipts
         ],
