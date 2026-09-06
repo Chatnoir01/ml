@@ -57,27 +57,16 @@ def fresh_seed_registry() -> tuple[int, ...]:
 
 
 def prior_frozen_neural_seed_registry() -> tuple[int, ...]:
-    """Return prior Phase-2 frozen neural dataset/model seeds known before 2A-U."""
+    """Return the complete prior Phase-2 neural registry before Phase 2A-U.
 
-    from .phase2a import DATASET_SEEDS as P2A_DATASET, MODEL_SEEDS as P2A_MODEL
-    from .phase2ar import DATASET_SEEDS as P2AR_DATASET, MODEL_SEEDS as P2AR_MODEL
-    from .phase2as import DATASET_SEEDS as P2AS_DATASET, MODEL_SEEDS as P2AS_MODEL
-    from .phase2at import DATASET_SEEDS as P2AT_DATASET, MODEL_SEEDS as P2AT_MODEL
+    The original Phase 2A-U implementation omitted earlier executed Phase 2A-D
+    and Phase 2A-P registries. The post-hoc provenance audit keeps the historical
+    result artifact immutable while correcting this callable for future replay.
+    """
 
-    return tuple(
-        sorted(
-            {
-                *P2A_DATASET,
-                *P2A_MODEL,
-                *P2AR_DATASET,
-                *P2AR_MODEL,
-                *P2AS_DATASET,
-                *P2AS_MODEL,
-                *P2AT_DATASET,
-                *P2AT_MODEL,
-            }
-        )
-    )
+    from .phase2_neural_seed_registry import prior_seed_registry_before_phase2au
+
+    return prior_seed_registry_before_phase2au()
 
 
 def fresh_seeds_disjoint_from_prior() -> bool:
