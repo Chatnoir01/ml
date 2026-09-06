@@ -1,0 +1,147 @@
+name: Phase 2A-T Depth Profile Replication
+
+on:
+  push:
+    branches:
+      - research/phase2at-depth4-peak-replication
+    paths:
+      - research/PHASE2AT_EXECUTE.md
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - name: Verify frozen Phase 2A-T lock
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from adversarial_sbox.phase2at import (
+              ARCHITECTURE, DATASET_SEEDS, DEPTH4_HETEROGENEITY_P_MAX,
+              DEPTHS, DIFFERENCES, MODEL_SEEDS, PANEL_DIGEST_SHA256,
+              PAIRED_REPLICATES, PERMUTATION_REPETITIONS,
+              PERMUTATION_SEEDS, TOTAL_TRAININGS,
+          )
+          from adversarial_sbox.phase2at_runner import expected_cell_keys, load_frozen_panel
+
+          marker = Path('research/PHASE2AT_EXECUTE.md').read_text()
+          assert 'AUTHORIZED_PHASE2AT_DEPTH4_PEAK_REPLICATION' in marker
+          protocol = Path('research/PHASE2AT_PROTOCOL.md').read_text()
+          assert 'phase2at_depth4_peak_replicated' in protocol
+          assert ARCHITECTURE == 'byte_tanh_mlp'
+          assert DEPTHS == (3, 4, 5)
+          assert DIFFERENCES == (0x00000001, 0x00000100)
+          assert PANEL_DIGEST_SHA256 == '35898535a0df0cfe64431e5f0b6142115d40e3dbeed4a973faa9ba70b1028a30'
+          assert len(load_frozen_panel()) == 6
+          assert DATASET_SEEDS == (73003, 73019, 73031, 73043, 73061, 73079, 73091, 73103)
+          assert MODEL_SEEDS == (83003, 83017, 83029, 83047, 83059, 83071, 83089, 83101)
+          assert PAIRED_REPLICATES == 8
+          assert PERMUTATION_REPETITIONS == 10000
+          assert PERMUTATION_SEEDS == {3: 93001, 4: 93011, 5: 93023}
+          assert DEPTH4_HETEROGENEITY_P_MAX == 0.05
+          assert TOTAL_TRAININGS == 288
+          assert len(expected_cell_keys()) == 6
+          print('PHASE2AT_PREFLIGHT_GREEN')
+          PY
+      - name: Record scientific SHA
+        run: echo "PHASE2AT_SCIENTIFIC_SHA=${GITHUB_SHA}"
+
+  cell:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { depth: 3, difference: '0x00000001', label: 'r3-d1' }
+          - { depth: 3, difference: '0x00000100', label: 'r3-d100' }
+          - { depth: 4, difference: '0x00000001', label: 'r4-d1' }
+          - { depth: 4, difference: '0x00000100', label: 'r4-d100' }
+          - { depth: 5, difference: '0x00000001', label: 'r5-d1' }
+          - { depth: 5, difference: '0x00000100', label: 'r5-d100' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - name: Run frozen 48-training profile cell
+        run: |
+          python scripts/run_phase2at.py \
+            --depth '${{ matrix.depth }}' \
+            --difference '${{ matrix.difference }}' \
+            --output 'phase2at-${{ matrix.label }}.json'
+      - name: Show compact cell receipt
+        run: |
+          python - <<'PY'
+          import glob, json
+          path = glob.glob('phase2at-*.json')[0]
+          data = json.load(open(path))
+          print('DEPTH:', data['depth'])
+          print('ARCHITECTURE:', data['architecture'])
+          print('DIFFERENCE:', hex(data['input_difference']))
+          print('TRAININGS:', len(data['runs']))
+          print('PAYLOAD_SHA256:', data['scientific_payload_sha256'])
+          print('NEURAL_EVOLUTIONARY_PRESSURE:', data['neural_evolutionary_pressure'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2at-cell-${{ matrix.label }}-${{ github.sha }}
+          path: phase2at-${{ matrix.label }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: cell
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2at-cell-*-${{ github.sha }}
+          path: cells
+          merge-multiple: true
+      - name: Aggregate frozen profile replication twice
+        run: |
+          python scripts/run_phase2at.py --aggregate-files cells/phase2at-*.json --output phase2at-result-1.json
+          python scripts/run_phase2at.py --aggregate-files cells/phase2at-*.json --output phase2at-result-2.json
+          cmp phase2at-result-1.json phase2at-result-2.json
+          cp phase2at-result-1.json phase2at-result.json
+      - name: Show official Phase 2A-T classification
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2at-result.json'))
+          print('TOTAL_TRAININGS:', data['total_trainings'])
+          print('PREREQUISITES_PASS:', data['prerequisites_pass'])
+          print('ADJACENT_SPEARMAN:', json.dumps(data['adjacent_spearman'], sort_keys=True))
+          print('HETEROGENEITY:', json.dumps(data['heterogeneity_by_depth'], sort_keys=True))
+          print('RANGES:', json.dumps(data['range_by_depth'], sort_keys=True))
+          print('MEAN_ADVANTAGES:', json.dumps(data['mean_advantage_by_depth'], sort_keys=True))
+          print('CRITERIA:', json.dumps(data['profile_criteria'], sort_keys=True))
+          for depth, summary in data['depth_summaries'].items():
+              print('DEPTH', depth, 'p=', summary['heterogeneity_permutation_p'], 'range=', summary['candidate_score_range'], 'mean=', summary['mean_neural_advantage'], 'signal=', summary['signal_condition'])
+          print('VERDICT:', data['verdict'])
+          print('AGGREGATE_SHA256:', data['aggregate_payload_sha256'])
+          print('NEURAL_EVOLUTIONARY_PRESSURE:', data['neural_evolutionary_pressure'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2at-summary-${{ github.sha }}
+          path: phase2at-result.json
+          if-no-files-found: error
+          retention-days: 90
