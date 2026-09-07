@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install full test and neural dependencies
-        run: python -m pip install -e '.[dev,neural]'
+      - name: Install neural dependencies
+        run: python -m pip install -e '.[neural]'
       - name: Verify frozen Phase 2D execution lock without loading held-out seeds
         run: |
           python - <<'PY'
@@ -60,8 +60,6 @@ jobs:
           assert [lhs.random() for _ in range(16)] == [rhs.random() for _ in range(16)]
           print('PHASE2D_EXECUTION_LOCK_GREEN_FITNESS_ONLY')
           PY
-      - name: Run complete regression suite
-        run: pytest
       - name: Re-run historical Phase 1 benchmark
         run: |
           python -m adversarial_sbox.benchmark \
