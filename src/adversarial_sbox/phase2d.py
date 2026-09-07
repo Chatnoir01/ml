@@ -1,7 +1,7 @@
 """Frozen Phase 2D contract for bounded one-generation neural persistence.
 
-This module contains only preregistered constants and pure ordering/state-machine
-contracts. It does not run the scientific experiment or load held-out Block W.
+This module contains only preregistered evolutionary/fitness constants and pure
+ordering/state-machine contracts. Held-out validation seeds live separately.
 """
 
 from __future__ import annotations
@@ -43,26 +43,6 @@ FITNESS_MODEL_SEEDS = (
     386087,
     386099,
 )
-VALIDATION_DATASET_SEEDS = (
-    476003,
-    476017,
-    476029,
-    476043,
-    476057,
-    476071,
-    476083,
-    476099,
-)
-VALIDATION_MODEL_SEEDS = (
-    486007,
-    486019,
-    486031,
-    486043,
-    486061,
-    486073,
-    486091,
-    486103,
-)
 
 SHUFFLE_SEED_OFFSET = 10_000
 CLASSICAL_BUDGET_PER_ARM_SEED = 340
@@ -76,8 +56,6 @@ ORACLE_TRAININGS_PER_SCORE = len(DIFFERENCES) * len(FITNESS_DATASET_SEEDS)
 ORACLE_SCORE_BUDGET_PER_ARM_SEED = 32
 FITNESS_TRAININGS_PER_ARM_SEED = ORACLE_SCORE_BUDGET_PER_ARM_SEED * ORACLE_TRAININGS_PER_SCORE
 TOTAL_FITNESS_TRAININGS = len(ARMS) * len(EVOLUTION_SEEDS) * FITNESS_TRAININGS_PER_ARM_SEED
-HELDOUT_TRAININGS_PER_TERMINAL = len(DIFFERENCES) * len(VALIDATION_DATASET_SEEDS)
-TOTAL_HELDOUT_TRAININGS = len(ARMS) * len(EVOLUTION_SEEDS) * HELDOUT_TRAININGS_PER_TERMINAL
 
 SUPPORT_CHECKS = (
     "mechanism_transmission_6_of_9",
