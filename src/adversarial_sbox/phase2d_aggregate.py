@@ -25,6 +25,7 @@ from .phase2d import (
     ORACLE_TRAININGS_PER_SCORE,
     PAIR_COUNT,
     SPLIT_SIZES,
+    SUPPORT_CHECKS,
     VALIDATION_DATASET_SEEDS,
     VALIDATION_MODEL_SEEDS,
     phase2d_verdict,
@@ -151,6 +152,44 @@ def summarize_support(
             "mean_sp1": float(statistics.fmean(sp1v)),
         },
         "verdict": phase2d_verdict(True, checks),
+    }
+
+
+def _inconclusive_support(
+    *,
+    transmission_o0: Sequence[float],
+    transmission_op1: Sequence[float],
+) -> dict[str, Any]:
+    """Return a deterministic non-interpretive support receipt for failed prerequisites."""
+
+    t0 = [float(value) for value in transmission_o0]
+    t1 = [float(value) for value in transmission_op1]
+    transmission_wins = sum(left > right for left, right in zip(t1, t0))
+    return {
+        "checks": {name: False for name in SUPPORT_CHECKS},
+        "mechanism_transmission": {
+            "wins_op1_gt_o0": int(transmission_wins),
+            "o0_rates": t0,
+            "op1_rates": t1,
+            "not_interpreted": True,
+        },
+        "paired_op1_vs_o0": {
+            "wins": 0,
+            "losses": 0,
+            "ties": 0,
+            "exact_one_sided_sign_p": 1.0,
+            "mean_reduction_o0_minus_op1": None,
+            "per_seed_reductions": [],
+            "not_interpreted": True,
+        },
+        "specificity_op1_vs_sp1": {
+            "wins": 0,
+            "per_seed_sp1_minus_op1": [],
+            "mean_op1": None,
+            "mean_sp1": None,
+            "not_interpreted": True,
+        },
+        "verdict": "phase2d_inconclusive_prerequisites",
     }
 
 
@@ -406,17 +445,13 @@ def aggregate_phase2d(
                 str(validation.get("terminal_fingerprint", "")) == terminal_fp
                 and str(score.get("fingerprint", "")) == terminal_fp
             )
-            heldout[arm].append(float(score.get("neural_advantage", float("nan"))))
+            try:
+                advantage = float(score.get("neural_advantage", float("nan")))
+            except (TypeError, ValueError):
+                advantage = float("nan")
+            heldout[arm].append(advantage)
 
     finite = all(math.isfinite(value) for values in heldout.values() for value in values)
-    support = summarize_support(
-        o0=heldout["O0"],
-        op1=heldout["OP1"],
-        sp1=heldout["SP1"],
-        transmission_o0=transmission_o0,
-        transmission_op1=transmission_op1,
-        classical_non_degradation=classical_non_degradation,
-    )
     prerequisites = {
         "terminal_freeze": bool(terminal_freeze["prerequisites"]["pass"]),
         "validation_seed_gate": bool(validation_seed_gate()),
@@ -426,7 +461,26 @@ def aggregate_phase2d(
         "heldout_scores_finite": bool(finite),
     }
     prerequisites["pass"] = all(prerequisites.values())
+
+    if prerequisites["pass"]:
+        support = summarize_support(
+            o0=heldout["O0"],
+            op1=heldout["OP1"],
+            sp1=heldout["SP1"],
+            transmission_o0=transmission_o0,
+            transmission_op1=transmission_op1,
+            classical_non_degradation=classical_non_degradation,
+        )
+    else:
+        support = _inconclusive_support(
+            transmission_o0=transmission_o0,
+            transmission_op1=transmission_op1,
+        )
     verdict = phase2d_verdict(bool(prerequisites["pass"]), support["checks"])
+    heldout_payload = {
+        arm: [value if math.isfinite(value) else None for value in values]
+        for arm, values in heldout.items()
+    }
     payload: dict[str, Any] = {
         "schema_version": 1,
         "phase": "2D",
@@ -434,7 +488,7 @@ def aggregate_phase2d(
         "terminal_freeze_sha256": terminal_freeze_sha256,
         "prerequisites": prerequisites,
         "classical_non_degradation": bool(classical_non_degradation),
-        "heldout": heldout,
+        "heldout": heldout_payload,
         "support": {**support, "verdict": verdict},
         "verdict": verdict,
     }
