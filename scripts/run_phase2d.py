@@ -8,9 +8,7 @@ import json
 from pathlib import Path
 
 from adversarial_sbox.phase2d import ARMS
-from adversarial_sbox.phase2d_aggregate import aggregate_phase2d, freeze_terminals
 from adversarial_sbox.phase2d_runner import run_arm
-from adversarial_sbox.phase2d_validation import score_terminal_candidate
 
 
 def _write(path: Path, payload: dict) -> None:
@@ -66,12 +64,16 @@ def main() -> None:
             )
         ):
             raise SystemExit("terminal freeze cannot be mixed with other modes")
+        from adversarial_sbox.phase2d_aggregate import freeze_terminals
+
         _write(args.output, freeze_terminals(_read_many(args.freeze_arm_files)))
         return
 
     if args.aggregate_arm_files or args.aggregate_validation_files:
         if not args.aggregate_arm_files or not args.aggregate_validation_files:
             raise SystemExit("both aggregate file groups are required")
+        from adversarial_sbox.phase2d_aggregate import aggregate_phase2d
+
         _write(
             args.output,
             aggregate_phase2d(
@@ -93,6 +95,8 @@ def main() -> None:
             raise SystemExit("validation seed does not match arm result")
         if args.arm is not None and str(args.arm) != arm:
             raise SystemExit("validation arm does not match arm result")
+        from adversarial_sbox.phase2d_validation import score_terminal_candidate
+
         score = score_terminal_candidate(run["terminal_sbox"])
         _write(
             args.output,
