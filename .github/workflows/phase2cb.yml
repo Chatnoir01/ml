@@ -1,0 +1,150 @@
+name: Phase 2C-B Frozen-Score Replay
+
+on:
+  push:
+    paths:
+      - "research/PHASE2CB_EXECUTE.md"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package without neural extras
+        run: python -m pip install -e .
+
+      - name: Verify frozen execution lock
+        shell: bash
+        run: |
+          test "$(cat research/PHASE2CB_EXECUTE.md)" = "AUTHORIZED_PHASE2CB_FROZEN_SCORE_REPLAY"
+          grep -q "Phase 2C-B" research/PHASE2CB_PROTOCOL.md
+          grep -q "phase2c_artifacts_insufficient" research/PHASE2C_RESULT.md
+          python - <<'PY'
+          from pathlib import Path
+          source = (
+              Path('src/adversarial_sbox/phase2cb_replay.py').read_text()
+              + '\n'
+              + Path('src/adversarial_sbox/phase2cb_runner.py').read_text()
+          )
+          forbidden = (
+              'phase2b_oracle',
+              'phase2b_validation',
+              'score_fitness_candidate',
+              'validate_terminal_candidate',
+              'VALIDATION_DATASET_SEEDS',
+              'VALIDATION_MODEL_SEEDS',
+          )
+          assert all(token not in source for token in forbidden), forbidden
+          PY
+
+      - name: Download exact frozen Phase 2B artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase2b-*-59066ad943fc85f24a21b4c2941cbcee4d23aeae
+          path: results
+          merge-multiple: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Chatnoir01/ml
+          run-id: 34064310593
+
+      - name: Verify source artifact manifest identity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/Chatnoir01/ml/actions/runs/34064310593/artifacts > artifacts-api.json
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          source_sha = '59066ad943fc85f24a21b4c2941cbcee4d23aeae'
+          raw = json.loads(Path('artifacts-api.json').read_text())
+          artifacts = []
+          for item in raw['artifacts']:
+              name = str(item['name'])
+              if not name.startswith('phase2b-') or name.startswith('phase2b-summary-'):
+                  continue
+              run = item.get('workflow_run') or {}
+              assert run.get('id') == 34064310593
+              assert run.get('head_sha') == source_sha
+              assert item.get('expired') is False
+              digest = str(item.get('digest', ''))
+              assert digest.startswith('sha256:') and len(digest) == 71
+              artifacts.append({
+                  'artifact_id': int(item['id']),
+                  'name': name,
+                  'digest': digest,
+                  'size_in_bytes': int(item['size_in_bytes']),
+              })
+          artifacts.sort(key=lambda value: value['name'])
+          assert len(artifacts) == 27, len(artifacts)
+          payload = {
+              'source_scientific_sha': source_sha,
+              'source_workflow_run_id': 34064310593,
+              'artifact_count': len(artifacts),
+              'artifacts': artifacts,
+          }
+          canonical = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
+          payload['manifest_payload_sha256'] = hashlib.sha256(canonical).hexdigest()
+          expected = json.loads(Path('research/phase2c-source-artifacts.json').read_text())
+          assert payload == expected
+          Path('phase2cb-source-artifacts.json').write_text(
+              json.dumps(payload, sort_keys=True, indent=2) + '\n'
+          )
+          PY
+
+      - name: Replay twice and require byte identity
+        shell: bash
+        run: |
+          mapfile -t ARM_FILES < <(find results -type f -name arm.json | sort)
+          mapfile -t ARM_FILES_REVERSED < <(find results -type f -name arm.json | sort -r)
+          test "${#ARM_FILES[@]}" -eq 27
+          test "${#ARM_FILES_REVERSED[@]}" -eq 27
+          python scripts/run_phase2cb.py --arm-files "${ARM_FILES[@]}" --output phase2cb-result-1.json
+          python scripts/run_phase2cb.py --arm-files "${ARM_FILES_REVERSED[@]}" --output phase2cb-result-2.json
+          cmp phase2cb-result-1.json phase2cb-result-2.json
+          cp phase2cb-result-1.json phase2cb-result.json
+
+      - name: Verify preregistered replay status
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2cb-result.json'))
+          assert data['cell_count'] == 27
+          assert data['new_neural_trainings'] == 0
+          assert data['block_v_scores'] == 0
+          assert data['instrumented_replay_runs'] == 27
+          assert data['status'] in {
+              'phase2cb_replay_valid',
+              'phase2cb_replay_provenance_failure',
+          }
+          if data['status'] == 'phase2cb_replay_valid':
+              assert data['identity_pass_count'] == 27
+              assert data['arm_summaries']
+          else:
+              assert data['identity_pass_count'] < 27
+              assert data['arm_summaries'] == {}
+          print('PHASE2CB_STATUS:', data['status'])
+          print('PHASE2CB_SHA256:', data['replay_aggregate_sha256'])
+          PY
+
+      - name: Upload frozen Phase 2C-B receipts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2cb-replay-${{ github.sha }}
+          path: |
+            phase2cb-result.json
+            phase2cb-source-artifacts.json
+          if-no-files-found: error
+          retention-days: 90
