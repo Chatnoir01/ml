@@ -1,6 +1,7 @@
 """RED-first contract for Phase 2D bounded one-generation persistence."""
 
 import random
+from pathlib import Path
 
 from adversarial_sbox.evolution import ClassicalMetrics, HardConstraints, primary_security_key
 from adversarial_sbox.phase2_evolution_seed_registry import (
@@ -79,6 +80,20 @@ def test_phase2d_neural_blocks_are_fresh_and_mutually_disjoint():
     assert fitness.isdisjoint(validation)
     assert len(fitness) == 16
     assert len(validation) == 16
+
+
+def test_marker_gated_workflow_keeps_block_w_out_of_preflight():
+    workflow = Path(".github/workflows/phase2d.yml").read_text(encoding="utf-8")
+    preflight = workflow.split("\n  preflight:\n", 1)[1].split("\n  arm:\n", 1)[0]
+    for forbidden in (
+        "VALIDATION_DATASET_SEEDS",
+        "VALIDATION_MODEL_SEEDS",
+        "TOTAL_HELDOUT_TRAININGS",
+        "validation_seed_gate",
+        "phase2d_validation",
+        "phase2d_validation_seeds",
+    ):
+        assert forbidden not in preflight
 
 
 def test_persistence_can_never_cross_a_better_protected_classical_key():
