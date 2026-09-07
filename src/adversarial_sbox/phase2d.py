@@ -1,7 +1,8 @@
 """Frozen Phase 2D contract for bounded one-generation neural persistence.
 
 This module contains only preregistered evolutionary/fitness constants and pure
-ordering/state-machine contracts. Held-out validation seeds live separately.
+ordering/state-machine contracts. Held-out validation seeds live separately and
+are exposed here only through lazy compatibility aliases when explicitly asked.
 """
 
 from __future__ import annotations
@@ -66,6 +67,23 @@ SUPPORT_CHECKS = (
     "op1_wins_sp1_6_of_9",
     "op1_mean_lt_sp1_mean",
 )
+
+_LAZY_HELDOUT_NAMES = {
+    "VALIDATION_DATASET_SEEDS",
+    "VALIDATION_MODEL_SEEDS",
+    "HELDOUT_TRAININGS_PER_TERMINAL",
+    "TOTAL_HELDOUT_TRAININGS",
+}
+
+
+def __getattr__(name: str):
+    """Load held-out constants only for post-freeze/provenance consumers."""
+
+    if name in _LAZY_HELDOUT_NAMES:
+        from . import phase2d_validation_seeds as heldout
+
+        return getattr(heldout, name)
+    raise AttributeError(name)
 
 
 @dataclass(slots=True)
