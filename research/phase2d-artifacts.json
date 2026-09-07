@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "phase": "2D",
+  "status": "frozen_valid_negative",
+  "scientific_marker_sha": "2cc913e33cc5848f12ae5493f992b49fa89bc3d2",
+  "workflow_run_id": 34147455097,
+  "workflow_name": "Phase 2D Bounded Persistence",
+  "workflow_conclusion": "success",
+  "arm_cell_count": 36,
+  "fitness_trainings_per_cell": 512,
+  "fitness_training_total": 18432,
+  "heldout_terminal_count": 36,
+  "heldout_trainings_per_terminal": 16,
+  "heldout_training_total": 576,
+  "scientific_neural_training_total": 19008,
+  "terminal_freeze": {
+    "artifact_id": 10028581841,
+    "artifact_name": "phase2d-terminal-freeze-2cc913e33cc5848f12ae5493f992b49fa89bc3d2",
+    "artifact_zip_sha256": "dcd5ff8bb46bc44504ca2906ab2156c5d7a84445415ed19b6ccbcaa15ad94f38",
+    "terminal_freeze_sha256": "8b50e71ab8fc082d1c49fa9b7da0e896c3ecf0f851a82500617bc34927799107",
+    "cell_count": 36,
+    "prerequisites_pass": true
+  },
+  "aggregate": {
+    "artifact_id": 10028618629,
+    "artifact_name": "phase2d-summary-2cc913e33cc5848f12ae5493f992b49fa89bc3d2",
+    "artifact_zip_sha256": "9fdf4db86a2f9b4cf71e6e90d824f293b045ea8ee3a8de1a756fff6a7049fa12",
+    "aggregate_payload_sha256": "51f41197482c5695ed00267c69dfc81b937cf12871336457308755f8e5e64e5c",
+    "verdict": "phase2d_bounded_persistence_not_supported",
+    "prerequisites_pass": true
+  }
+}

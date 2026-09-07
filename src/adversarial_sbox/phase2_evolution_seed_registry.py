@@ -1,7 +1,7 @@
 """Central provenance registry for Phase-2 evolutionary experiment seeds.
 
 Phase-1 experiment seeds are the complete historical evolutionary registry before
-Phase 2B. Phase-2B seeds are explicitly reserved here before scientific execution
+Phase 2B. Later Phase-2 reservations are declared here before scientific execution
 so later phases can quarantine them without relying on scattered local constants.
 """
 
@@ -19,6 +19,20 @@ PHASE2B_RESERVED_EVOLUTION_SEEDS = (
     326071,
     326087,
     326099,
+)
+
+# Phase 2D bounded one-generation persistence experiment. Reserved publicly in
+# issue #109 before implementation or scientific execution.
+PHASE2D_RESERVED_EVOLUTION_SEEDS = (
+    426011,
+    426023,
+    426037,
+    426049,
+    426061,
+    426073,
+    426089,
+    426101,
+    426113,
 )
 
 
@@ -56,6 +70,31 @@ def reserved_evolution_seed_registry_through_phase2b() -> tuple[int, ...]:
             {
                 *prior_evolution_seed_registry(),
                 *PHASE2B_RESERVED_EVOLUTION_SEEDS,
+            }
+        )
+    )
+
+
+def phase2d_evolution_seeds_are_fresh(seeds: Iterable[int]) -> bool:
+    """Validate exact identity, uniqueness and freshness of reserved Phase-2D seeds."""
+
+    frozen = tuple(int(value) for value in seeds)
+    return (
+        frozen == PHASE2D_RESERVED_EVOLUTION_SEEDS
+        and len(frozen) == 9
+        and len(set(frozen)) == len(frozen)
+        and set(frozen).isdisjoint(reserved_evolution_seed_registry_through_phase2b())
+    )
+
+
+def reserved_evolution_seed_registry_through_phase2d() -> tuple[int, ...]:
+    """Return the complete evolutionary registry including Phase-2D reservation."""
+
+    return tuple(
+        sorted(
+            {
+                *reserved_evolution_seed_registry_through_phase2b(),
+                *PHASE2D_RESERVED_EVOLUTION_SEEDS,
             }
         )
     )
