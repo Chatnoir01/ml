@@ -1,0 +1,175 @@
+{
+  "arm_summaries": {
+    "control": {
+      "boundary_opportunities": 359,
+      "budget_block_events": 9,
+      "cells": 9,
+      "membership_flip_events": 0,
+      "ordering_only_events": 0,
+      "postclosure_opportunities": 313,
+      "preclosure_opportunities": 46
+    },
+    "oracle": {
+      "boundary_opportunities": 362,
+      "budget_block_events": 9,
+      "cells": 9,
+      "membership_flip_events": 31,
+      "ordering_only_events": 3,
+      "postclosure_opportunities": 318,
+      "preclosure_opportunities": 44
+    },
+    "shuffled": {
+      "boundary_opportunities": 360,
+      "budget_block_events": 9,
+      "cells": 9,
+      "membership_flip_events": 31,
+      "ordering_only_events": 0,
+      "postclosure_opportunities": 320,
+      "preclosure_opportunities": 40
+    }
+  },
+  "artifact": {
+    "expires_at": "2026-12-06T01:46:40Z",
+    "id": 10003757350,
+    "name": "phase2cb-replay-d103cd797f54e5bab5f971acf7bbe210204a623a",
+    "size_in_bytes": 1215156,
+    "zip_sha256": "e8e24ca0142433d50cbc77d339ffe8b66a806e6e4254e7f887bf140cccbd995a"
+  },
+  "block_v_scores": 0,
+  "cell_count": 27,
+  "identity_check_names": [
+    "classical_evaluations",
+    "initial_population_digest",
+    "legacy_oracle_events",
+    "oracle_selection_closed",
+    "proposal_audit",
+    "selection_score_sequence",
+    "terminal_classical",
+    "terminal_fingerprint",
+    "terminal_sbox"
+  ],
+  "identity_pass_count": 27,
+  "instrumented_replay_runs": 27,
+  "marker_sha": "d103cd797f54e5bab5f971acf7bbe210204a623a",
+  "new_neural_trainings": 0,
+  "oracle_lineage": {
+    "entered_occurrences": 81,
+    "membership_flip_events": 31,
+    "membership_flip_events_by_stage": {
+      "shortlist": 17,
+      "survival": 14
+    },
+    "ordering_only_events": 3,
+    "unique_entered_fingerprints": 64,
+    "unique_persistence": {
+      "descendant_plus_1": 12,
+      "descendant_plus_2": 2,
+      "descendant_plus_5": 0,
+      "direct_plus_1": 43,
+      "direct_plus_2": 0,
+      "direct_plus_5": 0,
+      "terminal_descendant": 0,
+      "terminal_self": 0
+    }
+  },
+  "oracle_per_seed": [
+    {
+      "boundary_opportunities": 40,
+      "budget_block_events": 1,
+      "membership_flip_events": 4,
+      "ordering_only_events": 0,
+      "postclosure_opportunities": 35,
+      "preclosure_opportunities": 5,
+      "seed": 326011,
+      "selection_calls": 41
+    },
+    {
+      "boundary_opportunities": 40,
+      "budget_block_events": 1,
+      "membership_flip_events": 4,
+      "ordering_only_events": 0,
+      "postclosure_opportunities": 35,
+      "preclosure_opportunities": 5,
+      "seed": 326023,
+      "selection_calls": 41
+    },
+    {
+      "boundary_opportunities": 41,
+      "budget_block_events": 1,
+      "membership_flip_events": 3,
+      "ordering_only_events": 1,
+      "postclosure_opportunities": 36,
+      "preclosure_opportunities": 5,
+      "seed": 326033,
+      "selection_calls": 41
+    },
+    {
+      "boundary_opportunities": 41,
+      "budget_block_events": 1,
+      "membership_flip_events": 4,
+      "ordering_only_events": 0,
+      "postclosure_opportunities": 36,
+      "preclosure_opportunities": 5,
+      "seed": 326047,
+      "selection_calls": 41
+    },
+    {
+      "boundary_opportunities": 40,
+      "budget_block_events": 1,
+      "membership_flip_events": 4,
+      "ordering_only_events": 0,
+      "postclosure_opportunities": 35,
+      "preclosure_opportunities": 5,
+      "seed": 326051,
+      "selection_calls": 41
+    },
+    {
+      "boundary_opportunities": 40,
+      "budget_block_events": 1,
+      "membership_flip_events": 4,
+      "ordering_only_events": 0,
+      "postclosure_opportunities": 35,
+      "preclosure_opportunities": 5,
+      "seed": 326063,
+      "selection_calls": 41
+    },
+    {
+      "boundary_opportunities": 40,
+      "budget_block_events": 1,
+      "membership_flip_events": 1,
+      "ordering_only_events": 0,
+      "postclosure_opportunities": 37,
+      "preclosure_opportunities": 3,
+      "seed": 326071,
+      "selection_calls": 41
+    },
+    {
+      "boundary_opportunities": 39,
+      "budget_block_events": 1,
+      "membership_flip_events": 4,
+      "ordering_only_events": 1,
+      "postclosure_opportunities": 33,
+      "preclosure_opportunities": 6,
+      "seed": 326087,
+      "selection_calls": 41
+    },
+    {
+      "boundary_opportunities": 41,
+      "budget_block_events": 1,
+      "membership_flip_events": 3,
+      "ordering_only_events": 1,
+      "postclosure_opportunities": 36,
+      "preclosure_opportunities": 5,
+      "seed": 326099,
+      "selection_calls": 41
+    }
+  ],
+  "phase": "2C-B",
+  "replay_aggregate_sha256": "ecff17f429589d6f0b4031f38c5a18be7843c684e993dff0a3258124e692b0cc",
+  "schema_version": 1,
+  "source_manifest_payload_sha256": "875452613c9a9dca6e119a46b872e628f26223470c3eb9ccc351f97d048cf50c",
+  "source_phase2b_scientific_sha": "59066ad943fc85f24a21b4c2941cbcee4d23aeae",
+  "source_phase2b_workflow_run_id": 34064310593,
+  "status": "phase2cb_replay_valid",
+  "workflow_run_id": 34074106557
+}
