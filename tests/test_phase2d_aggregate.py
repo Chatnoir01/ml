@@ -5,6 +5,7 @@ from adversarial_sbox.phase2d_aggregate import (
     protected_classical_key,
     summarize_support,
     transmission_plus2_rate,
+    validation_matches_terminal_freeze,
 )
 
 
@@ -69,6 +70,20 @@ def test_exact_one_sided_sign_test_excludes_ties_by_counts():
     assert exact_one_sided_sign_p(8, 1) < 0.05
     assert exact_one_sided_sign_p(6, 3) > 0.05
     assert exact_one_sided_sign_p(0, 0) == 1.0
+
+
+def test_validation_receipt_must_bind_to_exact_terminal_freeze_sha():
+    freeze_sha = "a" * 64
+    validation = {
+        "phase": "2D-validation",
+        "terminal_freeze_sha256": freeze_sha,
+    }
+    assert validation_matches_terminal_freeze(validation, freeze_sha)
+    assert not validation_matches_terminal_freeze(validation, "b" * 64)
+    assert not validation_matches_terminal_freeze(
+        {"phase": "2D", "terminal_freeze_sha256": freeze_sha},
+        freeze_sha,
+    )
 
 
 def test_support_summary_requires_all_seven_preregistered_gates():
