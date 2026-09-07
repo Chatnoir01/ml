@@ -6,13 +6,12 @@ from collections.abc import Sequence
 from typing import Any
 
 from .phase2_neural_seed_registry import complete_seed_registry_through_phase2b
-from .phase2d import (
-    FITNESS_DATASET_SEEDS,
-    FITNESS_MODEL_SEEDS,
+from .phase2d import FITNESS_DATASET_SEEDS, FITNESS_MODEL_SEEDS
+from .phase2d_oracle import _score_candidate
+from .phase2d_validation_seeds import (
     VALIDATION_DATASET_SEEDS,
     VALIDATION_MODEL_SEEDS,
 )
-from .phase2d_oracle import _score_candidate
 
 
 def validation_seed_gate() -> bool:
