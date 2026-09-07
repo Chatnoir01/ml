@@ -92,6 +92,7 @@ def test_marker_gated_workflow_keeps_block_w_out_of_preflight():
         "validation_seed_gate",
         "phase2d_validation",
         "phase2d_validation_seeds",
+        "pytest",
     ):
         assert forbidden not in preflight
 
