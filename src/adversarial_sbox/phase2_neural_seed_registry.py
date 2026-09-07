@@ -79,6 +79,30 @@ def phase2b_reserved_blocks() -> tuple[SeedBlock, ...]:
     )
 
 
+def phase2d_reserved_blocks() -> tuple[SeedBlock, ...]:
+    """Fresh Phase-2D fitness F and held-out validation W blocks."""
+
+    from .phase2d import (
+        FITNESS_DATASET_SEEDS,
+        FITNESS_MODEL_SEEDS,
+        VALIDATION_DATASET_SEEDS,
+        VALIDATION_MODEL_SEEDS,
+    )
+
+    return (
+        (
+            "phase2d-fitness-F",
+            _freeze(FITNESS_DATASET_SEEDS),
+            _freeze(FITNESS_MODEL_SEEDS),
+        ),
+        (
+            "phase2d-validation-W",
+            _freeze(VALIDATION_DATASET_SEEDS),
+            _freeze(VALIDATION_MODEL_SEEDS),
+        ),
+    )
+
+
 def seed_union(blocks: Iterable[SeedBlock]) -> tuple[int, ...]:
     values: set[int] = set()
     for _name, dataset_seeds, model_seeds in blocks:
@@ -116,6 +140,20 @@ def complete_seed_registry_through_phase2b() -> tuple[int, ...]:
     )
 
 
+def complete_seed_registry_through_phase2d() -> tuple[int, ...]:
+    """Complete registry including the reserved Phase-2D F and W blocks."""
+
+    return seed_union(
+        (
+            *prior_blocks_before_phase2au(),
+            *phase2au_blocks(),
+            *phase2au2_blocks(),
+            *phase2b_reserved_blocks(),
+            *phase2d_reserved_blocks(),
+        )
+    )
+
+
 def overlap_with_prior(
     dataset_seeds: Iterable[int],
     model_seeds: Iterable[int],
@@ -131,6 +169,8 @@ def overlap_with_prior(
         prior = set(prior_seed_registry_before_phase2au2())
     elif before == "phase2b":
         prior = set(prior_seed_registry_before_phase2b())
+    elif before == "phase2d":
+        prior = set(complete_seed_registry_through_phase2b())
     else:
         raise ValueError(f"unsupported Phase-2 provenance boundary {before!r}")
     return tuple(sorted(candidate & prior))
