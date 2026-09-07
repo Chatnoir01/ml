@@ -1,6 +1,8 @@
 """RED-first contract for Phase 2D bounded one-generation persistence."""
 
 import random
+import subprocess
+import sys
 from pathlib import Path
 
 from adversarial_sbox.evolution import ClassicalMetrics, HardConstraints, primary_security_key
@@ -43,6 +45,21 @@ def _metrics(*, nl: int = 100, du: int = 8, lat: int = 56, degree: int = 7, sac:
         algebraic_degree=degree,
         fingerprint=f"m-{nl}-{du}-{lat}-{degree}-{sac}",
     )
+
+
+def _assert_clean_block_w_import_probe(statement: str) -> None:
+    root = Path(__file__).resolve().parents[1]
+    code = f"""
+import runpy
+import sys
+{statement}
+for module_name in (
+    'adversarial_sbox.phase2d_validation',
+    'adversarial_sbox.phase2d_validation_seeds',
+):
+    assert module_name not in sys.modules, module_name
+"""
+    subprocess.run([sys.executable, "-c", code], cwd=root, check=True)
 
 
 def test_phase2d_frozen_contract_and_exact_budgets():
@@ -95,6 +112,18 @@ def test_marker_gated_workflow_keeps_block_w_out_of_preflight():
         "pytest",
     ):
         assert forbidden not in preflight
+
+
+def test_importing_phase2d_cli_does_not_open_heldout_block_w():
+    _assert_clean_block_w_import_probe(
+        "runpy.run_path('scripts/run_phase2d.py', run_name='phase2d_cli_import_probe')"
+    )
+
+
+def test_importing_terminal_freeze_aggregator_does_not_open_heldout_block_w():
+    _assert_clean_block_w_import_probe(
+        "from adversarial_sbox.phase2d_aggregate import freeze_terminals"
+    )
 
 
 def test_persistence_can_never_cross_a_better_protected_classical_key():
