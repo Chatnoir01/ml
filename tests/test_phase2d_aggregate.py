@@ -123,3 +123,58 @@ def test_valid_prerequisites_but_one_failed_gate_yields_not_supported():
     )
     assert summary["checks"]["op1_wins_sp1_6_of_9"] is False
     assert summary["verdict"] == "phase2d_bounded_persistence_not_supported"
+
+
+def test_invalid_heldout_receipt_fails_closed_to_inconclusive(monkeypatch):
+    import adversarial_sbox.phase2d_aggregate as aggregate_module
+
+    arm_results = []
+    validation_results = []
+    for seed in aggregate_module.EVOLUTION_SEEDS:
+        for arm in aggregate_module.ARMS:
+            fingerprint = f"terminal-{arm}-{seed}"
+            arm_results.append(
+                {
+                    "seed": seed,
+                    "arm": arm,
+                    "terminal_classical": _classical(),
+                    "terminal_fingerprint": fingerprint,
+                    "lineage_diagnostics": [],
+                }
+            )
+            validation_results.append(
+                {
+                    "seed": seed,
+                    "arm": arm,
+                    "terminal_fingerprint": fingerprint,
+                    "score": {
+                        "fingerprint": fingerprint,
+                        "neural_advantage": float("nan"),
+                    },
+                }
+            )
+
+    monkeypatch.setattr(
+        aggregate_module,
+        "freeze_terminals",
+        lambda _runs: {
+            "prerequisites": {"pass": True},
+            "terminal_freeze_sha256": "a" * 64,
+        },
+    )
+    monkeypatch.setattr(aggregate_module, "validation_seed_gate", lambda: True)
+    monkeypatch.setattr(
+        aggregate_module,
+        "score_payload_integrity",
+        lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        aggregate_module,
+        "validation_matches_terminal_freeze",
+        lambda *_args, **_kwargs: True,
+    )
+
+    result = aggregate_module.aggregate_phase2d(arm_results, validation_results)
+    assert result["verdict"] == "phase2d_inconclusive_prerequisites"
+    assert result["prerequisites"]["validation_receipt_integrity"] is False
+    assert result["prerequisites"]["heldout_scores_finite"] is False
