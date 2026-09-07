@@ -80,11 +80,10 @@ def phase2b_reserved_blocks() -> tuple[SeedBlock, ...]:
 
 
 def phase2d_reserved_blocks() -> tuple[SeedBlock, ...]:
-    """Fresh Phase-2D fitness F and held-out validation W blocks."""
+    """Fresh Phase-2D fitness F and physically isolated held-out W blocks."""
 
-    from .phase2d import (
-        FITNESS_DATASET_SEEDS,
-        FITNESS_MODEL_SEEDS,
+    from .phase2d import FITNESS_DATASET_SEEDS, FITNESS_MODEL_SEEDS
+    from .phase2d_validation_seeds import (
         VALIDATION_DATASET_SEEDS,
         VALIDATION_MODEL_SEEDS,
     )
