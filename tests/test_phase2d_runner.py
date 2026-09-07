@@ -139,7 +139,7 @@ def test_post_closure_opportunity_is_observational_only_even_with_active_tag():
     ledger = Phase2DScoreLedger(_fake_scorer, budget=1)
     ledger.close_selection()
     persistence = PersistenceLedger()
-    persistence.create(fingerprint=fingerprint_sbox(b), generation=0, stage="shortlist")
+    persistence.create(fingerprint=fingerprint_sbox(a), generation=0, stage="shortlist")
     ordered = cutoff_order(
         [a, b],
         metrics=metrics,
@@ -153,7 +153,7 @@ def test_post_closure_opportunity_is_observational_only_even_with_active_tag():
         persistence=persistence,
         audit_events=[],
     )
-    assert ordered == [a, b]
+    assert ordered == [b, a]
     assert persistence.active(generation=2, stage="shortlist") == frozenset()
 
 
