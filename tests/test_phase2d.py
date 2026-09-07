@@ -120,10 +120,20 @@ def test_importing_phase2d_cli_does_not_open_heldout_block_w():
     )
 
 
-def test_importing_terminal_freeze_aggregator_does_not_open_heldout_block_w():
+def test_importing_terminal_freeze_module_does_not_open_heldout_block_w():
     _assert_clean_block_w_import_probe(
-        "from adversarial_sbox.phase2d_aggregate import freeze_terminals"
+        "from adversarial_sbox.phase2d_terminal_freeze import freeze_terminals"
     )
+
+
+def test_terminal_freeze_cli_branch_uses_only_heldout_blind_module():
+    script = Path("scripts/run_phase2d.py").read_text(encoding="utf-8")
+    freeze_branch = script.split("if args.freeze_arm_files:", 1)[1].split(
+        "if args.aggregate_arm_files or args.aggregate_validation_files:", 1
+    )[0]
+    assert "phase2d_terminal_freeze" in freeze_branch
+    assert "phase2d_aggregate" not in freeze_branch
+    assert "phase2d_validation" not in freeze_branch
 
 
 def test_persistence_can_never_cross_a_better_protected_classical_key():
