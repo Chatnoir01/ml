@@ -124,6 +124,20 @@ Each selection stage must record generation, stage, cutoff, protected boundary k
 
 Each generation must record shortlist, parents, proposals with direct parent, next population and ancestry needed for +1/+2/+5 persistence and terminal ancestry.
 
+## Frozen +2 transmission-rate definition
+
+For held-out support gate 1, the per-arm/per-seed `+2 descendant-persistence rate` is defined before scientific execution as follows:
+
+1. start from fingerprints that entered selected membership because of that arm's score-caused reorder and therefore appear in its lineage diagnostics;
+2. collapse repeated appearances of the same entrant fingerprint to one unique fingerprint;
+3. if a repeated fingerprint has multiple defined `descendant_plus_2` observations, combine them by logical OR — it is persistent if any defined occurrence is true;
+4. observations where generation `g+2` does not exist are undefined and excluded from the denominator;
+5. `rate = persistent_unique / defined_unique`;
+6. if `defined_unique == 0`, the rate is exactly `0.0`;
+7. OP1 wins a matched seed only if its rate is strictly greater than O0's; equality is not a win.
+
+This clarification is also frozen publicly in issue #109 before execution and does not alter the preregistered threshold of at least 6 wins among 9 matched seeds.
+
 ## Classical non-degradation
 
 For support, OP1 terminal protected classical key must be no worse than both C and O0 for every one of the nine matched evolution seeds. Any worse seed fails support regardless of neural endpoint.
