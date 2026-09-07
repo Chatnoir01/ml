@@ -64,7 +64,7 @@ def main() -> None:
             )
         ):
             raise SystemExit("terminal freeze cannot be mixed with other modes")
-        from adversarial_sbox.phase2d_aggregate import freeze_terminals
+        from adversarial_sbox.phase2d_terminal_freeze import freeze_terminals
 
         _write(args.output, freeze_terminals(_read_many(args.freeze_arm_files)))
         return
