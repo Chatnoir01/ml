@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 
 from adversarial_sbox.phase2d import ARMS
-from adversarial_sbox.phase2d_runner import run_arm
 
 
 def _write(path: Path, payload: dict) -> None:
@@ -114,6 +113,8 @@ def main() -> None:
 
     if args.seed is None or args.arm is None:
         raise SystemExit("--seed and --arm are required for arm execution")
+    from adversarial_sbox.phase2d_runner import run_arm
+
     _write(args.output, run_arm(seed=int(args.seed), arm=str(args.arm)))
 
 
