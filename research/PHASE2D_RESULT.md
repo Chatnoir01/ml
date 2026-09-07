@@ -79,46 +79,9 @@ Frozen +2 descendant-persistence rates:
 - O0: `[0.5, 0.09090909090909091, 0.0, 0.125, 0.0, 0.3333333333333333, 0.0, 0.2222222222222222, 0.0]`
 - OP1: `[0.5, 0.1111111111111111, 0.0, 0.125, 0.0, 0.3333333333333333, 0.0, 0.2857142857142857, 0.0]`
 
-OP1 exceeded O0 on only two of nine seeds. Therefore the bounded one-generation tag did not meet the preregistered mechanism-transmission criterion.
+## Final merge gates
 
-## Held-out OP1 versus O0
+- Phase-0 CI run `34149030750`: Python 3.10 / 3.11 / 3.12 all **PASS** on result-freeze commit `fd36ce2f098ce827afb3e5b7e848f167dd058492`.
+- Historical Phase-1 benchmark run `34149030746`: **PASS** on the same result-freeze commit.
 
-The paired held-out result was:
-
-- wins: `2`
-- losses: `0`
-- ties: `7`
-- exact one-sided sign-test p-value: `0.25`
-- mean reduction `O0 - OP1`: `0.008002695027341602`
-
-Per-seed reductions:
-
-`[0.0, 0.07202408956310657, 0.0, 0.0, 0.0, 1.6568296784535974e-07, 0.0, 0.0, 0.0]`
-
-The observed direction is not enough to satisfy the preregistered magnitude, frequency or significance gates.
-
-## Specificity against shuffled persistence
-
-For OP1 versus SP1:
-
-- OP1 wins: `5/9`, below the required `6/9`;
-- mean OP1: `0.3417081210235471`;
-- mean SP1: `0.34214690638746104`.
-
-The mean-direction gate passed, but the paired specificity gate did not. Thus the data do not support claiming that the bounded Oracle persistence mechanism is specifically better than the matched shuffled persistence control under the preregistered rule.
-
-## Interpretation
-
-Phase 2C-B established that Oracle ordering could cause real but short-lived membership perturbations. Phase 2D tested one narrowly defined response to that diagnosis: a one-generation persistence tag constrained to exact equality of the protected classical key.
-
-That mechanism preserved classical non-degradation, but it did **not** satisfy the preregistered transmission, held-out efficacy, statistical-significance, effect-size or paired specificity requirements. Therefore this exact bounded-persistence coupling is not supported by Phase 2D.
-
-This result does **not** imply that the Neural Oracle is universally useless, and it does not invalidate Phase 2B or Phase 2C. It only rejects support for this specific preregistered one-generation persistence mechanism under this frozen ToySPN experiment.
-
-No AES, deployed-cipher, operational key-recovery or adaptive attack claim is made.
-
-## Governance after freeze
-
-No outcome-driven rerun, threshold relaxation, seed replacement, longer persistence duration or alternate mechanism may be folded into Phase 2D.
-
-Any successor must be separately preregistered from this frozen negative result. Full adaptive bidirectional GA↔NN co-evolution remains outside Phase 2D and must not be inferred from these data.
+No post-result retuning, threshold relaxation, seed replacement, longer persistence, extra arm, or adaptive GA↔NN mechanism is included.
