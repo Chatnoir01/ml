@@ -224,18 +224,44 @@ def score_payload_integrity(
         if seen != expected:
             return False
         return bool(
-            math.isclose(float(payload.get("neural_advantage")), sum(neural) / len(neural), rel_tol=0.0, abs_tol=1e-15)
-            and math.isclose(float(payload.get("null_advantage")), sum(null) / len(null), rel_tol=0.0, abs_tol=1e-15)
+            math.isclose(
+                float(payload.get("neural_advantage")),
+                sum(neural) / len(neural),
+                rel_tol=0.0,
+                abs_tol=1e-15,
+            )
+            and math.isclose(
+                float(payload.get("null_advantage")),
+                sum(null) / len(null),
+                rel_tol=0.0,
+                abs_tol=1e-15,
+            )
         )
     except (TypeError, ValueError, KeyError, IndexError):
         return False
+
+
+def validation_matches_terminal_freeze(
+    validation: dict[str, Any],
+    terminal_freeze_sha256: str,
+) -> bool:
+    """Bind every held-out receipt to the exact pre-validation terminal freeze."""
+
+    expected = str(terminal_freeze_sha256)
+    return bool(
+        len(expected) == 64
+        and str(validation.get("phase", "")) == "2D-validation"
+        and str(validation.get("terminal_freeze_sha256", "")) == expected
+    )
 
 
 def _expected_cells() -> set[tuple[int, str]]:
     return {(int(seed), arm) for seed in EVOLUTION_SEEDS for arm in ARMS}
 
 
-def _index_arm_results(arm_results: Sequence[dict[str, Any]]) -> dict[tuple[int, str], dict[str, Any]]:
+def _index_arm_results(
+    arm_results: Sequence[dict[str, Any]],
+) -> dict[tuple[int, str], dict[str, Any]]:
     expected = _expected_cells()
     indexed: dict[tuple[int, str], dict[str, Any]] = {}
     for item in arm_results:
@@ -256,16 +282,21 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
     terminals: list[dict[str, Any]] = []
     for seed in EVOLUTION_SEEDS:
         per_seed = [arms[(int(seed), arm)] for arm in ARMS]
-        digests = {str(item.get("initial_population_digest_sha256", "")) for item in per_seed}
+        digests = {
+            str(item.get("initial_population_digest_sha256", "")) for item in per_seed
+        }
         same_initial_population &= len(digests) == 1 and "" not in digests
         for arm in ARMS:
             run = arms[(int(seed), arm)]
             receipts = list(run.get("oracle_receipts", []))
             exact_budgets &= bool(
                 str(run.get("phase")) == "2D"
-                and int(run.get("classical_evaluations", -1)) == CLASSICAL_BUDGET_PER_ARM_SEED
-                and int(run.get("oracle_candidate_scores", -1)) == ORACLE_SCORE_BUDGET_PER_ARM_SEED
-                and int(run.get("oracle_fitness_trainings", -1)) == FITNESS_TRAININGS_PER_ARM_SEED
+                and int(run.get("classical_evaluations", -1))
+                == CLASSICAL_BUDGET_PER_ARM_SEED
+                and int(run.get("oracle_candidate_scores", -1))
+                == ORACLE_SCORE_BUDGET_PER_ARM_SEED
+                and int(run.get("oracle_fitness_trainings", -1))
+                == FITNESS_TRAININGS_PER_ARM_SEED
                 and len(receipts) == ORACLE_SCORE_BUDGET_PER_ARM_SEED
             )
             receipt_integrity &= _sha_matches(run, "scientific_payload_sha256")
@@ -282,7 +313,9 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
                 ok &= fp != "" and fp not in seen_fp
                 seen_fp.add(fp)
                 ok &= str(score.get("fingerprint", "")) == fp
-                ok &= str(receipt.get("payload_sha256", "")) == str(score.get("scientific_payload_sha256", ""))
+                ok &= str(receipt.get("payload_sha256", "")) == str(
+                    score.get("scientific_payload_sha256", "")
+                )
                 ok &= int(receipt.get("training_count", -1)) == ORACLE_TRAININGS_PER_SCORE
                 ok &= str(receipt.get("role", "")) in {"selection", "padding"}
                 receipt_integrity &= bool(ok)
@@ -323,6 +356,7 @@ def aggregate_phase2d(
 ) -> dict[str, Any]:
     arms = _index_arm_results(arm_results)
     terminal_freeze = freeze_terminals(arm_results)
+    terminal_freeze_sha256 = str(terminal_freeze["terminal_freeze_sha256"])
     expected = _expected_cells()
     validations: dict[tuple[int, str], dict[str, Any]] = {}
     for item in validation_results:
@@ -335,6 +369,7 @@ def aggregate_phase2d(
 
     validation_integrity = True
     terminal_validation_identity = True
+    validation_terminal_freeze_identity = True
     heldout: dict[str, list[float]] = {arm: [] for arm in ARMS}
     transmission_o0: list[float] = []
     transmission_op1: list[float] = []
@@ -354,6 +389,10 @@ def aggregate_phase2d(
         for arm in ARMS:
             run = arms[(int(seed), arm)]
             validation = validations[(int(seed), arm)]
+            validation_terminal_freeze_identity &= validation_matches_terminal_freeze(
+                validation,
+                terminal_freeze_sha256,
+            )
             score = validation.get("score", {})
             ok = isinstance(score, dict) and score_payload_integrity(
                 score,
@@ -382,6 +421,7 @@ def aggregate_phase2d(
         "terminal_freeze": bool(terminal_freeze["prerequisites"]["pass"]),
         "validation_seed_gate": bool(validation_seed_gate()),
         "validation_receipt_integrity": bool(validation_integrity),
+        "validation_terminal_freeze_identity": bool(validation_terminal_freeze_identity),
         "terminal_validation_identity": bool(terminal_validation_identity),
         "heldout_scores_finite": bool(finite),
     }
@@ -391,7 +431,7 @@ def aggregate_phase2d(
         "schema_version": 1,
         "phase": "2D",
         "evolution_seeds": list(EVOLUTION_SEEDS),
-        "terminal_freeze_sha256": terminal_freeze["terminal_freeze_sha256"],
+        "terminal_freeze_sha256": terminal_freeze_sha256,
         "prerequisites": prerequisites,
         "classical_non_degradation": bool(classical_non_degradation),
         "heldout": heldout,
