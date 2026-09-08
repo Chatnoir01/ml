@@ -18,6 +18,7 @@ from .phase2f import (
     EVOLUTION_SEEDS,
     FITNESS_DATASET_SEEDS,
     FITNESS_MODEL_SEEDS,
+    NUMPY_VERSION,
     ORACLE_TRAININGS_PER_SCORE,
     PAIR_COUNT,
     SPLIT_SIZES,
@@ -168,6 +169,8 @@ def score_payload_integrity(
         if str(payload.get("purpose", "")) != purpose:
             return False
         if str(payload.get("architecture", "")) != ARCHITECTURE:
+            return False
+        if str(payload.get("numpy_version", "")) != NUMPY_VERSION:
             return False
         if int(payload.get("depth", -1)) != DEPTH:
             return False
