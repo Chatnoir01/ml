@@ -1,0 +1,254 @@
+name: Phase 2F Minimal Band Pressure
+
+on:
+  push:
+    branches:
+      - research/phase2f-minimal-band-pressure
+    paths:
+      - research/PHASE2F_EXECUTE.md
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural dependencies
+        run: python -m pip install -e '.[neural]'
+      - name: Verify frozen Phase 2F execution lock without loading held-out seeds
+        run: |
+          python - <<'PY'
+          import inspect
+          import random
+          from pathlib import Path
+          import adversarial_sbox.phase2f_runner as runner
+          from adversarial_sbox.phase2_evolution_seed_registry import phase2f_evolution_seeds_are_fresh
+          from adversarial_sbox.phase2_neural_seed_registry import complete_seed_registry_through_phase2d
+          from adversarial_sbox.phase2f import (
+              ARMS, EVOLUTION_SEEDS, FITNESS_DATASET_SEEDS, FITNESS_MODEL_SEEDS,
+              CLASSICAL_BUDGET_PER_ARM_SEED, ORACLE_TRAININGS_PER_SCORE,
+              ORACLE_SCORE_BUDGET_PER_ARM_SEED, FITNESS_TRAININGS_PER_ARM_SEED,
+              TOTAL_FITNESS_TRAININGS, SHUFFLE_SEED_OFFSET,
+              B1_NL_RADIUS, B1_DU_RADIUS, B1_LAT_RADIUS,
+          )
+          from adversarial_sbox.phase2f_runner import make_shuffled_control_rng
+
+          marker = Path('research/PHASE2F_EXECUTE.md')
+          assert marker.read_text(encoding='utf-8').strip() == 'AUTHORIZED_PHASE2F_MINIMAL_BAND_EXPERIMENT'
+          protocol = Path('research/PHASE2F_PROTOCOL.md').read_text(encoding='utf-8')
+          assert '#115' in protocol and '#116' in protocol
+          assert ARMS == ('C', 'O0', 'B1', 'SB1')
+          assert (B1_NL_RADIUS, B1_DU_RADIUS, B1_LAT_RADIUS) == (2, 2, 2)
+          assert CLASSICAL_BUDGET_PER_ARM_SEED == 340
+          assert ORACLE_TRAININGS_PER_SCORE == 16
+          assert ORACLE_SCORE_BUDGET_PER_ARM_SEED == 32
+          assert FITNESS_TRAININGS_PER_ARM_SEED == 512
+          assert TOTAL_FITNESS_TRAININGS == 18432
+          assert phase2f_evolution_seeds_are_fresh(EVOLUTION_SEEDS)
+          prior = set(complete_seed_registry_through_phase2d())
+          fitness = set(FITNESS_DATASET_SEEDS) | set(FITNESS_MODEL_SEEDS)
+          assert len(fitness) == 16 and fitness.isdisjoint(prior)
+          source = inspect.getsource(runner)
+          for forbidden in ('phase2f_validation', 'VALIDATION_DATASET_SEEDS', 'VALIDATION_MODEL_SEEDS', 'purpose="validation"', "purpose='validation'"):
+              assert forbidden not in source
+          assert 'historical_classical_only' in source
+          probe = EVOLUTION_SEEDS[0]
+          lhs = make_shuffled_control_rng(probe)
+          rhs = random.Random(probe + SHUFFLE_SEED_OFFSET)
+          assert [lhs.random() for _ in range(16)] == [rhs.random() for _ in range(16)]
+          print('PHASE2F_EXECUTION_LOCK_GREEN_FITNESS_ONLY')
+          PY
+      - name: Re-run historical Phase 1 benchmark
+        run: |
+          python -m adversarial_sbox.benchmark \
+            --seeds 11 23 37 \
+            --population-size 8 \
+            --generations 3 \
+            --output phase1-benchmark.json
+      - name: Record scientific SHA
+        run: echo "PHASE2F_SCIENTIFIC_SHA=${GITHUB_SHA}"
+
+  arm:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [C, O0, B1, SB1]
+        seed: [526011, 526023, 526037, 526049, 526061, 526073, 526087, 526099, 526111]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - name: Run frozen Phase 2F fitness arm
+        run: |
+          python scripts/run_phase2f.py \
+            --seed '${{ matrix.seed }}' \
+            --arm '${{ matrix.arm }}' \
+            --output arm.json
+      - name: Verify exact arm budgets and terminal rule
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('arm.json'))
+          assert data['classical_evaluations'] == 340
+          assert data['oracle_candidate_scores'] == 32
+          assert data['oracle_fitness_trainings'] == 512
+          assert data['terminal_selection_rule'] == 'historical_classical_only'
+          print('ARM:', data['arm'], 'SEED:', data['seed'])
+          print('TERMINAL:', data['terminal_fingerprint'])
+          print('ARM_SHA256:', data['scientific_payload_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2f-arm-${{ matrix.arm }}-${{ matrix.seed }}-${{ github.sha }}
+          path: arm.json
+          if-no-files-found: error
+          retention-days: 90
+
+  terminal_freeze:
+    needs: arm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2f-arm-*-${{ github.sha }}
+          path: arm-results
+      - name: Freeze all 36 terminals twice and require byte identity
+        run: |
+          python scripts/run_phase2f.py \
+            --freeze-arm-files arm-results/phase2f-arm-*/arm.json \
+            --output freeze-1.json
+          python scripts/run_phase2f.py \
+            --freeze-arm-files arm-results/phase2f-arm-*/arm.json \
+            --output freeze-2.json
+          cmp freeze-1.json freeze-2.json
+          cp freeze-1.json phase2f-terminal-freeze.json
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2f-terminal-freeze.json'))
+          assert data['cell_count'] == 36
+          assert data['prerequisites']['pass'] is True
+          assert data['prerequisites']['terminal_classical_only'] is True
+          assert len(data['terminals']) == 36
+          print('TERMINAL_FREEZE_SHA256:', data['terminal_freeze_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2f-terminal-freeze-${{ github.sha }}
+          path: phase2f-terminal-freeze.json
+          if-no-files-found: error
+          retention-days: 90
+
+  validation:
+    needs: terminal_freeze
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [C, O0, B1, SB1]
+        seed: [526011, 526023, 526037, 526049, 526061, 526073, 526087, 526099, 526111]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install neural package
+        run: python -m pip install -e '.[neural]'
+      - uses: actions/download-artifact@v4
+        with:
+          name: phase2f-arm-${{ matrix.arm }}-${{ matrix.seed }}-${{ github.sha }}
+          path: arm-cell
+      - uses: actions/download-artifact@v4
+        with:
+          name: phase2f-terminal-freeze-${{ github.sha }}
+          path: terminal-freeze
+      - name: Validate Block X only after terminal freeze
+        run: |
+          python scripts/run_phase2f.py \
+            --seed '${{ matrix.seed }}' \
+            --arm '${{ matrix.arm }}' \
+            --validate-arm-result arm-cell/arm.json \
+            --terminal-freeze terminal-freeze/phase2f-terminal-freeze.json \
+            --output validation.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2f-validation-${{ matrix.arm }}-${{ matrix.seed }}-${{ github.sha }}
+          path: validation.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2f-arm-*-${{ github.sha }}
+          path: arm-results
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2f-validation-*-${{ github.sha }}
+          path: validation-results
+      - name: Aggregate twice and require byte identity
+        run: |
+          python scripts/run_phase2f.py \
+            --aggregate-arm-files arm-results/phase2f-arm-*/arm.json \
+            --aggregate-validation-files validation-results/phase2f-validation-*/validation.json \
+            --output phase2f-result-1.json
+          python scripts/run_phase2f.py \
+            --aggregate-arm-files arm-results/phase2f-arm-*/arm.json \
+            --aggregate-validation-files validation-results/phase2f-validation-*/validation.json \
+            --output phase2f-result-2.json
+          cmp phase2f-result-1.json phase2f-result-2.json
+          cp phase2f-result-1.json phase2f-result.json
+      - name: Show frozen classification
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2f-result.json'))
+          assert data['verdict'] in {
+              'phase2f_minimal_band_pressure_supported',
+              'phase2f_minimal_band_pressure_not_supported',
+              'phase2f_inconclusive_prerequisites',
+          }
+          print('PREREQUISITES:', json.dumps(data['prerequisites'], sort_keys=True))
+          print('CLASSICAL_NON_DEGRADATION:', data['classical_non_degradation'])
+          print('MECHANISM_ACTIVITY:', json.dumps(data['support']['mechanism_activity'], sort_keys=True))
+          print('SUPPORT_CHECKS:', json.dumps(data['support']['checks'], sort_keys=True))
+          print('PAIRED_B1_VS_O0:', json.dumps(data['support']['paired_b1_vs_o0'], sort_keys=True))
+          print('SPECIFICITY:', json.dumps(data['support']['specificity_b1_vs_sb1'], sort_keys=True))
+          print('VERDICT:', data['verdict'])
+          print('AGGREGATE_SHA256:', data['aggregate_payload_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2f-summary-${{ github.sha }}
+          path: phase2f-result.json
+          if-no-files-found: error
+          retention-days: 90
