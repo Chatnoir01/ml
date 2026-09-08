@@ -32,6 +32,7 @@ from .phase2f import (
 from .phase2f_invariants import all_arm_invariants_report
 from .phase2f_provenance import all_arm_provenance_report
 from .phase2f_receipt_linkage import all_score_linkage_report
+from .phase2f_trace_integrity import all_trace_integrity_report
 
 
 def _sha_matches(payload: dict[str, Any], field: str) -> bool:
@@ -142,6 +143,7 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
     invariant_report = all_arm_invariants_report(arm_results)
     linkage_report = all_score_linkage_report(arm_results)
     provenance_report = all_arm_provenance_report(arm_results)
+    trace_report = all_trace_integrity_report(arm_results)
     exact_budgets = True
     receipt_integrity = True
     same_initial_population = True
@@ -205,6 +207,7 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "band_invariants": bool(invariant_report["pass"]),
         "score_event_receipt_linkage": bool(linkage_report["pass"]),
         "arm_provenance": bool(provenance_report["pass"]),
+        "trace_integrity": bool(trace_report["pass"]),
     }
     prerequisites["pass"] = all(prerequisites.values())
 
@@ -216,6 +219,9 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
     ).encode("utf-8")
     provenance_blob = json.dumps(
         provenance_report, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    trace_blob = json.dumps(
+        trace_report, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     payload: dict[str, Any] = {
         "schema_version": 1,
@@ -229,6 +235,8 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "score_linkage_failed_cells": list(linkage_report["failed_cells"]),
         "arm_provenance_report_sha256": hashlib.sha256(provenance_blob).hexdigest(),
         "arm_provenance_failed_cells": list(provenance_report["failed_cells"]),
+        "trace_integrity_report_sha256": hashlib.sha256(trace_blob).hexdigest(),
+        "trace_integrity_failed_cells": list(trace_report["failed_cells"]),
         "terminals": sorted(terminals, key=lambda item: (item["seed"], item["arm"])),
     }
     payload["terminal_freeze_sha256"] = hashlib.sha256(
