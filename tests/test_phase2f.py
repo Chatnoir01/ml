@@ -15,10 +15,15 @@ from adversarial_sbox.phase2f import (
     in_b1_band,
     phase2f_verdict,
 )
+from adversarial_sbox.phase2f_validation_seeds import (
+    VALIDATION_DATASET_SEEDS,
+    VALIDATION_MODEL_SEEDS,
+)
 from adversarial_sbox.phase2_evolution_seed_registry import (
     PHASE2F_RESERVED_EVOLUTION_SEEDS,
     phase2f_evolution_seeds_are_fresh,
 )
+from adversarial_sbox.phase2_neural_seed_registry import registry_is_disjoint
 
 
 def m(*, nl=104, du=8, lat=64, degree=6, sac=0.5, fp="x"):
@@ -32,7 +37,7 @@ def m(*, nl=104, du=8, lat=64, degree=6, sac=0.5, fp="x"):
     )
 
 
-def test_phase2f_frozen_identity_and_fresh_evolution_seeds():
+def test_phase2f_frozen_identity_and_fresh_seeds():
     assert ARMS == ("C", "O0", "B1", "SB1")
     assert EVOLUTION_SEEDS == (
         526011,
@@ -67,6 +72,31 @@ def test_phase2f_frozen_identity_and_fresh_evolution_seeds():
         586087,
         586099,
     )
+    assert VALIDATION_DATASET_SEEDS == (
+        676003,
+        676017,
+        676029,
+        676043,
+        676057,
+        676071,
+        676083,
+        676099,
+    )
+    assert VALIDATION_MODEL_SEEDS == (
+        686007,
+        686019,
+        686031,
+        686043,
+        686061,
+        686073,
+        686091,
+        686103,
+    )
+    assert registry_is_disjoint(FITNESS_DATASET_SEEDS, FITNESS_MODEL_SEEDS, before="phase2f")
+    assert registry_is_disjoint(VALIDATION_DATASET_SEEDS, VALIDATION_MODEL_SEEDS, before="phase2f")
+    assert set(FITNESS_DATASET_SEEDS + FITNESS_MODEL_SEEDS).isdisjoint(
+        VALIDATION_DATASET_SEEDS + VALIDATION_MODEL_SEEDS
+    )
 
 
 def test_b1_accepts_exact_frozen_componentwise_boundary():
@@ -92,7 +122,7 @@ def test_b1_refuses_any_single_outside_band_component(candidate):
     assert not in_b1_band(candidate, cutoff, c)
 
 
-def test_b1_can_cross_protected_key_only_inside_band():
+def test_b1_can_cross_protected_key_only_inside_contiguous_band():
     c = HardConstraints()
     cutoff = m(nl=104, fp="cut")
     inside_better_neural = m(nl=102, fp="inside")
@@ -110,6 +140,26 @@ def test_b1_can_cross_protected_key_only_inside_band():
         shuffle_rng=None,
     )
     assert [x[0] for x in ordered] == ["inside", "cut", "outside"]
+
+
+def test_b1_never_crosses_an_outside_band_blocker():
+    c = HardConstraints()
+    cutoff = m(nl=104, du=8, fp="cut")
+    blocker = m(nl=103, du=4, fp="blocker")  # DU distance 4 => outside B1.
+    separated_eligible = m(nl=102, du=6, fp="eligible")
+    items = [
+        ("cut", cutoff, 0.50),
+        ("blocker", blocker, 0.40),
+        ("eligible", separated_eligible, 0.01),
+    ]
+    ordered = apply_phase2f_cutoff_order(
+        items,
+        constraints=c,
+        arm="B1",
+        cutoff_metrics=cutoff,
+        shuffle_rng=None,
+    )
+    assert [x[0] for x in ordered] == ["cut", "blocker", "eligible"]
 
 
 def test_o0_remains_exact_protected_key_only():
