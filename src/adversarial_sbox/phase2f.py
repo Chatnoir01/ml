@@ -11,12 +11,7 @@ import random
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .evolution import (
-    ClassicalMetrics,
-    HardConstraints,
-    is_admissible,
-    primary_security_key,
-)
+from .evolution import ClassicalMetrics, HardConstraints, is_admissible, primary_security_key
 from .phase2_evolution_seed_registry import PHASE2F_RESERVED_EVOLUTION_SEEDS
 
 ARCHITECTURE = "byte_tanh_mlp"
@@ -28,26 +23,8 @@ SPLIT_SIZES = (5734, 1228, 1230)
 ARMS = ("C", "O0", "B1", "SB1")
 EVOLUTION_SEEDS = PHASE2F_RESERVED_EVOLUTION_SEEDS
 
-FITNESS_DATASET_SEEDS = (
-    576003,
-    576017,
-    576031,
-    576043,
-    576059,
-    576071,
-    576083,
-    576097,
-)
-FITNESS_MODEL_SEEDS = (
-    586009,
-    586021,
-    586033,
-    586047,
-    586061,
-    586073,
-    586087,
-    586099,
-)
+FITNESS_DATASET_SEEDS = (576003, 576017, 576031, 576043, 576059, 576071, 576083, 576097)
+FITNESS_MODEL_SEEDS = (586009, 586021, 586033, 586047, 586061, 586073, 586087, 586099)
 
 SHUFFLE_SEED_OFFSET = 10_000
 CLASSICAL_BUDGET_PER_ARM_SEED = 340
@@ -92,20 +69,14 @@ def __getattr__(name: str):
     raise AttributeError(name)
 
 
-def in_b1_band(
-    candidate: ClassicalMetrics,
-    cutoff: ClassicalMetrics,
-    constraints: HardConstraints,
-) -> bool:
+def in_b1_band(candidate: ClassicalMetrics, cutoff: ClassicalMetrics, constraints: HardConstraints) -> bool:
     """Return whether candidate is inside the exact preregistered B1 neighborhood."""
 
     return (
         is_admissible(candidate, constraints) == is_admissible(cutoff, constraints)
         and abs(int(candidate.nonlinearity) - int(cutoff.nonlinearity)) <= B1_NL_RADIUS
-        and abs(int(candidate.differential_uniformity) - int(cutoff.differential_uniformity))
-        <= B1_DU_RADIUS
-        and abs(int(candidate.max_linear_correlation) - int(cutoff.max_linear_correlation))
-        <= B1_LAT_RADIUS
+        and abs(int(candidate.differential_uniformity) - int(cutoff.differential_uniformity)) <= B1_DU_RADIUS
+        and abs(int(candidate.max_linear_correlation) - int(cutoff.max_linear_correlation)) <= B1_LAT_RADIUS
         and int(candidate.algebraic_degree) == int(cutoff.algebraic_degree)
     )
 
@@ -115,10 +86,7 @@ def _historical_order(
     constraints: HardConstraints,
 ) -> list[tuple[Any, ClassicalMetrics, float]]:
     indexed = list(enumerate(items))
-    indexed.sort(
-        key=lambda pair: primary_security_key(pair[1][1], constraints),
-        reverse=True,
-    )
+    indexed.sort(key=lambda pair: primary_security_key(pair[1][1], constraints), reverse=True)
     return [item for _index, item in indexed]
 
 
@@ -140,6 +108,38 @@ def _o0_order(
     return ordered
 
 
+def _contiguous_band_positions(
+    historical: Sequence[tuple[Any, ClassicalMetrics, float]],
+    *,
+    cutoff_metrics: ClassicalMetrics,
+    constraints: HardConstraints,
+) -> list[int]:
+    """Maximal contiguous B1-eligible run containing the cutoff reference.
+
+    Stopping at the first outside-band item on either side is the conservative
+    implementation of the frozen no-outside-candidate-crossing rule.
+    """
+
+    matches = [
+        index
+        for index, item in enumerate(historical)
+        if str(item[1].fingerprint) == str(cutoff_metrics.fingerprint)
+    ]
+    if len(matches) != 1:
+        raise ValueError("Phase 2F cutoff reference fingerprint must occur exactly once")
+    center = matches[0]
+    if not in_b1_band(historical[center][1], cutoff_metrics, constraints):
+        raise RuntimeError("Phase 2F cutoff reference is not self-eligible")
+
+    left = center
+    while left - 1 >= 0 and in_b1_band(historical[left - 1][1], cutoff_metrics, constraints):
+        left -= 1
+    right = center + 1
+    while right < len(historical) and in_b1_band(historical[right][1], cutoff_metrics, constraints):
+        right += 1
+    return list(range(left, right))
+
+
 def apply_phase2f_cutoff_order(
     items: Sequence[tuple[Any, ClassicalMetrics, float]],
     *,
@@ -150,10 +150,9 @@ def apply_phase2f_cutoff_order(
 ) -> list[tuple[Any, ClassicalMetrics, float]]:
     """Apply the frozen pure Phase-2F cutoff ordering contract.
 
-    C is historical classical order. O0 can reorder only exact protected-key
-    groups. B1/SB1 can reorder only items inside the preregistered componentwise
-    band around the historical cutoff. Outside-band items retain their historical
-    positions, so neural pressure cannot cross them.
+    C is historical protected-key order. O0 can reorder only exact protected-key
+    groups. B1/SB1 can reorder only the contiguous B1 band containing the
+    historical cutoff reference; no outside-band candidate can be crossed.
     """
 
     if arm not in ARMS:
@@ -167,11 +166,9 @@ def apply_phase2f_cutoff_order(
     if arm == "O0":
         return _o0_order(historical, constraints)
 
-    eligible_positions = [
-        index
-        for index, item in enumerate(historical)
-        if in_b1_band(item[1], cutoff_metrics, constraints)
-    ]
+    eligible_positions = _contiguous_band_positions(
+        historical, cutoff_metrics=cutoff_metrics, constraints=constraints
+    )
     if len(eligible_positions) < 2:
         return historical
 
