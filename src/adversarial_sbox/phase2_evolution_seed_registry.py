@@ -35,6 +35,20 @@ PHASE2D_RESERVED_EVOLUTION_SEEDS = (
     426113,
 )
 
+# Phase 2F minimal classical-band neural-pressure experiment. Reserved publicly
+# in issue #115 before implementation or scientific execution.
+PHASE2F_RESERVED_EVOLUTION_SEEDS = (
+    526011,
+    526023,
+    526037,
+    526049,
+    526061,
+    526073,
+    526087,
+    526099,
+    526111,
+)
+
 
 def prior_evolution_seed_registry() -> tuple[int, ...]:
     """Return every explicitly registered evolutionary seed predating Phase 2B."""
@@ -95,6 +109,31 @@ def reserved_evolution_seed_registry_through_phase2d() -> tuple[int, ...]:
             {
                 *reserved_evolution_seed_registry_through_phase2b(),
                 *PHASE2D_RESERVED_EVOLUTION_SEEDS,
+            }
+        )
+    )
+
+
+def phase2f_evolution_seeds_are_fresh(seeds: Iterable[int]) -> bool:
+    """Validate exact identity, uniqueness and freshness of reserved Phase-2F seeds."""
+
+    frozen = tuple(int(value) for value in seeds)
+    return (
+        frozen == PHASE2F_RESERVED_EVOLUTION_SEEDS
+        and len(frozen) == 9
+        and len(set(frozen)) == len(frozen)
+        and set(frozen).isdisjoint(reserved_evolution_seed_registry_through_phase2d())
+    )
+
+
+def reserved_evolution_seed_registry_through_phase2f() -> tuple[int, ...]:
+    """Return the complete evolutionary registry including Phase-2F reservation."""
+
+    return tuple(
+        sorted(
+            {
+                *reserved_evolution_seed_registry_through_phase2d(),
+                *PHASE2F_RESERVED_EVOLUTION_SEEDS,
             }
         )
     )
