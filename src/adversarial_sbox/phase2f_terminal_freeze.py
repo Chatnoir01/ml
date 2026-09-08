@@ -29,6 +29,7 @@ from .phase2f import (
     PAIR_COUNT,
     SPLIT_SIZES,
 )
+from .phase2f_invariants import all_arm_invariants_report
 
 
 def _sha_matches(payload: dict[str, Any], field: str) -> bool:
@@ -96,8 +97,18 @@ def _fitness_score_payload_integrity(payload: dict[str, Any]) -> bool:
         if seen != expected:
             return False
         return bool(
-            math.isclose(float(payload.get("neural_advantage")), sum(neural) / len(neural), rel_tol=0.0, abs_tol=1e-15)
-            and math.isclose(float(payload.get("null_advantage")), sum(null) / len(null), rel_tol=0.0, abs_tol=1e-15)
+            math.isclose(
+                float(payload.get("neural_advantage")),
+                sum(neural) / len(neural),
+                rel_tol=0.0,
+                abs_tol=1e-15,
+            )
+            and math.isclose(
+                float(payload.get("null_advantage")),
+                sum(null) / len(null),
+                rel_tol=0.0,
+                abs_tol=1e-15,
+            )
         )
     except (TypeError, ValueError, KeyError, IndexError):
         return False
@@ -107,7 +118,9 @@ def _expected_cells() -> set[tuple[int, str]]:
     return {(int(seed), arm) for seed in EVOLUTION_SEEDS for arm in ARMS}
 
 
-def _index_arm_results(arm_results: Sequence[dict[str, Any]]) -> dict[tuple[int, str], dict[str, Any]]:
+def _index_arm_results(
+    arm_results: Sequence[dict[str, Any]],
+) -> dict[tuple[int, str], dict[str, Any]]:
     expected = _expected_cells()
     indexed: dict[tuple[int, str], dict[str, Any]] = {}
     for item in arm_results:
@@ -124,6 +137,7 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """Freeze all 36 terminals without importing any held-out validation code."""
 
     arms = _index_arm_results(arm_results)
+    invariant_report = all_arm_invariants_report(arm_results)
     exact_budgets = True
     receipt_integrity = True
     same_initial_population = True
@@ -141,11 +155,15 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
             exact_budgets &= bool(
                 str(run.get("phase")) == "2F"
                 and int(run.get("classical_evaluations", -1)) == CLASSICAL_BUDGET_PER_ARM_SEED
-                and int(run.get("oracle_candidate_scores", -1)) == ORACLE_SCORE_BUDGET_PER_ARM_SEED
-                and int(run.get("oracle_fitness_trainings", -1)) == FITNESS_TRAININGS_PER_ARM_SEED
+                and int(run.get("oracle_candidate_scores", -1))
+                == ORACLE_SCORE_BUDGET_PER_ARM_SEED
+                and int(run.get("oracle_fitness_trainings", -1))
+                == FITNESS_TRAININGS_PER_ARM_SEED
                 and len(receipts) == ORACLE_SCORE_BUDGET_PER_ARM_SEED
             )
-            terminal_rule &= str(run.get("terminal_selection_rule", "")) == "historical_classical_only"
+            terminal_rule &= (
+                str(run.get("terminal_selection_rule", "")) == "historical_classical_only"
+            )
             receipt_integrity &= _sha_matches(run, "scientific_payload_sha256")
 
             seen_fp: set[str] = set()
@@ -156,7 +174,9 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
                 ok &= fp != "" and fp not in seen_fp
                 seen_fp.add(fp)
                 ok &= str(score.get("fingerprint", "")) == fp
-                ok &= str(receipt.get("payload_sha256", "")) == str(score.get("scientific_payload_sha256", ""))
+                ok &= str(receipt.get("payload_sha256", "")) == str(
+                    score.get("scientific_payload_sha256", "")
+                )
                 ok &= int(receipt.get("training_count", -1)) == ORACLE_TRAININGS_PER_SCORE
                 ok &= str(receipt.get("role", "")) in {"selection", "padding"}
                 receipt_integrity &= bool(ok)
@@ -178,15 +198,21 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "receipt_integrity": bool(receipt_integrity),
         "same_initial_population": bool(same_initial_population),
         "terminal_classical_only": bool(terminal_rule),
+        "band_invariants": bool(invariant_report["pass"]),
     }
     prerequisites["pass"] = all(prerequisites.values())
 
+    invariant_blob = json.dumps(
+        invariant_report, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
     payload: dict[str, Any] = {
         "schema_version": 1,
         "phase": "2F-terminal-freeze",
         "cell_count": 36,
         "evolution_seeds": list(EVOLUTION_SEEDS),
         "prerequisites": prerequisites,
+        "band_invariant_report_sha256": hashlib.sha256(invariant_blob).hexdigest(),
+        "band_invariant_failed_cells": list(invariant_report["failed_cells"]),
         "terminals": sorted(terminals, key=lambda item: (item["seed"], item["arm"])),
     }
     payload["terminal_freeze_sha256"] = hashlib.sha256(
