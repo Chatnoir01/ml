@@ -30,7 +30,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev]'
       - name: Run frozen Phase 2F contract suite
-        run: pytest -q tests/test_phase2f.py tests/test_phase2f_runner.py tests/test_phase2f_aggregate.py tests/test_phase2f_invariants.py
+        run: pytest -q tests/test_phase2f*.py
       - name: Verify pre-marker scientific isolation and fail-closed wiring
         run: |
           python - <<'PY'
@@ -58,7 +58,9 @@ jobs:
 
           freeze_source = inspect.getsource(freeze.freeze_terminals)
           assert 'all_arm_invariants_report' in freeze_source
+          assert 'all_score_linkage_report' in freeze_source
           assert 'band_invariants' in freeze_source
+          assert 'score_event_receipt_linkage' in freeze_source
 
           cli = Path('scripts/run_phase2f.py').read_text(encoding='utf-8')
           assert 'terminal-freeze prerequisites failed closed' in cli
