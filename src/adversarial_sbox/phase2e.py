@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterable, Sequence
 import hashlib
 import json
@@ -48,7 +47,6 @@ _LINEAGE_METRICS = (
     "terminal_self",
     "terminal_descendant",
 )
-
 _REPLACEMENT_BUCKETS = (
     "strictly_better_classical_key_present",
     "same_key_not_selected",
@@ -77,14 +75,13 @@ def _seal(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _stage_name(value: Any) -> str:
-    stage = str(value)
-    if stage == "terminal_shortlist":
-        return "shortlist"
-    return stage
+    return "shortlist" if str(value) == "terminal_shortlist" else str(value)
 
 
-def _new_count_record() -> dict[str, Any]:
+def _new_tag_record() -> dict[str, Any]:
     return {
+        "score_caused_entry_occurrences": 0,
+        "score_caused_entry_fingerprints": set(),
         "created_occurrences": 0,
         "created_fingerprints": set(),
         "active_tag_appearances": 0,
@@ -98,10 +95,17 @@ def _new_count_record() -> dict[str, Any]:
     }
 
 
-def _freeze_count_record(record: dict[str, Any]) -> dict[str, Any]:
+def _freeze_tag_record(record: dict[str, Any]) -> dict[str, Any]:
+    entrants = int(record["score_caused_entry_occurrences"])
+    created = int(record["created_occurrences"])
     return {
-        "created_occurrences": int(record["created_occurrences"]),
+        "score_caused_entry_occurrences": entrants,
+        "score_caused_entry_unique": len(record["score_caused_entry_fingerprints"]),
+        "created_occurrences": created,
         "created_unique": len(record["created_fingerprints"]),
+        "tag_creation_rate_per_score_caused_entry": (
+            float(created / entrants) if entrants else 0.0
+        ),
         "active_tag_appearances": int(record["active_tag_appearances"]),
         "active_unique": len(record["active_fingerprints"]),
         "order_changed_tag_occurrences": int(record["order_changed_tag_occurrences"]),
@@ -121,6 +125,7 @@ def _freeze_count_record(record: dict[str, Any]) -> dict[str, Any]:
 
 def _merge_tag_record(target: dict[str, Any], source: dict[str, Any]) -> None:
     for key in (
+        "score_caused_entry_occurrences",
         "created_occurrences",
         "active_tag_appearances",
         "order_changed_tag_occurrences",
@@ -129,6 +134,7 @@ def _merge_tag_record(target: dict[str, Any], source: dict[str, Any]) -> None:
     ):
         target[key] += int(source[key])
     for key in (
+        "score_caused_entry_fingerprints",
         "created_fingerprints",
         "active_fingerprints",
         "order_changed_fingerprints",
@@ -142,51 +148,50 @@ def _tag_event_details(event: dict[str, Any]) -> tuple[set[str], set[str]]:
     active = {str(value) for value in event.get("active_tags", []) if str(value)}
     score_group = [str(value) for value in event.get("score_ordered_group", [])]
     final_group = [str(value) for value in event.get("final_group", [])]
-
-    order_changed: set[str] = set()
     score_positions = {fp: index for index, fp in enumerate(score_group)}
     final_positions = {fp: index for index, fp in enumerate(final_group)}
-    for fp in active:
-        if fp in score_positions and fp in final_positions:
-            if score_positions[fp] != final_positions[fp]:
-                order_changed.add(fp)
-
+    order_changed = {
+        fp
+        for fp in active
+        if fp in score_positions
+        and fp in final_positions
+        and score_positions[fp] != final_positions[fp]
+    }
     membership_changed: set[str] = set()
     try:
-        start = int(event.get("group_start", 0))
-        cutoff = int(event.get("cutoff", 0))
-        quota = cutoff - start
+        quota = int(event.get("cutoff", 0)) - int(event.get("group_start", 0))
         if 0 <= quota <= len(score_group) and len(final_group) == len(score_group):
-            score_selected = set(score_group[:quota])
-            final_selected = set(final_group[:quota])
-            membership_changed = active & (final_selected - score_selected)
+            membership_changed = active & (
+                set(final_group[:quota]) - set(score_group[:quota])
+            )
     except (TypeError, ValueError):
         membership_changed = set()
     return order_changed, membership_changed
 
 
 def tag_utilization_summary(run: dict[str, Any]) -> dict[str, Any]:
-    """Summarize one-generation tag creation/use without inferring efficacy."""
+    """Summarize score-caused entries and one-generation tag utilization."""
 
-    by_stage: dict[str, dict[str, Any]] = {
-        "shortlist": _new_count_record(),
-        "survival": _new_count_record(),
-    }
-    overall = _new_count_record()
-
+    by_stage = {"shortlist": _new_tag_record(), "survival": _new_tag_record()}
+    overall = _new_tag_record()
     for event in run.get("selection_events", []):
         stage = _stage_name(event.get("stage", ""))
         if stage not in by_stage:
             continue
         record = by_stage[stage]
-        created = {str(value) for value in event.get("tag_created", []) if str(value)}
+        entrants_list = [
+            str(value) for value in event.get("score_caused_entered", []) if str(value)
+        ]
+        created_list = [str(value) for value in event.get("tag_created", []) if str(value)]
         active_list = [str(value) for value in event.get("active_tags", []) if str(value)]
         active = set(active_list)
         order_changed, membership_changed = _tag_event_details(event)
         unused = active - order_changed - membership_changed
 
-        record["created_occurrences"] += len(event.get("tag_created", []))
-        record["created_fingerprints"].update(created)
+        record["score_caused_entry_occurrences"] += len(entrants_list)
+        record["score_caused_entry_fingerprints"].update(entrants_list)
+        record["created_occurrences"] += len(created_list)
+        record["created_fingerprints"].update(created_list)
         record["active_tag_appearances"] += len(active_list)
         record["active_fingerprints"].update(active)
         record["order_changed_tag_occurrences"] += len(order_changed)
@@ -198,12 +203,11 @@ def tag_utilization_summary(run: dict[str, Any]) -> dict[str, Any]:
 
     for record in by_stage.values():
         _merge_tag_record(overall, record)
-
-    frozen = _freeze_count_record(overall)
-    frozen["by_stage"] = {
-        stage: _freeze_count_record(by_stage[stage]) for stage in ("shortlist", "survival")
+    result = _freeze_tag_record(overall)
+    result["by_stage"] = {
+        stage: _freeze_tag_record(by_stage[stage]) for stage in ("shortlist", "survival")
     }
-    return frozen
+    return result
 
 
 def _or_state(current: bool | None, incoming: bool | None) -> bool | None:
@@ -215,7 +219,7 @@ def _or_state(current: bool | None, incoming: bool | None) -> bool | None:
 
 
 def lineage_fate_summary(run: dict[str, Any]) -> dict[str, Any]:
-    """Merge repeated entered fingerprints with the frozen logical-OR convention."""
+    """Apply logical OR across repeated score-caused fingerprint appearances."""
 
     states: dict[str, dict[str, bool | None]] = {}
     occurrence_entries = 0
@@ -240,12 +244,11 @@ def lineage_fate_summary(run: dict[str, Any]) -> dict[str, Any]:
         defined = [value for value in values if value is not None]
         true_count = sum(value is True for value in defined)
         false_count = sum(value is False for value in defined)
-        undefined = len(values) - len(defined)
         result[metric] = {
-            "defined_unique": int(len(defined)),
+            "defined_unique": len(defined),
             "true_unique": int(true_count),
             "false_unique": int(false_count),
-            "undefined_unique": int(undefined),
+            "undefined_unique": len(values) - len(defined),
             "rate": float(true_count / len(defined)) if defined else 0.0,
         }
     return result
@@ -264,10 +267,10 @@ def _generation_pool(run: dict[str, Any], generation: int, stage: str) -> set[st
         return None
     if trace is None:
         return None
+    pool = {str(value) for value in trace.get("population_before", [])}
     if normalized == "shortlist":
-        return {str(value) for value in trace.get("population_before", [])}
+        return pool
     if normalized == "survival":
-        pool = {str(value) for value in trace.get("population_before", [])}
         for proposal in trace.get("proposals", []):
             if isinstance(proposal, dict):
                 fp = str(proposal.get("proposal_fingerprint", ""))
@@ -278,69 +281,77 @@ def _generation_pool(run: dict[str, Any], generation: int, stage: str) -> set[st
 
 
 def replacement_summary(run: dict[str, Any]) -> dict[str, Any]:
-    """Conservatively classify tagged-lineage loss at the next tagged stage."""
+    """Conservatively classify every active-tag fate at its due stage."""
 
-    buckets = {name: 0 for name in _REPLACEMENT_BUCKETS}
+    counts = {name: 0 for name in _REPLACEMENT_BUCKETS}
     retained = 0
     active_occurrences = 0
+    records: list[dict[str, Any]] = []
 
     for event in run.get("selection_events", []):
-        active = [str(value) for value in event.get("active_tags", []) if str(value)]
+        active = sorted(str(value) for value in event.get("active_tags", []) if str(value))
         if not active:
             continue
-        active_occurrences += len(active)
         generation = int(event.get("generation", -1))
-        stage = str(event.get("stage", ""))
+        stage = _stage_name(event.get("stage", ""))
         pool = _generation_pool(run, generation, stage)
         base_group = [str(value) for value in event.get("base_group", [])]
         final_group = [str(value) for value in event.get("final_group", base_group)]
-        selected_after_raw = event.get("selected_after")
+        selected_raw = event.get("selected_after")
         selected_after = (
-            {str(value) for value in selected_after_raw}
-            if isinstance(selected_after_raw, list)
+            {str(value) for value in selected_raw}
+            if isinstance(selected_raw, list)
             else None
         )
 
         for fp in active:
+            active_occurrences += 1
+            classification: str
             if pool is None:
-                buckets["not_reconstructible"] += 1
-                continue
-            if fp not in pool:
-                buckets["lineage_not_present"] += 1
-                continue
-
-            if selected_after is not None:
-                if fp in selected_after:
-                    retained += 1
-                elif fp in base_group:
-                    buckets["same_key_not_selected"] += 1
-                else:
-                    # The candidate is present but lies behind the protected cutoff
-                    # and cannot be promoted across that strict key boundary.
-                    buckets["strictly_better_classical_key_present"] += 1
-                continue
-
-            if fp in base_group:
+                classification = "not_reconstructible"
+            elif fp not in pool:
+                classification = "lineage_not_present"
+            elif selected_after is not None and fp in selected_after:
+                classification = "retained"
+            elif selected_after is not None and fp in base_group:
+                classification = "same_key_not_selected"
+            elif selected_after is not None:
+                classification = "strictly_better_classical_key_present"
+            elif fp in base_group:
                 try:
                     quota = int(event.get("cutoff", 0)) - int(event.get("group_start", 0))
                     index = final_group.index(fp)
                 except (TypeError, ValueError):
-                    buckets["not_reconstructible"] += 1
-                    continue
-                if 0 <= quota <= len(final_group):
-                    if index < quota:
-                        retained += 1
-                    else:
-                        buckets["same_key_not_selected"] += 1
+                    classification = "not_reconstructible"
                 else:
-                    buckets["not_reconstructible"] += 1
+                    if not 0 <= quota <= len(final_group):
+                        classification = "not_reconstructible"
+                    elif index < quota:
+                        classification = "retained"
+                    else:
+                        classification = "same_key_not_selected"
             else:
-                buckets["not_reconstructible"] += 1
+                classification = "not_reconstructible"
 
+            if classification == "retained":
+                retained += 1
+            else:
+                counts[classification] += 1
+            records.append(
+                {
+                    "generation": generation,
+                    "stage": stage,
+                    "fingerprint": fp,
+                    "classification": classification,
+                }
+            )
+
+    records.sort(key=lambda item: (item["generation"], item["stage"], item["fingerprint"]))
     return {
         "active_tag_occurrences": int(active_occurrences),
         "retained_occurrences": int(retained),
-        "loss_classifications": {name: int(buckets[name]) for name in _REPLACEMENT_BUCKETS},
+        "loss_classifications": {name: int(counts[name]) for name in _REPLACEMENT_BUCKETS},
+        "records": records,
     }
 
 
@@ -366,7 +377,6 @@ def _freeze_budget_record(record: dict[str, int]) -> dict[str, Any]:
 def budget_geometry(run: dict[str, Any]) -> dict[str, Any]:
     by_stage = {"shortlist": _empty_budget_record(), "survival": _empty_budget_record()}
     overall = _empty_budget_record()
-
     for event in run.get("selection_events", []):
         if not bool(event.get("boundary_opportunity", False)):
             continue
@@ -387,7 +397,6 @@ def budget_geometry(run: dict[str, Any]) -> dict[str, Any]:
                 event.get("observational_only", False)
             ):
                 record["postclosure_observational_only"] += 1
-
     return {
         "overall": _freeze_budget_record(overall),
         "by_stage": {
@@ -423,11 +432,8 @@ def _source_failures(
             failures.add("duplicate_cell")
             continue
         indexed[key] = run
-
-    if set(indexed) != expected:
-        failures.add("missing_or_extra_cells")
-    if len(arm_results) != 36:
-        failures.add("source_cell_count")
+    if set(indexed) != expected or len(arm_results) != 36:
+        failures.add("source_cell_set")
 
     for run in indexed.values():
         if str(run.get("phase", "")) != "2D":
@@ -450,10 +456,10 @@ def _source_failures(
     if int(terminal_freeze.get("cell_count", -1)) != 36:
         failures.add("terminal_freeze_cell_count")
     try:
-        frozen_seeds = tuple(int(value) for value in terminal_freeze.get("evolution_seeds", []))
+        freeze_seeds = tuple(int(value) for value in terminal_freeze.get("evolution_seeds", []))
     except (TypeError, ValueError):
-        frozen_seeds = ()
-    if frozen_seeds != EVOLUTION_SEEDS:
+        freeze_seeds = ()
+    if freeze_seeds != EVOLUTION_SEEDS:
         failures.add("terminal_freeze_seeds")
     if not bool(terminal_freeze.get("prerequisites", {}).get("pass", False)):
         failures.add("terminal_freeze_prerequisites")
@@ -470,7 +476,6 @@ def _source_failures(
         terminal_map[key] = item
     if set(terminal_map) != expected:
         failures.add("terminal_cell_set")
-
     for key in expected & set(indexed) & set(terminal_map):
         run = indexed[key]
         terminal = terminal_map[key]
@@ -489,7 +494,6 @@ def _source_failures(
         failures.add("aggregate_phase")
     if not bool(aggregate.get("prerequisites", {}).get("pass", False)):
         failures.add("aggregate_prerequisites")
-
     return sorted(failures)
 
 
@@ -507,10 +511,10 @@ def _sum_lineage(summaries: Iterable[dict[str, Any]]) -> dict[str, Any]:
         false_count = sum(int(item[metric]["false_unique"]) for item in values)
         undefined = sum(int(item[metric]["undefined_unique"]) for item in values)
         result[metric] = {
-            "defined_unique_cell_sum": int(defined),
-            "true_unique_cell_sum": int(true_count),
-            "false_unique_cell_sum": int(false_count),
-            "undefined_unique_cell_sum": int(undefined),
+            "defined_unique_cell_sum": defined,
+            "true_unique_cell_sum": true_count,
+            "false_unique_cell_sum": false_count,
+            "undefined_unique_cell_sum": undefined,
             "rate": float(true_count / defined) if defined else 0.0,
         }
     return result
@@ -519,6 +523,7 @@ def _sum_lineage(summaries: Iterable[dict[str, Any]]) -> dict[str, Any]:
 def _sum_tags(summaries: Iterable[dict[str, Any]]) -> dict[str, Any]:
     values = list(summaries)
     keys = (
+        "score_caused_entry_occurrences",
         "created_occurrences",
         "active_tag_appearances",
         "order_changed_tag_occurrences",
@@ -526,7 +531,11 @@ def _sum_tags(summaries: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "expired_without_order_or_membership_occurrences",
     )
     result = {key: sum(int(item.get(key, 0)) for item in values) for key in keys}
+    entrants = int(result["score_caused_entry_occurrences"])
     active = int(result["active_tag_appearances"])
+    result["tag_creation_rate_per_score_caused_entry"] = (
+        float(result["created_occurrences"] / entrants) if entrants else 0.0
+    )
     result["order_utilization_rate"] = (
         float(result["order_changed_tag_occurrences"] / active) if active else 0.0
     )
@@ -570,7 +579,7 @@ def analyze_phase2e(
     terminal_freeze: dict[str, Any],
     aggregate: dict[str, Any],
 ) -> dict[str, Any]:
-    """Produce the frozen Phase 2E diagnostic payload from existing receipts only."""
+    """Produce Phase 2E diagnostics from frozen Phase 2D artifacts only."""
 
     failures = _source_failures(arm_results, terminal_freeze, aggregate)
     if failures:
@@ -578,9 +587,10 @@ def analyze_phase2e(
 
     indexed = {
         (int(run["seed"]), str(run["arm"])): run
-        for run in sorted(arm_results, key=lambda item: (int(item["seed"]), str(item["arm"])))
+        for run in sorted(
+            arm_results, key=lambda item: (int(item["seed"]), str(item["arm"]))
+        )
     }
-
     per_cell: dict[tuple[int, str], dict[str, Any]] = {}
     for seed in EVOLUTION_SEEDS:
         for arm in ARMS:
@@ -617,18 +627,17 @@ def analyze_phase2e(
                 "replacement": cell["replacement"],
                 "budget": cell["budget"],
             }
-        per_seed.append({"seed": int(seed), "arms": arms_payload})
+        per_seed.append({"seed": seed, "arms": arms_payload})
 
     source_shas = [
         {
-            "seed": int(seed),
+            "seed": seed,
             "arm": arm,
             "sha256": per_cell[(seed, arm)]["source_arm_payload_sha256"],
         }
         for seed in EVOLUTION_SEEDS
         for arm in ARMS
     ]
-
     return _seal(
         {
             "schema_version": 1,
