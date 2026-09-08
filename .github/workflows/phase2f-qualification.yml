@@ -29,9 +29,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install test package
+      - name: Install exact qualification runtime
         run: |
           python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.3'
           python -m pip install -e '.[dev]'
       - name: Run frozen Phase 2F contract suite
         run: pytest -q tests/test_phase2f*.py
@@ -40,8 +41,10 @@ jobs:
           python - <<'PY'
           import inspect
           from pathlib import Path
+          import numpy as np
           import adversarial_sbox.phase2f_runner as runner
           import adversarial_sbox.phase2f_terminal_freeze as freeze
+          from adversarial_sbox.phase2f import NUMPY_VERSION
 
           marker = Path('research/PHASE2F_EXECUTE.md')
           if marker.exists():
@@ -49,6 +52,9 @@ jobs:
               print('PHASE2F_POST_MARKER_TOKEN_VALID')
           else:
               print('PHASE2F_PRE_MARKER_ABSENT_AS_REQUIRED')
+
+          assert NUMPY_VERSION == '2.5.3'
+          assert np.__version__ == NUMPY_VERSION
 
           runner_source = inspect.getsource(runner)
           for forbidden in (
@@ -84,10 +90,12 @@ jobs:
               assert required in cli
 
           workflow = Path('.github/workflows/phase2f.yml').read_text(encoding='utf-8')
+          assert "numpy==2.5.3" in workflow
           assert 'needs: terminal_freeze' in workflow
           assert 'research/PHASE2F_EXECUTE.md' in workflow
           assert 'AUTHORIZED_PHASE2F_MINIMAL_BAND_EXPERIMENT' in workflow
           print('PHASE2F_PRE_MARKER_QUALIFICATION_GREEN')
+          print('PHASE2F_NUMPY_VERSION:', np.__version__)
           PY
       - name: Verify no scientific authorization was added accidentally
         if: ${{ hashFiles('research/PHASE2F_EXECUTE.md') == '' }}
