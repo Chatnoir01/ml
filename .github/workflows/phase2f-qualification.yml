@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: phase2f-pre-marker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   qualify:
     runs-on: ubuntu-24.04
@@ -57,15 +61,27 @@ jobs:
               assert forbidden not in runner_source
 
           freeze_source = inspect.getsource(freeze.freeze_terminals)
-          assert 'all_arm_invariants_report' in freeze_source
-          assert 'all_score_linkage_report' in freeze_source
-          assert 'band_invariants' in freeze_source
-          assert 'score_event_receipt_linkage' in freeze_source
+          for required in (
+              'all_arm_invariants_report',
+              'all_score_linkage_report',
+              'all_arm_provenance_report',
+              'all_trace_integrity_report',
+              'band_invariants',
+              'score_event_receipt_linkage',
+              'arm_provenance',
+              'trace_integrity',
+          ):
+              assert required in freeze_source
 
           cli = Path('scripts/run_phase2f.py').read_text(encoding='utf-8')
-          assert 'terminal-freeze prerequisites failed closed' in cli
-          assert 'aggregate prerequisites failed closed' in cli
-          assert 'held-out validation receipt failed integrity gate' in cli
+          for required in (
+              'arm payload checksum failed before held-out validation',
+              'terminal-freeze checksum failed before held-out validation',
+              'terminal-freeze prerequisites failed closed',
+              'aggregate prerequisites failed closed',
+              'held-out validation receipt failed integrity gate',
+          ):
+              assert required in cli
 
           workflow = Path('.github/workflows/phase2f.yml').read_text(encoding='utf-8')
           assert 'needs: terminal_freeze' in workflow
