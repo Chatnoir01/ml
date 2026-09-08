@@ -11,7 +11,13 @@ import random
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .evolution import ClassicalMetrics, HardConstraints, is_admissible, primary_security_key
+from .evolution import (
+    ClassicalMetrics,
+    HardConstraints,
+    feasibility_rank,
+    is_admissible,
+    primary_security_key,
+)
 from .phase2_evolution_seed_registry import PHASE2F_RESERVED_EVOLUTION_SEEDS
 
 ARCHITECTURE = "byte_tanh_mlp"
@@ -86,7 +92,10 @@ def _historical_order(
     constraints: HardConstraints,
 ) -> list[tuple[Any, ClassicalMetrics, float]]:
     indexed = list(enumerate(items))
-    indexed.sort(key=lambda pair: primary_security_key(pair[1][1], constraints), reverse=True)
+    indexed.sort(
+        key=lambda pair: (feasibility_rank(pair[1][1], constraints), pair[0]),
+        reverse=True,
+    )
     return [item for _index, item in indexed]
 
 
@@ -114,11 +123,7 @@ def _contiguous_band_positions(
     cutoff_metrics: ClassicalMetrics,
     constraints: HardConstraints,
 ) -> list[int]:
-    """Maximal contiguous B1-eligible run containing the cutoff reference.
-
-    Stopping at the first outside-band item on either side is the conservative
-    implementation of the frozen no-outside-candidate-crossing rule.
-    """
+    """Maximal contiguous B1-eligible run containing the cutoff reference."""
 
     matches = [
         index
@@ -150,7 +155,7 @@ def apply_phase2f_cutoff_order(
 ) -> list[tuple[Any, ClassicalMetrics, float]]:
     """Apply the frozen pure Phase-2F cutoff ordering contract.
 
-    C is historical protected-key order. O0 can reorder only exact protected-key
+    C is historical feasibility order. O0 can reorder only exact protected-key
     groups. B1/SB1 can reorder only the contiguous B1 band containing the
     historical cutoff reference; no outside-band candidate can be crossed.
     """
