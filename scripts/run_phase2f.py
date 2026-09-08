@@ -65,7 +65,10 @@ def main() -> None:
             raise SystemExit("terminal freeze cannot be mixed with other modes")
         from adversarial_sbox.phase2f_terminal_freeze import freeze_terminals
 
-        _write(args.output, freeze_terminals(_read_many(args.freeze_arm_files)))
+        payload = freeze_terminals(_read_many(args.freeze_arm_files))
+        _write(args.output, payload)
+        if not bool(payload.get("prerequisites", {}).get("pass")):
+            raise SystemExit("Phase 2F terminal-freeze prerequisites failed closed")
         return
 
     if args.aggregate_arm_files or args.aggregate_validation_files:
@@ -73,13 +76,15 @@ def main() -> None:
             raise SystemExit("both aggregate file groups are required")
         from adversarial_sbox.phase2f_aggregate import aggregate_phase2f
 
-        _write(
-            args.output,
-            aggregate_phase2f(
-                _read_many(args.aggregate_arm_files),
-                _read_many(args.aggregate_validation_files),
-            ),
+        payload = aggregate_phase2f(
+            _read_many(args.aggregate_arm_files),
+            _read_many(args.aggregate_validation_files),
         )
+        _write(args.output, payload)
+        if not bool(payload.get("prerequisites", {}).get("pass")):
+            raise SystemExit("Phase 2F aggregate prerequisites failed closed")
+        if str(payload.get("verdict", "")) == "phase2f_inconclusive_prerequisites":
+            raise SystemExit("Phase 2F inconclusive prerequisite verdict cannot pass workflow")
         return
 
     if args.validate_arm_result:
@@ -94,9 +99,21 @@ def main() -> None:
             raise SystemExit("validation seed does not match arm result")
         if args.arm is not None and str(args.arm) != arm:
             raise SystemExit("validation arm does not match arm result")
+        from adversarial_sbox.phase2f_aggregate import score_payload_integrity
         from adversarial_sbox.phase2f_validation import score_terminal_candidate
+        from adversarial_sbox.phase2f_validation_seeds import (
+            VALIDATION_DATASET_SEEDS,
+            VALIDATION_MODEL_SEEDS,
+        )
 
         score = score_terminal_candidate(run["terminal_sbox"])
+        if not score_payload_integrity(
+            score,
+            purpose="validation",
+            dataset_seeds=VALIDATION_DATASET_SEEDS,
+            model_seeds=VALIDATION_MODEL_SEEDS,
+        ):
+            raise SystemExit("Phase 2F held-out validation receipt failed integrity gate")
         _write(
             args.output,
             {
