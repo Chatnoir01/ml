@@ -38,13 +38,18 @@ jobs:
           source = Path('src/adversarial_sbox/phase2e.py').read_text(encoding='utf-8')
           workflow = Path('.github/workflows/phase2e.yml').read_text(encoding='utf-8')
           runner = Path('scripts/run_phase2e.py').read_text(encoding='utf-8')
-          forbidden = ('phase2d_oracle', 'phase2d_validation', 'score_fitness_candidate', 'score_validation_candidate', '.[neural]', 'phase2d-validation-')
+          forbidden = (
+              'phase2d' + '_' + 'oracle',
+              'phase2d' + '_' + 'validation',
+              'score_' + 'fitness_candidate',
+              'score_' + 'validation_candidate',
+              '.' + '[neural]',
+              'phase2d' + '-' + 'validation' + '-',
+          )
           for token in forbidden:
               assert token not in source
               assert token not in runner
-              if token != 'phase2d-validation-':
-                  assert token not in workflow
-          assert 'phase2d-validation-*' not in workflow
+              assert token not in workflow
           print('PHASE2E_ZERO_COMPUTE_LOCK_GREEN')
           PY
       - name: Download exact frozen Phase 2D arm artifacts
