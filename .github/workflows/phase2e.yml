@@ -1,0 +1,102 @@
+name: Phase 2E Artifact Diagnostics
+
+on:
+  push:
+    branches:
+      - research/phase2e-artifact-diagnostics
+    paths:
+      - research/PHASE2E_EXECUTE.md
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  artifact_diagnostics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SOURCE_RUN_ID: '34147455097'
+      SOURCE_MARKER_SHA: '2cc913e33cc5848f12ae5493f992b49fa89bc3d2'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package without neural extras
+        run: python -m pip install -e .
+      - name: Verify frozen Phase 2E artifact-only lock
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import adversarial_sbox.phase2e as phase2e
+
+          assert Path('research/PHASE2E_EXECUTE.md').read_text(encoding='utf-8').strip() == 'AUTHORIZED_PHASE2E_ARTIFACT_DIAGNOSTICS'
+          assert phase2e.SOURCE_RUN_ID == 34147455097
+          assert phase2e.EXPECTED_MARKER_SHA == '2cc913e33cc5848f12ae5493f992b49fa89bc3d2'
+          source = Path('src/adversarial_sbox/phase2e.py').read_text(encoding='utf-8')
+          workflow = Path('.github/workflows/phase2e.yml').read_text(encoding='utf-8')
+          runner = Path('scripts/run_phase2e.py').read_text(encoding='utf-8')
+          forbidden = ('phase2d_oracle', 'phase2d_validation', 'score_fitness_candidate', 'score_validation_candidate', '.[neural]', 'phase2d-validation-')
+          for token in forbidden:
+              assert token not in source
+              assert token not in runner
+              if token != 'phase2d-validation-':
+                  assert token not in workflow
+          assert 'phase2d-validation-*' not in workflow
+          print('PHASE2E_ZERO_COMPUTE_LOCK_GREEN')
+          PY
+      - name: Download exact frozen Phase 2D arm artifacts
+        run: |
+          mkdir -p source/arms source/freeze source/aggregate
+          gh run download "$SOURCE_RUN_ID" \
+            -R Chatnoir01/ml \
+            --pattern "phase2d-arm-*-${SOURCE_MARKER_SHA}" \
+            --dir source/arms
+          gh run download "$SOURCE_RUN_ID" \
+            -R Chatnoir01/ml \
+            --pattern "phase2d-terminal-freeze-${SOURCE_MARKER_SHA}" \
+            --dir source/freeze
+          gh run download "$SOURCE_RUN_ID" \
+            -R Chatnoir01/ml \
+            --pattern "phase2d-summary-${SOURCE_MARKER_SHA}" \
+            --dir source/aggregate
+      - name: Verify exact source file geometry
+        run: |
+          test "$(find source/arms -type f -name arm.json | wc -l)" -eq 36
+          test "$(find source/freeze -type f -name phase2d-terminal-freeze.json | wc -l)" -eq 1
+          test "$(find source/aggregate -type f -name phase2d-result.json | wc -l)" -eq 1
+          test "$(find source -type f -name validation.json | wc -l)" -eq 0
+      - name: Analyze twice and require byte identity
+        run: |
+          python scripts/run_phase2e.py \
+            --arm-root source/arms \
+            --terminal-freeze-root source/freeze \
+            --aggregate-root source/aggregate \
+            --output phase2e-forward.json
+          python scripts/run_phase2e.py \
+            --arm-root source/arms \
+            --terminal-freeze-root source/freeze \
+            --aggregate-root source/aggregate \
+            --reverse-input \
+            --output phase2e-reverse.json
+          cmp phase2e-forward.json phase2e-reverse.json
+          cp phase2e-forward.json phase2e-result.json
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2e-result.json'))
+          assert data['status'] == 'phase2e_artifact_diagnostics_valid'
+          assert data['source_cell_count'] == 36
+          assert data['diagnostics_interpreted'] is True
+          print('STATUS:', data['status'])
+          print('PHASE2E_SHA256:', data['scientific_payload_sha256'])
+          print('OP1_TAGS:', json.dumps(data['d5_op1_vs_sp1_descriptive']['OP1']['tags'], sort_keys=True))
+          print('SP1_TAGS:', json.dumps(data['d5_op1_vs_sp1_descriptive']['SP1']['tags'], sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2e-diagnostics-${{ github.sha }}
+          path: phase2e-result.json
+          if-no-files-found: error
+          retention-days: 90
