@@ -13,6 +13,7 @@ from typing import Any
 
 from .cryptoshield import is_bijective, validate_sbox
 from .datasets import generate_balanced_pairs, split_dataset
+from .neural100 import _numpy
 from .neural_heterogeneity import ROUND_KEYS, _train_byte_tanh_mlp
 from .phase2f import (
     ARCHITECTURE,
@@ -20,6 +21,7 @@ from .phase2f import (
     DIFFERENCES,
     FITNESS_DATASET_SEEDS,
     FITNESS_MODEL_SEEDS,
+    NUMPY_VERSION,
     ORACLE_TRAININGS_PER_SCORE,
     PAIR_COUNT,
     SPLIT_SIZES,
@@ -40,6 +42,12 @@ def _score_candidate(
     model_seeds: Sequence[int],
     purpose: str,
 ) -> dict[str, Any]:
+    np = _numpy()
+    if str(np.__version__) != NUMPY_VERSION:
+        raise RuntimeError(
+            f"Phase 2F NumPy runtime drift: {np.__version__!s} != {NUMPY_VERSION}"
+        )
+
     frozen = validate_sbox(sbox)
     if not is_bijective(frozen):
         raise ValueError("Phase 2F neural scorer requires a bijective 8x8 S-Box")
@@ -93,6 +101,7 @@ def _score_candidate(
         "experiment": "phase2f_candidate_neural_score",
         "purpose": purpose,
         "architecture": ARCHITECTURE,
+        "numpy_version": NUMPY_VERSION,
         "depth": DEPTH,
         "differences": list(DIFFERENCES),
         "pair_count": PAIR_COUNT,
