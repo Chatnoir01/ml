@@ -21,6 +21,7 @@ from .evolution import (
 from .phase2_evolution_seed_registry import PHASE2F_RESERVED_EVOLUTION_SEEDS
 
 ARCHITECTURE = "byte_tanh_mlp"
+NUMPY_VERSION = "2.5.3"
 DEPTH = 4
 DIFFERENCES = (0x00000001, 0x00000100)
 PAIR_COUNT = 8192
