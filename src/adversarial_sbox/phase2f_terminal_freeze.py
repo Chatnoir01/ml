@@ -30,6 +30,7 @@ from .phase2f import (
     SPLIT_SIZES,
 )
 from .phase2f_invariants import all_arm_invariants_report
+from .phase2f_provenance import all_arm_provenance_report
 from .phase2f_receipt_linkage import all_score_linkage_report
 
 
@@ -140,6 +141,7 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
     arms = _index_arm_results(arm_results)
     invariant_report = all_arm_invariants_report(arm_results)
     linkage_report = all_score_linkage_report(arm_results)
+    provenance_report = all_arm_provenance_report(arm_results)
     exact_budgets = True
     receipt_integrity = True
     same_initial_population = True
@@ -202,6 +204,7 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "terminal_classical_only": bool(terminal_rule),
         "band_invariants": bool(invariant_report["pass"]),
         "score_event_receipt_linkage": bool(linkage_report["pass"]),
+        "arm_provenance": bool(provenance_report["pass"]),
     }
     prerequisites["pass"] = all(prerequisites.values())
 
@@ -210,6 +213,9 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
     ).encode("utf-8")
     linkage_blob = json.dumps(
         linkage_report, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    provenance_blob = json.dumps(
+        provenance_report, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     payload: dict[str, Any] = {
         "schema_version": 1,
@@ -221,6 +227,8 @@ def freeze_terminals(arm_results: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "band_invariant_failed_cells": list(invariant_report["failed_cells"]),
         "score_linkage_report_sha256": hashlib.sha256(linkage_blob).hexdigest(),
         "score_linkage_failed_cells": list(linkage_report["failed_cells"]),
+        "arm_provenance_report_sha256": hashlib.sha256(provenance_blob).hexdigest(),
+        "arm_provenance_failed_cells": list(provenance_report["failed_cells"]),
         "terminals": sorted(terminals, key=lambda item: (item["seed"], item["arm"])),
     }
     payload["terminal_freeze_sha256"] = hashlib.sha256(
