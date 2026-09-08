@@ -179,19 +179,19 @@ def tag_utilization_summary(run: dict[str, Any]) -> dict[str, Any]:
         if stage not in by_stage:
             continue
         record = by_stage[stage]
-        entrants_list = [
+        entrants = [
             str(value) for value in event.get("score_caused_entered", []) if str(value)
         ]
-        created_list = [str(value) for value in event.get("tag_created", []) if str(value)]
+        created = [str(value) for value in event.get("tag_created", []) if str(value)]
         active_list = [str(value) for value in event.get("active_tags", []) if str(value)]
         active = set(active_list)
         order_changed, membership_changed = _tag_event_details(event)
         unused = active - order_changed - membership_changed
 
-        record["score_caused_entry_occurrences"] += len(entrants_list)
-        record["score_caused_entry_fingerprints"].update(entrants_list)
-        record["created_occurrences"] += len(created_list)
-        record["created_fingerprints"].update(created_list)
+        record["score_caused_entry_occurrences"] += len(entrants)
+        record["score_caused_entry_fingerprints"].update(entrants)
+        record["created_occurrences"] += len(created)
+        record["created_fingerprints"].update(created)
         record["active_tag_appearances"] += len(active_list)
         record["active_fingerprints"].update(active)
         record["order_changed_tag_occurrences"] += len(order_changed)
@@ -254,10 +254,14 @@ def lineage_fate_summary(run: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _generation_pool(run: dict[str, Any], generation: int, stage: str) -> set[str] | None:
-    traces = {
+def _trace_map(run: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    return {
         int(item.get("generation", -1)): item for item in run.get("generation_trace", [])
     }
+
+
+def _generation_pool(run: dict[str, Any], generation: int, stage: str) -> set[str] | None:
+    traces = _trace_map(run)
     normalized = _stage_name(stage)
     trace = traces.get(int(generation))
     if trace is None and normalized == "shortlist" and traces:
@@ -280,9 +284,104 @@ def _generation_pool(run: dict[str, Any], generation: int, stage: str) -> set[st
     return None
 
 
-def replacement_summary(run: dict[str, Any]) -> dict[str, Any]:
-    """Conservatively classify every active-tag fate at its due stage."""
+def _selected_at_stage(
+    run: dict[str, Any], generation: int, stage: str
+) -> set[str] | None:
+    trace = _trace_map(run).get(int(generation))
+    if trace is None:
+        return None
+    normalized = _stage_name(stage)
+    if normalized == "shortlist":
+        return {str(value) for value in trace.get("shortlist", [])}
+    if normalized == "survival":
+        return {str(value) for value in trace.get("next_population", [])}
+    return None
 
+
+def _boundary_group_at_stage(
+    run: dict[str, Any], generation: int, stage: str
+) -> set[str]:
+    normalized = _stage_name(stage)
+    groups: list[set[str]] = []
+    for event in run.get("selection_events", []):
+        try:
+            event_generation = int(event.get("generation", -1))
+        except (TypeError, ValueError):
+            continue
+        if event_generation != int(generation):
+            continue
+        if _stage_name(event.get("stage", "")) != normalized:
+            continue
+        groups.append({str(value) for value in event.get("base_group", [])})
+    merged: set[str] = set()
+    for group in groups:
+        merged.update(group)
+    return merged
+
+
+def _classify_score_caused_entrants(run: dict[str, Any]) -> dict[str, Any]:
+    counts = {name: 0 for name in _REPLACEMENT_BUCKETS}
+    retained = 0
+    records: list[dict[str, Any]] = []
+    for event in run.get("selection_events", []):
+        entrants = sorted(
+            str(value) for value in event.get("score_caused_entered", []) if str(value)
+        )
+        if not entrants:
+            continue
+        source_generation = int(event.get("generation", -1))
+        stage = _stage_name(event.get("stage", ""))
+        target_generation = source_generation + 1
+        pool = _generation_pool(run, target_generation, stage)
+        selected = _selected_at_stage(run, target_generation, stage)
+        boundary_group = _boundary_group_at_stage(run, target_generation, stage)
+
+        for fp in entrants:
+            if pool is None or selected is None:
+                classification = "not_reconstructible"
+            elif fp not in pool:
+                classification = "lineage_not_present"
+            elif fp in selected:
+                classification = "retained"
+            elif fp in boundary_group:
+                classification = "same_key_not_selected"
+            else:
+                classification = "strictly_better_classical_key_present"
+            if classification == "retained":
+                retained += 1
+            else:
+                counts[classification] += 1
+            records.append(
+                {
+                    "source_generation": source_generation,
+                    "generation": target_generation,
+                    "stage": stage,
+                    "fingerprint": fp,
+                    "classification": classification,
+                }
+            )
+    records.sort(
+        key=lambda item: (
+            item["generation"],
+            item["stage"],
+            item["fingerprint"],
+            item["source_generation"],
+        )
+    )
+    return {
+        "entrant_occurrences": len(records),
+        "entrant_retained_occurrences": int(retained),
+        "entrant_loss_classifications": {
+            name: int(counts[name]) for name in _REPLACEMENT_BUCKETS
+        },
+        "entrant_records": records,
+    }
+
+
+def replacement_summary(run: dict[str, Any]) -> dict[str, Any]:
+    """Classify score-caused entrants and every active-tag fate conservatively."""
+
+    entrant_summary = _classify_score_caused_entrants(run)
     counts = {name: 0 for name in _REPLACEMENT_BUCKETS}
     retained = 0
     active_occurrences = 0
@@ -306,7 +405,6 @@ def replacement_summary(run: dict[str, Any]) -> dict[str, Any]:
 
         for fp in active:
             active_occurrences += 1
-            classification: str
             if pool is None:
                 classification = "not_reconstructible"
             elif fp not in pool:
@@ -348,6 +446,7 @@ def replacement_summary(run: dict[str, Any]) -> dict[str, Any]:
 
     records.sort(key=lambda item: (item["generation"], item["stage"], item["fingerprint"]))
     return {
+        **entrant_summary,
         "active_tag_occurrences": int(active_occurrences),
         "retained_occurrences": int(retained),
         "loss_classifications": {name: int(counts[name]) for name in _REPLACEMENT_BUCKETS},
@@ -548,6 +647,14 @@ def _sum_tags(summaries: Iterable[dict[str, Any]]) -> dict[str, Any]:
 def _sum_replacements(summaries: Iterable[dict[str, Any]]) -> dict[str, Any]:
     values = list(summaries)
     return {
+        "entrant_occurrences": sum(int(item["entrant_occurrences"]) for item in values),
+        "entrant_retained_occurrences": sum(
+            int(item["entrant_retained_occurrences"]) for item in values
+        ),
+        "entrant_loss_classifications": {
+            name: sum(int(item["entrant_loss_classifications"][name]) for item in values)
+            for name in _REPLACEMENT_BUCKETS
+        },
         "active_tag_occurrences": sum(int(item["active_tag_occurrences"]) for item in values),
         "retained_occurrences": sum(int(item["retained_occurrences"]) for item in values),
         "loss_classifications": {
@@ -599,7 +706,7 @@ def analyze_phase2e(
                 "source_arm_payload_sha256": str(run["scientific_payload_sha256"]),
                 "tags": tag_utilization_summary(run) if arm in PERSISTENCE_ARMS else None,
                 "lineage": lineage_fate_summary(run) if arm in LINEAGE_ARMS else None,
-                "replacement": replacement_summary(run) if arm in PERSISTENCE_ARMS else None,
+                "replacement": replacement_summary(run) if arm in LINEAGE_ARMS else None,
                 "budget": budget_geometry(run),
             }
 
