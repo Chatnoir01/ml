@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -18,7 +19,20 @@ def _read_many(paths):
     return [json.loads(path.read_text(encoding="utf-8")) for path in paths]
 
 
+def _sha_matches(payload: dict, field: str) -> bool:
+    stored = str(payload.get(field, ""))
+    if len(stored) != 64:
+        return False
+    clean = {key: value for key, value in payload.items() if key != field}
+    blob = json.dumps(clean, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest() == stored
+
+
 def _require_terminal_freeze(run: dict, freeze: dict) -> None:
+    if not _sha_matches(run, "scientific_payload_sha256"):
+        raise SystemExit("Phase 2F arm payload checksum failed before held-out validation")
+    if not _sha_matches(freeze, "terminal_freeze_sha256"):
+        raise SystemExit("Phase 2F terminal-freeze checksum failed before held-out validation")
     if str(freeze.get("phase")) != "2F-terminal-freeze":
         raise SystemExit("invalid Phase 2F terminal-freeze manifest")
     if not bool(freeze.get("prerequisites", {}).get("pass")):
