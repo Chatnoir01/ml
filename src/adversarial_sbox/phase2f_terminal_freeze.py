@@ -24,6 +24,7 @@ from .phase2f import (
     FITNESS_DATASET_SEEDS,
     FITNESS_MODEL_SEEDS,
     FITNESS_TRAININGS_PER_ARM_SEED,
+    NUMPY_VERSION,
     ORACLE_SCORE_BUDGET_PER_ARM_SEED,
     ORACLE_TRAININGS_PER_SCORE,
     PAIR_COUNT,
@@ -49,6 +50,8 @@ def _fitness_score_payload_integrity(payload: dict[str, Any]) -> bool:
         if str(payload.get("purpose", "")) != "fitness":
             return False
         if str(payload.get("architecture", "")) != ARCHITECTURE:
+            return False
+        if str(payload.get("numpy_version", "")) != NUMPY_VERSION:
             return False
         if int(payload.get("depth", -1)) != DEPTH:
             return False
