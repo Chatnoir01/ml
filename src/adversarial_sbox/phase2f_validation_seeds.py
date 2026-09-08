@@ -1,0 +1,26 @@
+"""Physically isolated held-out Block X seed constants for Phase 2F."""
+
+VALIDATION_DATASET_SEEDS = (
+    676003,
+    676017,
+    676029,
+    676043,
+    676057,
+    676071,
+    676083,
+    676099,
+)
+
+VALIDATION_MODEL_SEEDS = (
+    686007,
+    686019,
+    686031,
+    686043,
+    686061,
+    686073,
+    686091,
+    686103,
+)
+
+HELDOUT_TRAININGS_PER_TERMINAL = 2 * len(VALIDATION_DATASET_SEEDS)
+TOTAL_HELDOUT_TRAININGS = 36 * HELDOUT_TRAININGS_PER_TERMINAL
