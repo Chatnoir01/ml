@@ -197,7 +197,7 @@ def event_invariant_report(event: Mapping[str, Any], *, arm: str) -> dict[str, A
             and bool(event.get("observational_only"))
             and bool(event.get("selection_closed_after"))
         )
-    elif bool(event.get("selection_closed_before")):
+    elif bool(event.get("selection_closed_before")) and bool(event.get("boundary_opportunity")):
         checks["budget_state"] = bool(
             not scored
             and bool(event.get("observational_only"))
