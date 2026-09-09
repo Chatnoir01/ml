@@ -103,6 +103,38 @@ def test_classical_control_cannot_record_neural_membership_or_order_change():
     assert report["checks"]["control_classical_only"] is False
 
 
+def test_closed_budget_without_boundary_opportunity_preserves_non_observational_event():
+    event = _event()
+    event.update(
+        {
+            "cutoff": 2,
+            "boundary_opportunity": False,
+            "selection_closed_before": True,
+            "selection_closed_after": True,
+            "cutoff_reference_fingerprint": "enter",
+            "protected_key": [True, 102, -8, -56, 7],
+            "scored": False,
+            "observational_only": False,
+            "blocked_by_budget": False,
+            "score_ordered_group": ["cut", "enter"],
+            "final_group": ["cut", "enter"],
+            "membership_changed": False,
+            "ordering_changed": False,
+            "cross_protected_key_membership_change": False,
+            "score_caused_entered": [],
+            "entered": [],
+            "exited": [],
+        }
+    )
+    event.pop("assigned_scores")
+    event.pop("selected_before")
+    event.pop("selected_after")
+
+    report = event_invariant_report(event, arm="B1")
+    assert report["pass"] is True
+    assert report["checks"]["budget_state"] is True
+
+
 def test_terminal_freeze_must_consume_independent_invariant_gate():
     source = inspect.getsource(terminal_freeze.freeze_terminals)
     assert "all_arm_invariants_report" in source
