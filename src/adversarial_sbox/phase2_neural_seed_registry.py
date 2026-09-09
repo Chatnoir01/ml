@@ -16,8 +16,6 @@ def _freeze(values: Iterable[int]) -> tuple[int, ...]:
 
 
 def prior_blocks_before_phase2au() -> tuple[SeedBlock, ...]:
-    """Every frozen/executed Phase-2 neural registry predating Phase 2A-U."""
-
     from .phase2a import DATASET_SEEDS as A_DATASET, MODEL_SEEDS as A_MODEL
     from .phase2ad import DATASET_SEEDS as AD_DATASET, MODEL_SEEDS as AD_MODEL
     from .phase2ap import DATASET_SEEDS as AP_DATASET, MODEL_SEEDS as AP_MODEL
@@ -50,8 +48,6 @@ def phase2au_blocks() -> tuple[SeedBlock, ...]:
 
 
 def phase2au2_blocks() -> tuple[SeedBlock, ...]:
-    """Frozen U2 requalification blocks, including the Phase-2B fitness block."""
-
     from .phase2au2 import (
         BLOCK_A_DATASET_SEEDS,
         BLOCK_A_MODEL_SEEDS,
@@ -66,39 +62,30 @@ def phase2au2_blocks() -> tuple[SeedBlock, ...]:
 
 
 def phase2b_reserved_blocks() -> tuple[SeedBlock, ...]:
-    """Fresh Phase-2B terminal-validation block reserved before execution."""
-
     from .phase2b import VALIDATION_DATASET_SEEDS, VALIDATION_MODEL_SEEDS
 
-    return (
-        (
-            "phase2b-validation-V",
-            _freeze(VALIDATION_DATASET_SEEDS),
-            _freeze(VALIDATION_MODEL_SEEDS),
-        ),
-    )
+    return (("phase2b-validation-V", _freeze(VALIDATION_DATASET_SEEDS), _freeze(VALIDATION_MODEL_SEEDS)),)
 
 
 def phase2d_reserved_blocks() -> tuple[SeedBlock, ...]:
-    """Fresh Phase-2D fitness F and physically isolated held-out W blocks."""
-
     from .phase2d import FITNESS_DATASET_SEEDS, FITNESS_MODEL_SEEDS
-    from .phase2d_validation_seeds import (
-        VALIDATION_DATASET_SEEDS,
-        VALIDATION_MODEL_SEEDS,
-    )
+    from .phase2d_validation_seeds import VALIDATION_DATASET_SEEDS, VALIDATION_MODEL_SEEDS
 
     return (
-        (
-            "phase2d-fitness-F",
-            _freeze(FITNESS_DATASET_SEEDS),
-            _freeze(FITNESS_MODEL_SEEDS),
-        ),
-        (
-            "phase2d-validation-W",
-            _freeze(VALIDATION_DATASET_SEEDS),
-            _freeze(VALIDATION_MODEL_SEEDS),
-        ),
+        ("phase2d-fitness-F", _freeze(FITNESS_DATASET_SEEDS), _freeze(FITNESS_MODEL_SEEDS)),
+        ("phase2d-validation-W", _freeze(VALIDATION_DATASET_SEEDS), _freeze(VALIDATION_MODEL_SEEDS)),
+    )
+
+
+def phase2f_reserved_blocks() -> tuple[SeedBlock, ...]:
+    """Fresh Phase-2F fitness G and physically isolated held-out X blocks."""
+
+    from .phase2f import FITNESS_DATASET_SEEDS, FITNESS_MODEL_SEEDS
+    from .phase2f_validation_seeds import VALIDATION_DATASET_SEEDS, VALIDATION_MODEL_SEEDS
+
+    return (
+        ("phase2f-fitness-G", _freeze(FITNESS_DATASET_SEEDS), _freeze(FITNESS_MODEL_SEEDS)),
+        ("phase2f-validation-X", _freeze(VALIDATION_DATASET_SEEDS), _freeze(VALIDATION_MODEL_SEEDS)),
     )
 
 
@@ -119,49 +106,23 @@ def prior_seed_registry_before_phase2au2() -> tuple[int, ...]:
 
 
 def prior_seed_registry_before_phase2b() -> tuple[int, ...]:
-    """Complete frozen/executed neural registry before Phase-2B validation seeds."""
-
-    return seed_union(
-        (*prior_blocks_before_phase2au(), *phase2au_blocks(), *phase2au2_blocks())
-    )
+    return seed_union((*prior_blocks_before_phase2au(), *phase2au_blocks(), *phase2au2_blocks()))
 
 
 def complete_seed_registry_through_phase2b() -> tuple[int, ...]:
-    """Complete registry including the reserved Phase-2B held-out Block V."""
-
-    return seed_union(
-        (
-            *prior_blocks_before_phase2au(),
-            *phase2au_blocks(),
-            *phase2au2_blocks(),
-            *phase2b_reserved_blocks(),
-        )
-    )
+    return seed_union((*prior_blocks_before_phase2au(), *phase2au_blocks(), *phase2au2_blocks(), *phase2b_reserved_blocks()))
 
 
 def complete_seed_registry_through_phase2d() -> tuple[int, ...]:
-    """Complete registry including the reserved Phase-2D F and W blocks."""
-
-    return seed_union(
-        (
-            *prior_blocks_before_phase2au(),
-            *phase2au_blocks(),
-            *phase2au2_blocks(),
-            *phase2b_reserved_blocks(),
-            *phase2d_reserved_blocks(),
-        )
-    )
+    return seed_union((*prior_blocks_before_phase2au(), *phase2au_blocks(), *phase2au2_blocks(), *phase2b_reserved_blocks(), *phase2d_reserved_blocks()))
 
 
-def overlap_with_prior(
-    dataset_seeds: Iterable[int],
-    model_seeds: Iterable[int],
-    *,
-    before: str,
-) -> tuple[int, ...]:
-    candidate = {int(value) for value in dataset_seeds} | {
-        int(value) for value in model_seeds
-    }
+def complete_seed_registry_through_phase2f() -> tuple[int, ...]:
+    return seed_union((*prior_blocks_before_phase2au(), *phase2au_blocks(), *phase2au2_blocks(), *phase2b_reserved_blocks(), *phase2d_reserved_blocks(), *phase2f_reserved_blocks()))
+
+
+def overlap_with_prior(dataset_seeds: Iterable[int], model_seeds: Iterable[int], *, before: str) -> tuple[int, ...]:
+    candidate = {int(value) for value in dataset_seeds} | {int(value) for value in model_seeds}
     if before == "phase2au":
         prior = set(prior_seed_registry_before_phase2au())
     elif before == "phase2au2":
@@ -170,15 +131,12 @@ def overlap_with_prior(
         prior = set(prior_seed_registry_before_phase2b())
     elif before == "phase2d":
         prior = set(complete_seed_registry_through_phase2b())
+    elif before == "phase2f":
+        prior = set(complete_seed_registry_through_phase2d())
     else:
         raise ValueError(f"unsupported Phase-2 provenance boundary {before!r}")
     return tuple(sorted(candidate & prior))
 
 
-def registry_is_disjoint(
-    dataset_seeds: Iterable[int],
-    model_seeds: Iterable[int],
-    *,
-    before: str,
-) -> bool:
+def registry_is_disjoint(dataset_seeds: Iterable[int], model_seeds: Iterable[int], *, before: str) -> bool:
     return not overlap_with_prior(dataset_seeds, model_seeds, before=before)

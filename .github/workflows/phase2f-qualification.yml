@@ -1,0 +1,102 @@
+name: Phase 2F Pre-Marker Qualification
+
+on:
+  push:
+    branches:
+      - research/phase2f-minimal-band-pressure
+  pull_request:
+    paths:
+      - '.github/workflows/phase2f*.yml'
+      - 'research/PHASE2F_PROTOCOL.md'
+      - 'scripts/run_phase2f.py'
+      - 'src/adversarial_sbox/phase2f*.py'
+      - 'src/adversarial_sbox/phase2_*seed_registry.py'
+      - 'tests/test_phase2f*.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase2f-pre-marker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact qualification runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.3'
+          python -m pip install -e '.[dev]'
+      - name: Run frozen Phase 2F contract suite
+        run: pytest -q tests/test_phase2f*.py
+      - name: Verify pre-marker scientific isolation and fail-closed wiring
+        run: |
+          python - <<'PY'
+          import inspect
+          from pathlib import Path
+          import numpy as np
+          import adversarial_sbox.phase2f_runner as runner
+          import adversarial_sbox.phase2f_terminal_freeze as freeze
+          from adversarial_sbox.phase2f import NUMPY_VERSION
+
+          marker = Path('research/PHASE2F_EXECUTE.md')
+          if marker.exists():
+              assert marker.read_text(encoding='utf-8').strip() == 'AUTHORIZED_PHASE2F_MINIMAL_BAND_EXPERIMENT'
+              print('PHASE2F_POST_MARKER_TOKEN_VALID')
+          else:
+              print('PHASE2F_PRE_MARKER_ABSENT_AS_REQUIRED')
+
+          assert NUMPY_VERSION == '2.5.3'
+          assert np.__version__ == NUMPY_VERSION
+
+          runner_source = inspect.getsource(runner)
+          for forbidden in (
+              'phase2f_validation',
+              'VALIDATION_DATASET_SEEDS',
+              'VALIDATION_MODEL_SEEDS',
+              'purpose="validation"',
+              "purpose='validation'",
+          ):
+              assert forbidden not in runner_source
+
+          freeze_source = inspect.getsource(freeze.freeze_terminals)
+          for required in (
+              'all_arm_invariants_report',
+              'all_score_linkage_report',
+              'all_arm_provenance_report',
+              'all_trace_integrity_report',
+              'band_invariants',
+              'score_event_receipt_linkage',
+              'arm_provenance',
+              'trace_integrity',
+          ):
+              assert required in freeze_source
+
+          cli = Path('scripts/run_phase2f.py').read_text(encoding='utf-8')
+          for required in (
+              'arm payload checksum failed before held-out validation',
+              'terminal-freeze checksum failed before held-out validation',
+              'terminal-freeze prerequisites failed closed',
+              'aggregate prerequisites failed closed',
+              'held-out validation receipt failed integrity gate',
+          ):
+              assert required in cli
+
+          workflow = Path('.github/workflows/phase2f.yml').read_text(encoding='utf-8')
+          assert "numpy==2.5.3" in workflow
+          assert 'needs: terminal_freeze' in workflow
+          assert 'research/PHASE2F_EXECUTE.md' in workflow
+          assert 'AUTHORIZED_PHASE2F_MINIMAL_BAND_EXPERIMENT' in workflow
+          print('PHASE2F_PRE_MARKER_QUALIFICATION_GREEN')
+          print('PHASE2F_NUMPY_VERSION:', np.__version__)
+          PY
+      - name: Verify no scientific authorization was added accidentally
+        if: ${{ hashFiles('research/PHASE2F_EXECUTE.md') == '' }}
+        run: test ! -e research/PHASE2F_EXECUTE.md
