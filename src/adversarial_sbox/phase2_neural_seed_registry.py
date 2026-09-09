@@ -133,6 +133,8 @@ def overlap_with_prior(dataset_seeds: Iterable[int], model_seeds: Iterable[int],
         prior = set(complete_seed_registry_through_phase2b())
     elif before == "phase2f":
         prior = set(complete_seed_registry_through_phase2d())
+    elif before == "phase2g":
+        prior = set(complete_seed_registry_through_phase2f())
     else:
         raise ValueError(f"unsupported Phase-2 provenance boundary {before!r}")
     return tuple(sorted(candidate & prior))
