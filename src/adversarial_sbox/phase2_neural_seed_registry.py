@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Iterable
 
 SeedBlock = tuple[str, tuple[int, ...], tuple[int, ...]]
+RoleSeedBlock = tuple[str, tuple[int, ...]]
 
 
 def _freeze(values: Iterable[int]) -> tuple[int, ...]:
@@ -119,6 +120,64 @@ def complete_seed_registry_through_phase2d() -> tuple[int, ...]:
 
 def complete_seed_registry_through_phase2f() -> tuple[int, ...]:
     return seed_union((*prior_blocks_before_phase2au(), *phase2au_blocks(), *phase2au2_blocks(), *phase2b_reserved_blocks(), *phase2d_reserved_blocks(), *phase2f_reserved_blocks()))
+
+
+def phase2g_checkpoint_seed_roles() -> tuple[RoleSeedBlock, ...]:
+    """Materialize the exact 32 T, 32 M and 32 Q checkpoint seeds for Phase 2G."""
+
+    from .phase2g import (
+        SCORING_DATASET_BASE_SEEDS,
+        TRAINING_DATASET_BASE_SEEDS,
+        TRAINING_MODEL_BASE_SEEDS,
+        expanded_checkpoint_seed_block,
+    )
+
+    def expand(base: Iterable[int]) -> tuple[int, ...]:
+        return tuple(
+            seed
+            for checkpoint in range(4)
+            for seed in expanded_checkpoint_seed_block(base, checkpoint)
+        )
+
+    return (
+        ("T", expand(TRAINING_DATASET_BASE_SEEDS)),
+        ("M", expand(TRAINING_MODEL_BASE_SEEDS)),
+        ("Q", expand(SCORING_DATASET_BASE_SEEDS)),
+    )
+
+
+def phase2g_checkpoint_seed_values() -> tuple[int, ...]:
+    """Return the canonical sorted union of all 96 Phase-2G checkpoint seeds."""
+
+    values = [seed for _role, role_values in phase2g_checkpoint_seed_roles() for seed in role_values]
+    return tuple(sorted(values))
+
+
+def phase2g_checkpoint_seed_registry_is_valid() -> bool:
+    """Fail closed unless Phase-2G T/M/Q identity, uniqueness and freshness all hold."""
+
+    roles = phase2g_checkpoint_seed_roles()
+    if tuple(role for role, _values in roles) != ("T", "M", "Q"):
+        return False
+
+    role_values = [tuple(values) for _role, values in roles]
+    if any(len(values) != 32 or len(set(values)) != 32 for values in role_values):
+        return False
+
+    t_values, m_values, q_values = map(set, role_values)
+    if not t_values.isdisjoint(m_values):
+        return False
+    if not t_values.isdisjoint(q_values):
+        return False
+    if not m_values.isdisjoint(q_values):
+        return False
+
+    current = phase2g_checkpoint_seed_values()
+    if len(current) != 96 or len(set(current)) != 96:
+        return False
+
+    prior = set(complete_seed_registry_through_phase2f())
+    return set(current).isdisjoint(prior)
 
 
 def overlap_with_prior(dataset_seeds: Iterable[int], model_seeds: Iterable[int], *, before: str) -> tuple[int, ...]:
