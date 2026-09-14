@@ -18,14 +18,11 @@ from adversarial_sbox.phase2g_terminal_freeze import (
     freeze_phase2g_terminals,
     heldout_h_authorized,
 )
+from adversarial_sbox.provenance import fingerprint_sbox
 
 
 def _sbox(offset: int) -> list[int]:
     return list(range(offset, 256)) + list(range(offset))
-
-
-def _fingerprint(sbox: list[int]) -> str:
-    return hashlib.sha256(bytes(sbox)).hexdigest()
 
 
 def _cell(seed: int, arm: str, arm_index: int) -> dict[str, object]:
@@ -48,7 +45,7 @@ def _cell(seed: int, arm: str, arm_index: int) -> dict[str, object]:
         "checkpoint_trainings": 64,
         "checkpoints": checkpoints,
         "terminal_selection_rule": "historical_classical_only",
-        "terminal_fingerprint": _fingerprint(sbox),
+        "terminal_fingerprint": fingerprint_sbox(sbox),
         "terminal_sbox": sbox,
         "terminal_classical": {
             "admissible": True,
