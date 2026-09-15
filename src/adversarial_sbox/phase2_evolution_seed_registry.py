@@ -49,6 +49,20 @@ PHASE2F_RESERVED_EVOLUTION_SEEDS = (
     526111,
 )
 
+# Phase 2G adaptive GA↔NN curriculum feedback experiment. Reserved publicly in
+# issue #118 before implementation or scientific execution.
+PHASE2G_RESERVED_EVOLUTION_SEEDS = (
+    726011,
+    726023,
+    726037,
+    726049,
+    726061,
+    726073,
+    726087,
+    726099,
+    726113,
+)
+
 
 def prior_evolution_seed_registry() -> tuple[int, ...]:
     """Return every explicitly registered evolutionary seed predating Phase 2B."""
@@ -134,6 +148,31 @@ def reserved_evolution_seed_registry_through_phase2f() -> tuple[int, ...]:
             {
                 *reserved_evolution_seed_registry_through_phase2d(),
                 *PHASE2F_RESERVED_EVOLUTION_SEEDS,
+            }
+        )
+    )
+
+
+def phase2g_evolution_seeds_are_fresh(seeds: Iterable[int]) -> bool:
+    """Validate exact identity, uniqueness and freshness of reserved Phase-2G seeds."""
+
+    frozen = tuple(int(value) for value in seeds)
+    return (
+        frozen == PHASE2G_RESERVED_EVOLUTION_SEEDS
+        and len(frozen) == 9
+        and len(set(frozen)) == len(frozen)
+        and set(frozen).isdisjoint(reserved_evolution_seed_registry_through_phase2f())
+    )
+
+
+def reserved_evolution_seed_registry_through_phase2g() -> tuple[int, ...]:
+    """Return the complete evolutionary registry including Phase-2G reservation."""
+
+    return tuple(
+        sorted(
+            {
+                *reserved_evolution_seed_registry_through_phase2f(),
+                *PHASE2G_RESERVED_EVOLUTION_SEEDS,
             }
         )
     )
