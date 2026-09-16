@@ -14,8 +14,8 @@ import json
 import pytest
 
 from adversarial_sbox.phase2g import (
+    CHECKPOINT_GENERATIONS,
     EVOLUTION_SEEDS,
-    INPUT_DIFFERENCES if False else CHECKPOINT_GENERATIONS,
     TRAINING_DATASET_BASE_SEEDS,
     TRAINING_MODEL_BASE_SEEDS,
     expanded_checkpoint_seed_block,
