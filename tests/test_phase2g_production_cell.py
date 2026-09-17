@@ -157,7 +157,7 @@ def test_concrete_phase2g_cell_composes_real_checkpoint_and_ga_interfaces():
     assert len(result["scientific_payload_sha256"]) == 64
 
 
-def test_concrete_control_cell_trains_audit_models_but_never_scores_for_selection():
+def test_concrete_control_cell_records_audit_scores_but_never_changes_selection():
     train_count = 0
     score_count = 0
 
@@ -185,7 +185,19 @@ def test_concrete_control_cell_trains_audit_models_but_never_scores_for_selectio
     def score_candidate(candidate, *, models):
         nonlocal score_count
         score_count += 1
-        raise AssertionError("C arm candidate scores must not affect selection")
+        model = models[0]
+        fingerprint = fingerprint_sbox(candidate)
+        payload = {
+            "arm": model.arm,
+            "evolution_seed": model.evolution_seed,
+            "checkpoint_generation": model.checkpoint_generation,
+            "candidate_fingerprint": fingerprint,
+            "model_count": len(models),
+            "training_count": 0,
+            "neural_advantage": (int(fingerprint[:8], 16) % 10000) / 10000.0,
+        }
+        payload["scientific_payload_sha256"] = hashlib.sha256(_canonical(payload)).hexdigest()
+        return payload
 
     result = run_phase2g_scientific_cell(
         seed=EVOLUTION_SEEDS[0],
@@ -197,6 +209,12 @@ def test_concrete_control_cell_trains_audit_models_but_never_scores_for_selectio
     )
 
     assert train_count == 64
-    assert score_count == 0
+    assert score_count > 0
     assert result["checkpoint_trainings"] == 64
-    assert all(event["neural_selection_enabled"] is False for event in result["selection_events"])
+    opportunities = [event for event in result["selection_events"] if event["boundary_opportunity"]]
+    assert opportunities
+    assert all(event["neural_selection_enabled"] is False for event in opportunities)
+    assert all(event["scored_candidate_count"] == len(event["b1_group"]) for event in opportunities)
+    assert all(event["assigned_scores"] for event in opportunities)
+    assert all(event["selected_before"] == event["selected_after"] for event in opportunities)
+    assert all(event["membership_changed"] is False for event in opportunities)
