@@ -1,8 +1,8 @@
-"""Frozen identity and verdict contract for Phase 2G adaptive GA↔NN research.
+"""Frozen pre-H identity and verdict contract for Phase 2G adaptive GA↔NN research.
 
-This module contains only preregistered constants, seed expansion, budget identity,
-and fail-closed verdict semantics. It does not implement checkpoint training,
-adaptive scoring, evolution, held-out validation, or scientific execution.
+This module contains preregistered arm/checkpoint identity, checkpoint seed bases,
+budget identity, and fail-closed verdict semantics. Held-out H seed values are
+physically isolated in ``phase2g_validation_seeds`` and are not imported here.
 """
 
 from __future__ import annotations
@@ -46,28 +46,6 @@ SCORING_DATASET_BASE_SEEDS = (
     796071,
     796083,
     796099,
-)
-
-HELDOUT_DATASET_SEEDS = (
-    876003,
-    876017,
-    876029,
-    876043,
-    876057,
-    876071,
-    876083,
-    876099,
-)
-
-HELDOUT_MODEL_SEEDS = (
-    886007,
-    886019,
-    886031,
-    886043,
-    886061,
-    886073,
-    886091,
-    886103,
 )
 
 CHECKPOINTS_PER_CELL = len(CHECKPOINT_GENERATIONS)
