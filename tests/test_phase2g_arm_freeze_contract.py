@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import hashlib
 
 from adversarial_sbox.phase2g import ARMS, CHECKPOINT_GENERATIONS, EVOLUTION_SEEDS
-from adversarial_sbox.phase2g_arm_runner import run_phase2g_arm
+from adversarial_sbox.phase2g_arm_runner import TerminalClassicalMetrics, run_phase2g_arm
 from adversarial_sbox.phase2g_terminal_freeze import (
     freeze_phase2g_terminals,
     heldout_h_authorized,
@@ -62,6 +62,8 @@ def _run_cell(seed: int, arm: str) -> dict[str, object]:
 
     def select_terminal_classical_only(population):
         return tuple(population)[0]
+
+    terminal_classical_metrics: TerminalClassicalMetrics
 
     def terminal_classical_metrics(_candidate):
         return {
