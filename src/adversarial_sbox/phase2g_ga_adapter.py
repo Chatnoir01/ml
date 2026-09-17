@@ -19,6 +19,7 @@ from .evolution import (
     HardConstraints,
     evaluate_classical,
     feasibility_rank,
+    primary_security_key,
 )
 from .pareto import ITOAwareMetrics, select_nsga2
 from .phase1m import ClassicalEvaluationLedger
@@ -41,6 +42,17 @@ Evaluator = Callable[[SBox], ClassicalMetrics]
 ParentSelector = Callable[[Sequence[SBox], dict[SBox, ClassicalMetrics]], Sequence[SBox]]
 ProposalFactory = Callable[..., Sequence[Sequence[int]]]
 ScoreLedgerFactory = Callable[[Any], Any]
+
+
+def _metrics_payload(metrics: ClassicalMetrics) -> dict[str, Any]:
+    return {
+        "nonlinearity": int(metrics.nonlinearity),
+        "differential_uniformity": int(metrics.differential_uniformity),
+        "max_linear_correlation": int(metrics.max_linear_correlation),
+        "sac_score": float(metrics.sac_score),
+        "algebraic_degree": int(metrics.algebraic_degree),
+        "fingerprint": str(metrics.fingerprint),
+    }
 
 
 def _historical_parent_selector(
@@ -206,6 +218,7 @@ class Phase2GGABlockAdapter:
         base = self._historical_order(candidates)
         reference = base[int(cutoff) - 1]
         reference_metrics = self._ledger.cache[reference]
+        boundary_key = primary_security_key(reference_metrics, self.constraints)
 
         left = int(cutoff) - 1
         while left - 1 >= 0 and in_b1_band(
@@ -228,11 +241,14 @@ class Phase2GGABlockAdapter:
 
         shuffle_rng = None
         shuffle_rng_seed = None
+        shuffle_rng_state = None
         if self.arm == "S":
             if shuffle_stream is None:
                 raise ValueError("Phase-2G S arm requires its persistent checkpoint shuffle stream")
             shuffle_rng = shuffle_stream.rng
             shuffle_rng_seed = int(shuffle_stream.rng_seed)
+            if neural_selection_enabled and boundary_opportunity:
+                shuffle_rng_state = shuffle_rng.getstate()
 
         if neural_selection_enabled and boundary_opportunity:
             items = [
@@ -254,8 +270,30 @@ class Phase2GGABlockAdapter:
         else:
             ordered = list(base)
 
+        assigned_scores = {
+            fingerprint_sbox(candidate): float(score)
+            for candidate, score in scored.items()
+        }
+        if self.arm == "S" and scored and shuffle_rng_state is not None:
+            replay_rng = random.Random()
+            replay_rng.setstate(shuffle_rng_state)
+            shuffled_scores = [float(scored[candidate]) for candidate in group]
+            replay_rng.shuffle(shuffled_scores)
+            assigned_scores = {
+                fingerprint_sbox(candidate): float(score)
+                for candidate, score in zip(group, shuffled_scores)
+            }
+
         before_selected = set(base[: int(cutoff)])
         after_selected = set(ordered[: int(cutoff)])
+        entered_candidates = after_selected - before_selected
+        exited_candidates = before_selected - after_selected
+        entered = sorted(fingerprint_sbox(candidate) for candidate in entered_candidates)
+        exited = sorted(fingerprint_sbox(candidate) for candidate in exited_candidates)
+        cross_key = any(
+            primary_security_key(self._ledger.cache[candidate], self.constraints) != boundary_key
+            for candidate in entered_candidates
+        )
         self._selection_events.append(
             {
                 "generation": int(generation),
@@ -263,10 +301,34 @@ class Phase2GGABlockAdapter:
                 "cutoff": int(cutoff),
                 "neural_selection_enabled": bool(neural_selection_enabled),
                 "boundary_opportunity": bool(boundary_opportunity),
+                "cutoff_reference_fingerprint": fingerprint_sbox(reference),
+                "cutoff_reference_metrics": _metrics_payload(reference_metrics),
+                "protected_key": list(boundary_key),
                 "b1_group": [fingerprint_sbox(candidate) for candidate in group],
+                "eligible_protected_keys": {
+                    fingerprint_sbox(candidate): list(
+                        primary_security_key(self._ledger.cache[candidate], self.constraints)
+                    )
+                    for candidate in group
+                },
                 "scored_candidate_count": int(len(scored)),
+                "assigned_scores": assigned_scores,
+                "selected_before": sorted(
+                    fingerprint_sbox(candidate) for candidate in before_selected
+                ),
+                "selected_after": sorted(
+                    fingerprint_sbox(candidate) for candidate in after_selected
+                ),
                 "membership_changed": bool(before_selected != after_selected),
                 "ordering_changed": bool(ordered != base),
+                "cross_protected_key_membership_change": bool(cross_key),
+                "score_caused_entered": (
+                    entered
+                    if neural_selection_enabled and boundary_opportunity and self.arm != "C"
+                    else []
+                ),
+                "entered": entered,
+                "exited": exited,
                 "shuffle_rng_seed": shuffle_rng_seed,
             }
         )
