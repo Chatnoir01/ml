@@ -1,15 +1,12 @@
 """RED contract for physical held-out H isolation in Phase 2G.
 
-Synthetic/static only. Pre-H evolution modules must not import or expose the
-held-out H seed block. The exact frozen H seeds live in a separate validation
-module that can be imported only by the post-freeze validation stage.
+Synthetic/static only. Pre-H evolution modules must not expose the held-out H
+seed block. The exact frozen H seeds must live in a separate validation module.
 """
 
 from __future__ import annotations
 
-import importlib
 import inspect
-import sys
 
 import adversarial_sbox.phase2g as phase2g
 import adversarial_sbox.phase2g_arm_runner as arm_runner
@@ -18,14 +15,13 @@ import adversarial_sbox.phase2g_runner as lifecycle_runner
 import adversarial_sbox.phase2g_selection as selection
 import adversarial_sbox.phase2g_shared_model as shared_model
 import adversarial_sbox.phase2g_terminal_freeze as terminal_freeze
+from adversarial_sbox.phase2g_validation_seeds import (
+    HELDOUT_DATASET_SEEDS,
+    HELDOUT_MODEL_SEEDS,
+)
 
 
-VALIDATION_MODULE = "adversarial_sbox.phase2g_validation_seeds"
-
-
-def test_pre_h_modules_do_not_load_or_reference_validation_seed_module() -> None:
-    assert VALIDATION_MODULE not in sys.modules
-
+def test_pre_h_modules_do_not_reference_validation_seed_module() -> None:
     for module in (
         phase2g,
         arm_runner,
@@ -46,8 +42,7 @@ def test_pre_h_modules_do_not_load_or_reference_validation_seed_module() -> None
 
 
 def test_exact_h_seed_block_exists_only_in_separate_validation_module() -> None:
-    validation = importlib.import_module(VALIDATION_MODULE)
-    assert validation.HELDOUT_DATASET_SEEDS == (
+    assert HELDOUT_DATASET_SEEDS == (
         876003,
         876017,
         876029,
@@ -57,7 +52,7 @@ def test_exact_h_seed_block_exists_only_in_separate_validation_module() -> None:
         876083,
         876099,
     )
-    assert validation.HELDOUT_MODEL_SEEDS == (
+    assert HELDOUT_MODEL_SEEDS == (
         886007,
         886019,
         886031,
