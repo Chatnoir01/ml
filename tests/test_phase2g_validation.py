@@ -13,10 +13,11 @@ import json
 
 import pytest
 
-from adversarial_sbox.phase2g import ARMS, CHECKPOINT_GENERATIONS, EVOLUTION_SEEDS
+from adversarial_sbox.phase2g import ARMS, EVOLUTION_SEEDS
 from adversarial_sbox.phase2g_terminal_freeze import freeze_phase2g_terminals
 from adversarial_sbox.phase2g_validation import validate_frozen_terminals
 from adversarial_sbox.provenance import fingerprint_sbox
+from phase2g_full_fixture import make_full_cell
 
 
 def _sha_payload(payload: dict[str, object]) -> str:
@@ -24,49 +25,20 @@ def _sha_payload(payload: dict[str, object]) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def _sbox(offset: int) -> list[int]:
-    return list(range(offset, 256)) + list(range(offset))
-
-
-def _cell(seed: int, arm: str, arm_index: int) -> dict[str, object]:
-    sbox = _sbox((seed + arm_index) % 256)
-    payload: dict[str, object] = {
-        "phase": "2G",
-        "seed": seed,
-        "arm": arm,
-        "classical_evaluations": 340,
-        "checkpoint_trainings": 64,
-        "initial_population_digest_sha256": hashlib.sha256(
-            f"{seed}:matched-initial".encode("utf-8")
-        ).hexdigest(),
-        "checkpoints": [
-            {
-                "generation": generation,
-                "training_count": 16,
-                "training_receipt_sha256": hashlib.sha256(
-                    f"{seed}:{arm}:{generation}:training".encode("utf-8")
-                ).hexdigest(),
-            }
-            for generation in CHECKPOINT_GENERATIONS
-        ],
-        "terminal_selection_rule": "historical_classical_only",
-        "terminal_fingerprint": fingerprint_sbox(sbox),
-        "terminal_sbox": sbox,
-        "terminal_classical": {
-            "admissible": True,
-            "nonlinearity": 104,
-            "differential_uniformity": 4,
-            "max_abs_lat": 32,
-            "algebraic_degree": 7,
-        },
-    }
-    payload["scientific_payload_sha256"] = _sha_payload(payload)
-    return payload
-
-
 def _freeze() -> dict[str, object]:
     cells = [
-        _cell(seed, arm, arm_index)
+        make_full_cell(
+            seed=int(seed),
+            arm=arm,
+            arm_index=arm_index,
+            terminal_classical={
+                "admissible": True,
+                "nonlinearity": 104,
+                "differential_uniformity": 4,
+                "max_abs_lat": 32,
+                "algebraic_degree": 7,
+            },
+        )
         for seed in EVOLUTION_SEEDS
         for arm_index, arm in enumerate(ARMS)
     ]
