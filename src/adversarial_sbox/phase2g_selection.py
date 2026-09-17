@@ -90,6 +90,8 @@ class CheckpointScoreLedger:
         self.checkpoint_generation = frozen_checkpoint
         self._scorer = scorer
         self._cache: dict[ScoreCacheKey, CheckpointScoreReceipt] = {}
+        self._cache_hits = 0
+        self._cache_misses = 0
 
     @property
     def receipts(self) -> tuple[CheckpointScoreReceipt, ...]:
@@ -98,6 +100,14 @@ class CheckpointScoreLedger:
     @property
     def cache_size(self) -> int:
         return len(self._cache)
+
+    @property
+    def cache_hits(self) -> int:
+        return int(self._cache_hits)
+
+    @property
+    def cache_misses(self) -> int:
+        return int(self._cache_misses)
 
     def score(self, candidate: Sequence[int]) -> float:
         frozen = validate_sbox(candidate)
@@ -110,8 +120,10 @@ class CheckpointScoreLedger:
         )
         cached = self._cache.get(key)
         if cached is not None:
+            self._cache_hits += 1
             return cached.neural_advantage
 
+        self._cache_misses += 1
         raw = self._scorer(frozen)
         if not isinstance(raw, dict):
             raise RuntimeError("Phase-2G score receipt must be a mapping")
