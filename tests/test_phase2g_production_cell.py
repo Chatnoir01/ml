@@ -146,6 +146,39 @@ def test_concrete_phase2g_cell_composes_real_checkpoint_and_ga_interfaces():
     assert len(train_calls) == 64
     assert score_calls
     assert result["selection_events"]
+
+    # Required #118 provenance must be frozen into the same scientific payload.
+    assert len(result["generation_trace"]) == 20
+    assert all(len(row["shortlist"]) == 8 for row in result["generation_trace"])
+    assert all(len(row["parents"]) == 4 for row in result["generation_trace"])
+    assert all(len(row["proposals"]) == 16 for row in result["generation_trace"])
+    assert all(len(row["next_population"]) == 20 for row in result["generation_trace"])
+
+    ledger = result["classical_evaluation_ledger"]
+    assert len(ledger) == 340
+    assert len({row["fingerprint"] for row in ledger}) == 340
+    assert all(set(row) == {
+        "fingerprint",
+        "nonlinearity",
+        "differential_uniformity",
+        "max_abs_lat",
+        "sac_score",
+        "algebraic_degree",
+    } for row in ledger)
+    assert isinstance(result["parent_map"], dict)
+    assert isinstance(result["lineage_diagnostics"], list)
+
+    for checkpoint in result["checkpoints"]:
+        assert len(checkpoint["training_dataset_seeds"]) == 8
+        assert len(checkpoint["training_model_seeds"]) == 8
+        assert len(checkpoint["scoring_dataset_seeds"]) == 8
+        assert len(checkpoint["model_receipts"]) == 16
+        assert all(len(row["state_sha256"]) == 64 for row in checkpoint["model_receipts"])
+        assert checkpoint["score_cache_hits"] >= 0
+        assert checkpoint["score_cache_misses"] == len(checkpoint["score_receipts"])
+        assert all(receipt["training_count"] == 0 for receipt in checkpoint["score_receipts"])
+        assert all(len(receipt["payload_sha256"]) == 64 for receipt in checkpoint["score_receipts"])
+
     assert set(result["terminal_classical"]) == {
         "admissible",
         "nonlinearity",
