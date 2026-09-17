@@ -103,6 +103,7 @@ def test_checkpoint_bundle_expands_exact_16_model_grid_and_exact_tm_seeds() -> N
     assert bundle.checkpoint_generation == checkpoint_generation
     assert bundle.model_count == 16
     assert bundle.training_count == 16
+    assert len(bundle.training_receipt_sha256) == 64
     assert len(bundle.models) == 16
     assert len(calls) == 16
 

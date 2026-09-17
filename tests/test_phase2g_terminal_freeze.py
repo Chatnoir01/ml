@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 
 import pytest
 
@@ -25,6 +26,13 @@ def _sbox(offset: int) -> list[int]:
     return list(range(offset, 256)) + list(range(offset))
 
 
+def _with_scientific_receipt(payload: dict[str, object]) -> dict[str, object]:
+    frozen = dict(payload)
+    raw = json.dumps(frozen, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    frozen["scientific_payload_sha256"] = hashlib.sha256(raw).hexdigest()
+    return frozen
+
+
 def _cell(seed: int, arm: str, arm_index: int) -> dict[str, object]:
     sbox = _sbox((seed + arm_index) % 256)
     checkpoints = [
@@ -37,24 +45,29 @@ def _cell(seed: int, arm: str, arm_index: int) -> dict[str, object]:
         }
         for generation in CHECKPOINT_GENERATIONS
     ]
-    return {
-        "phase": "2G",
-        "seed": seed,
-        "arm": arm,
-        "classical_evaluations": 340,
-        "checkpoint_trainings": 64,
-        "checkpoints": checkpoints,
-        "terminal_selection_rule": "historical_classical_only",
-        "terminal_fingerprint": fingerprint_sbox(sbox),
-        "terminal_sbox": sbox,
-        "terminal_classical": {
-            "admissible": True,
-            "nonlinearity": 100 + arm_index,
-            "differential_uniformity": 8,
-            "max_abs_lat": 32,
-            "algebraic_degree": 7,
-        },
-    }
+    return _with_scientific_receipt(
+        {
+            "phase": "2G",
+            "seed": seed,
+            "arm": arm,
+            "classical_evaluations": 340,
+            "checkpoint_trainings": 64,
+            "initial_population_digest_sha256": hashlib.sha256(
+                f"{seed}:matched-initial-population".encode("utf-8")
+            ).hexdigest(),
+            "checkpoints": checkpoints,
+            "terminal_selection_rule": "historical_classical_only",
+            "terminal_fingerprint": fingerprint_sbox(sbox),
+            "terminal_sbox": sbox,
+            "terminal_classical": {
+                "admissible": True,
+                "nonlinearity": 100 + arm_index,
+                "differential_uniformity": 8,
+                "max_abs_lat": 32,
+                "algebraic_degree": 7,
+            },
+        }
+    )
 
 
 def _cells() -> list[dict[str, object]]:
@@ -107,6 +120,23 @@ def test_freeze_fails_closed_on_budget_checkpoint_or_terminal_rule_drift() -> No
     cells = _cells()
     cells[0]["checkpoints"] = list(cells[0]["checkpoints"])[:-1]
     with pytest.raises(ValueError):
+        freeze_phase2g_terminals(cells)
+
+
+def test_freeze_rejects_scientific_receipt_tamper() -> None:
+    cells = _cells()
+    cells[0]["terminal_classical"]["nonlinearity"] = 1
+    with pytest.raises(ValueError, match="scientific payload receipt mismatch"):
+        freeze_phase2g_terminals(cells)
+
+
+def test_freeze_rejects_mismatched_initial_population_across_matched_arms() -> None:
+    cells = _cells()
+    cells[0]["initial_population_digest_sha256"] = "a" * 64
+    clean = {key: value for key, value in cells[0].items() if key != "scientific_payload_sha256"}
+    raw = json.dumps(clean, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    cells[0]["scientific_payload_sha256"] = hashlib.sha256(raw).hexdigest()
+    with pytest.raises(ValueError, match="matched arms"):
         freeze_phase2g_terminals(cells)
 
 

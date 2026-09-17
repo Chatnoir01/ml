@@ -28,6 +28,13 @@ from .provenance import fingerprint_sbox
 CLASSICAL_EVALUATIONS_PER_CELL = 340
 TERMINAL_SELECTION_RULE = "historical_classical_only"
 CELL_COUNT = len(ARMS) * len(EVOLUTION_SEEDS)
+TERMINAL_CLASSICAL_FIELDS = (
+    "admissible",
+    "nonlinearity",
+    "differential_uniformity",
+    "max_abs_lat",
+    "algebraic_degree",
+)
 
 
 def _canonical(payload: Mapping[str, Any]) -> bytes:
@@ -82,6 +89,33 @@ def _freeze_checkpoints(raw: object) -> list[dict[str, Any]]:
     return [indexed[generation] for generation in CHECKPOINT_GENERATIONS]
 
 
+def _freeze_terminal_classical(raw: object) -> dict[str, Any]:
+    if not isinstance(raw, Mapping):
+        raise ValueError("Phase-2G terminal classical metrics are missing")
+    missing = [field for field in TERMINAL_CLASSICAL_FIELDS if field not in raw]
+    if missing:
+        raise ValueError(f"Phase-2G terminal classical metrics missing {missing!r}")
+    if not isinstance(raw["admissible"], bool):
+        raise ValueError("Phase-2G terminal admissibility must be boolean")
+    return {
+        "admissible": bool(raw["admissible"]),
+        "nonlinearity": int(raw["nonlinearity"]),
+        "differential_uniformity": int(raw["differential_uniformity"]),
+        "max_abs_lat": int(raw["max_abs_lat"]),
+        "algebraic_degree": int(raw["algebraic_degree"]),
+    }
+
+
+def _verify_scientific_payload_receipt(raw: Mapping[str, Any]) -> str:
+    stored = str(raw.get("scientific_payload_sha256", ""))
+    if not _is_hex64(stored):
+        raise ValueError("Phase-2G scientific payload receipt is missing or invalid")
+    clean = {key: value for key, value in raw.items() if key != "scientific_payload_sha256"}
+    if _sha256(clean) != stored:
+        raise ValueError("Phase-2G scientific payload receipt mismatch")
+    return stored
+
+
 def _freeze_cell(raw: Mapping[str, Any]) -> dict[str, Any]:
     if str(raw.get("phase", "")) != "2G":
         raise ValueError("terminal cell is not a Phase-2G record")
@@ -97,22 +131,24 @@ def _freeze_cell(raw: Mapping[str, Any]) -> dict[str, Any]:
     if str(raw.get("terminal_selection_rule", "")) != TERMINAL_SELECTION_RULE:
         raise ValueError("Phase-2G terminal selection must remain classical-only")
 
+    initial_digest = str(raw.get("initial_population_digest_sha256", ""))
+    if not _is_hex64(initial_digest):
+        raise ValueError("Phase-2G initial-population digest is missing or invalid")
+    scientific_receipt = _verify_scientific_payload_receipt(raw)
     checkpoints = _freeze_checkpoints(raw.get("checkpoints"))
     sbox = validate_sbox(raw.get("terminal_sbox", ()))
     fingerprint = fingerprint_sbox(sbox)
     if str(raw.get("terminal_fingerprint", "")) != fingerprint:
         raise ValueError("Phase-2G terminal fingerprint mismatch")
-
-    classical = raw.get("terminal_classical")
-    if not isinstance(classical, Mapping) or not classical:
-        raise ValueError("Phase-2G terminal classical metrics are missing")
-    classical_payload = json.loads(json.dumps(dict(classical), sort_keys=True))
+    classical_payload = _freeze_terminal_classical(raw.get("terminal_classical"))
 
     frozen: dict[str, Any] = {
         "seed": seed,
         "arm": arm,
         "classical_evaluations": CLASSICAL_EVALUATIONS_PER_CELL,
         "checkpoint_trainings": CHECKPOINT_TRAININGS_PER_CELL,
+        "initial_population_digest_sha256": initial_digest,
+        "scientific_payload_sha256": scientific_receipt,
         "checkpoints": checkpoints,
         "terminal_selection_rule": TERMINAL_SELECTION_RULE,
         "terminal_fingerprint": fingerprint,
@@ -121,6 +157,19 @@ def _freeze_cell(raw: Mapping[str, Any]) -> dict[str, Any]:
     }
     frozen["cell_manifest_sha256"] = _sha256(frozen)
     return frozen
+
+
+def _matched_initial_digests_are_valid(
+    indexed: Mapping[tuple[int, str], Mapping[str, Any]],
+) -> bool:
+    for seed in EVOLUTION_SEEDS:
+        digests = {
+            str(indexed[(int(seed), arm)].get("initial_population_digest_sha256", ""))
+            for arm in ARMS
+        }
+        if len(digests) != 1 or not all(_is_hex64(value) for value in digests):
+            return False
+    return True
 
 
 def freeze_phase2g_terminals(
@@ -148,6 +197,8 @@ def freeze_phase2g_terminals(
 
     if set(indexed) != expected:
         raise ValueError("Phase-2G terminal freeze is incomplete")
+    if not _matched_initial_digests_are_valid(indexed):
+        raise ValueError("Phase-2G matched arms must share one initial-population digest per seed")
 
     terminals = [
         indexed[(int(seed), arm)]
@@ -211,6 +262,7 @@ def heldout_h_authorized(freeze_payload: Mapping[str, Any]) -> bool:
             return False
 
         seen: set[tuple[int, str]] = set()
+        indexed: dict[tuple[int, str], Mapping[str, Any]] = {}
         for item in terminals:
             if not isinstance(item, Mapping):
                 return False
@@ -218,17 +270,26 @@ def heldout_h_authorized(freeze_payload: Mapping[str, Any]) -> bool:
             if key not in _expected_cells() or key in seen:
                 return False
             seen.add(key)
+            indexed[key] = item
             if int(item.get("classical_evaluations", -1)) != CLASSICAL_EVALUATIONS_PER_CELL:
                 return False
             if int(item.get("checkpoint_trainings", -1)) != CHECKPOINT_TRAININGS_PER_CELL:
                 return False
             if str(item.get("terminal_selection_rule", "")) != TERMINAL_SELECTION_RULE:
                 return False
+            if not _is_hex64(item.get("initial_population_digest_sha256", "")):
+                return False
+            if not _is_hex64(item.get("scientific_payload_sha256", "")):
+                return False
             checkpoints = _freeze_checkpoints(item.get("checkpoints"))
             if checkpoints != list(item.get("checkpoints", [])):
                 return False
             sbox = validate_sbox(item.get("terminal_sbox", ()))
             if str(item.get("terminal_fingerprint", "")) != fingerprint_sbox(sbox):
+                return False
+            if _freeze_terminal_classical(item.get("terminal_classical")) != dict(
+                item.get("terminal_classical", {})
+            ):
                 return False
             stored_cell_sha = str(item.get("cell_manifest_sha256", ""))
             if not _is_hex64(stored_cell_sha):
@@ -237,7 +298,7 @@ def heldout_h_authorized(freeze_payload: Mapping[str, Any]) -> bool:
             if _sha256(clean_cell) != stored_cell_sha:
                 return False
 
-        if seen != _expected_cells():
+        if seen != _expected_cells() or not _matched_initial_digests_are_valid(indexed):
             return False
         stored = str(freeze_payload.get("terminal_freeze_sha256", ""))
         if not _is_hex64(stored):

@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 import hashlib
+import json
 from typing import Any
 
 from .cryptoshield import validate_sbox
@@ -72,6 +73,17 @@ def _curriculum_digest(curriculum: Sequence[SBox]) -> str:
     return hashlib.sha256(blob).hexdigest()
 
 
+def _is_hex64(value: object) -> bool:
+    text = str(value)
+    if len(text) != 64:
+        return False
+    try:
+        int(text, 16)
+    except ValueError:
+        return False
+    return True
+
+
 def _require_model_identity(
     model: Any,
     *,
@@ -82,6 +94,7 @@ def _require_model_identity(
     replicate: int,
     dataset_seed: int,
     model_seed: int,
+    curriculum_digest_sha256: str,
 ) -> None:
     expected = {
         "arm": arm,
@@ -103,6 +116,46 @@ def _require_model_identity(
         if not matches:
             raise RuntimeError(f"Phase-2G checkpoint model identity drift for {field}")
 
+    if str(getattr(model, "curriculum_digest_sha256", "")) != curriculum_digest_sha256:
+        raise RuntimeError("Phase-2G checkpoint model curriculum digest drift")
+    if not _is_hex64(getattr(model, "state_sha256", "")):
+        raise RuntimeError("Phase-2G checkpoint model state receipt is invalid")
+
+
+def _checkpoint_training_receipt(
+    *,
+    arm: str,
+    evolution_seed: int,
+    checkpoint_generation: int,
+    curriculum_digest_sha256: str,
+    models: Sequence[Any],
+) -> str:
+    rows = []
+    for model in sorted(models, key=lambda value: (int(value.difference), int(value.replicate))):
+        rows.append(
+            {
+                "difference": int(model.difference),
+                "replicate": int(model.replicate),
+                "dataset_seed": int(model.dataset_seed),
+                "model_seed": int(model.model_seed),
+                "curriculum_digest_sha256": str(model.curriculum_digest_sha256),
+                "state_sha256": str(model.state_sha256),
+            }
+        )
+    payload = {
+        "schema_version": 1,
+        "experiment": "phase2g_checkpoint_training",
+        "arm": str(arm),
+        "evolution_seed": int(evolution_seed),
+        "checkpoint_generation": int(checkpoint_generation),
+        "curriculum_digest_sha256": str(curriculum_digest_sha256),
+        "model_count": len(rows),
+        "training_count": len(rows),
+        "models": rows,
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
 
 @dataclass(frozen=True, slots=True)
 class Phase2GCheckpointBundle:
@@ -115,11 +168,11 @@ class Phase2GCheckpointBundle:
     curriculum_digest_sha256: str
     models: tuple[Any, ...]
     training_count: int
+    training_receipt_sha256: str
 
     @property
     def model_count(self) -> int:
         return len(self.models)
-
 
 
 def build_phase2g_checkpoint_bundle(
@@ -141,6 +194,7 @@ def build_phase2g_checkpoint_bundle(
         raise TypeError("Phase-2G checkpoint model trainer must be callable")
 
     canonical = _canonical_curriculum(curriculum)
+    curriculum_digest = _curriculum_digest(canonical)
     t_seeds = expanded_checkpoint_seed_block(
         TRAINING_DATASET_BASE_SEEDS, checkpoint_index
     )
@@ -177,6 +231,7 @@ def build_phase2g_checkpoint_bundle(
                 replicate=int(replicate),
                 dataset_seed=dataset_seed,
                 model_seed=model_seed,
+                curriculum_digest_sha256=curriculum_digest,
             )
             key = (int(difference), int(replicate))
             if key in seen:
@@ -192,14 +247,22 @@ def build_phase2g_checkpoint_bundle(
     if seen != expected_grid or len(models) != TRAININGS_PER_CHECKPOINT:
         raise RuntimeError("Phase-2G checkpoint model grid is incomplete")
 
+    receipt = _checkpoint_training_receipt(
+        arm=frozen_arm,
+        evolution_seed=frozen_seed,
+        checkpoint_generation=frozen_checkpoint,
+        curriculum_digest_sha256=curriculum_digest,
+        models=models,
+    )
     return Phase2GCheckpointBundle(
         arm=frozen_arm,
         evolution_seed=frozen_seed,
         checkpoint_generation=frozen_checkpoint,
         curriculum=canonical,
-        curriculum_digest_sha256=_curriculum_digest(canonical),
+        curriculum_digest_sha256=curriculum_digest,
         models=tuple(models),
         training_count=TRAININGS_PER_CHECKPOINT,
+        training_receipt_sha256=receipt,
     )
 
 
@@ -214,6 +277,8 @@ def make_phase2g_checkpoint_score_ledger(
         raise TypeError("Phase-2G score ledger requires a Phase2GCheckpointBundle")
     if bundle.model_count != TRAININGS_PER_CHECKPOINT or bundle.training_count != TRAININGS_PER_CHECKPOINT:
         raise RuntimeError("Phase-2G checkpoint bundle training/model count drift")
+    if not _is_hex64(bundle.training_receipt_sha256):
+        raise RuntimeError("Phase-2G checkpoint bundle training receipt is invalid")
     if not callable(score_candidate):
         raise TypeError("Phase-2G candidate scorer must be callable")
 

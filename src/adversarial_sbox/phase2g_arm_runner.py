@@ -29,6 +29,7 @@ SBox = tuple[int, ...]
 CheckpointTrainer = Callable[..., Any]
 EvolutionBlock = Callable[..., Mapping[str, Any]]
 TerminalSelector = Callable[[Sequence[SBox]], Sequence[int]]
+TerminalClassicalMetrics = Callable[[SBox], Mapping[str, Any]]
 
 POPULATION_SIZE = 20
 EVOLUTION_GENERATIONS = 20
@@ -39,6 +40,13 @@ CLASSICAL_EVALUATIONS_PER_BLOCK = GENERATIONS_PER_CHECKPOINT * PROPOSALS_PER_GEN
 CLASSICAL_EVALUATIONS_PER_CELL = (
     CLASSICAL_INITIAL_EVALUATIONS
     + len(CHECKPOINT_GENERATIONS) * CLASSICAL_EVALUATIONS_PER_BLOCK
+)
+TERMINAL_CLASSICAL_FIELDS = (
+    "admissible",
+    "nonlinearity",
+    "differential_uniformity",
+    "max_abs_lat",
+    "algebraic_degree",
 )
 
 
@@ -68,6 +76,17 @@ def _canonical(payload: Mapping[str, Any]) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
+def _is_hex64(value: object) -> bool:
+    text = str(value)
+    if len(text) != 64:
+        return False
+    try:
+        int(text, 16)
+    except ValueError:
+        return False
+    return True
+
+
 def _training_count(bundle: Any) -> int:
     if not hasattr(bundle, "training_count"):
         raise RuntimeError("Phase-2G checkpoint bundle missing training_count")
@@ -75,6 +94,56 @@ def _training_count(bundle: Any) -> int:
     if value != TRAININGS_PER_CHECKPOINT:
         raise RuntimeError("Phase-2G checkpoint training-count drift")
     return value
+
+
+def _training_receipt(bundle: Any) -> str:
+    if not hasattr(bundle, "training_receipt_sha256"):
+        raise RuntimeError("Phase-2G checkpoint bundle missing training receipt")
+    value = str(getattr(bundle, "training_receipt_sha256"))
+    if not _is_hex64(value):
+        raise RuntimeError("Phase-2G checkpoint training receipt is invalid")
+    return value
+
+
+def _validate_bundle_identity(
+    bundle: Any,
+    *,
+    arm: str,
+    evolution_seed: int,
+    checkpoint_generation: int,
+) -> None:
+    expected = {
+        "arm": arm,
+        "evolution_seed": evolution_seed,
+        "checkpoint_generation": checkpoint_generation,
+    }
+    for field, value in expected.items():
+        if not hasattr(bundle, field):
+            raise RuntimeError(f"Phase-2G checkpoint bundle missing {field}")
+        actual = getattr(bundle, field)
+        if field == "arm":
+            matches = str(actual) == str(value)
+        else:
+            matches = int(actual) == int(value)
+        if not matches:
+            raise RuntimeError(f"Phase-2G checkpoint bundle {field} drift")
+
+
+def _freeze_terminal_classical(raw: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(raw, Mapping):
+        raise RuntimeError("Phase-2G terminal classical metrics must be a mapping")
+    missing = [field for field in TERMINAL_CLASSICAL_FIELDS if field not in raw]
+    if missing:
+        raise RuntimeError(f"Phase-2G terminal classical metrics missing {missing!r}")
+    if not isinstance(raw["admissible"], bool):
+        raise RuntimeError("Phase-2G terminal admissibility must be boolean")
+    return {
+        "admissible": bool(raw["admissible"]),
+        "nonlinearity": int(raw["nonlinearity"]),
+        "differential_uniformity": int(raw["differential_uniformity"]),
+        "max_abs_lat": int(raw["max_abs_lat"]),
+        "algebraic_degree": int(raw["algebraic_degree"]),
+    }
 
 
 def run_phase2g_arm(
@@ -85,6 +154,7 @@ def run_phase2g_arm(
     train_checkpoint: CheckpointTrainer,
     evolve_block: EvolutionBlock,
     select_terminal_classical_only: TerminalSelector,
+    terminal_classical_metrics: TerminalClassicalMetrics,
 ) -> dict[str, Any]:
     """Run one complete preregistered Phase-2G arm/seed cell, held-out blind.
 
@@ -101,6 +171,7 @@ def run_phase2g_arm(
     - A/S use their exact current population;
     - S receives one persistent preregistered shuffle stream per checkpoint;
     - terminal selection is delegated once to the historical classical-only rule;
+    - terminal classical metrics must come from an already-available cache/provider;
     - held-out H is never imported or accessed here.
     """
 
@@ -116,6 +187,8 @@ def run_phase2g_arm(
         raise TypeError("Phase-2G evolve_block must be callable")
     if not callable(select_terminal_classical_only):
         raise TypeError("Phase-2G terminal selector must be callable")
+    if not callable(terminal_classical_metrics):
+        raise TypeError("Phase-2G terminal classical metrics provider must be callable")
 
     initial = _freeze_population(initial_population, role="initial")
     current = initial
@@ -148,7 +221,14 @@ def run_phase2g_arm(
         )
         if bundle is None:
             raise RuntimeError("Phase-2G checkpoint trainer returned no bundle")
+        _validate_bundle_identity(
+            bundle,
+            arm=frozen_arm,
+            evolution_seed=frozen_seed,
+            checkpoint_generation=start_generation,
+        )
         bundle_trainings = _training_count(bundle)
+        training_receipt = _training_receipt(bundle)
         checkpoint_training_count += bundle_trainings
 
         selection_enabled = frozen_arm != "C"
@@ -188,11 +268,13 @@ def run_phase2g_arm(
 
         checkpoint_records.append(
             {
+                "generation": start_generation,
                 "checkpoint_generation": start_generation,
                 "block_start_generation": start_generation,
                 "block_end_generation": end_generation,
                 "selection_enabled": bool(selection_enabled),
                 "training_count": bundle_trainings,
+                "training_receipt_sha256": training_receipt,
                 "curriculum_fingerprints": list(_population_fingerprints(curriculum)),
                 "curriculum_digest_sha256": _population_digest(curriculum),
                 "population_before_fingerprints": list(_population_fingerprints(before)),
@@ -214,6 +296,7 @@ def run_phase2g_arm(
     terminal = validate_sbox(select_terminal_classical_only(current))
     if terminal not in current:
         raise RuntimeError("Phase-2G terminal must come from the frozen final population")
+    terminal_classical = _freeze_terminal_classical(terminal_classical_metrics(terminal))
 
     payload: dict[str, Any] = {
         "schema_version": 1,
@@ -223,10 +306,12 @@ def run_phase2g_arm(
         "generation_count": EVOLUTION_GENERATIONS,
         "classical_evaluations": classical_evaluations,
         "checkpoint_training_count": checkpoint_training_count,
+        "checkpoint_trainings": checkpoint_training_count,
         "initial_population_digest_sha256": _population_digest(initial),
         "terminal_population_digest_sha256": _population_digest(current),
         "terminal_sbox": list(terminal),
         "terminal_fingerprint": fingerprint_sbox(terminal),
+        "terminal_classical": terminal_classical,
         "terminal_selection_rule": "historical_classical_only",
         "checkpoints": checkpoint_records,
         "selection_events": selection_events,
