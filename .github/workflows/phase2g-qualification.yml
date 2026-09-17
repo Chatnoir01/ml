@@ -55,6 +55,7 @@ jobs:
               'adversarial_sbox.phase2g_runner',
               'adversarial_sbox.phase2g_arm_runner',
               'adversarial_sbox.phase2g_checkpoint_adapter',
+              'adversarial_sbox.phase2g_experiment',
               'adversarial_sbox.phase2g_ga_adapter',
               'adversarial_sbox.phase2g_selection',
               'adversarial_sbox.phase2g_terminal_freeze',
