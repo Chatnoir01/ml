@@ -1,0 +1,82 @@
+name: Phase 2G Pre-Marker Qualification
+
+on:
+  push:
+    branches:
+      - research/phase2g-adaptive-coevolution
+  pull_request:
+    paths:
+      - '.github/workflows/phase2g*.yml'
+      - 'research/PHASE2G_PROTOCOL.md'
+      - 'research/PHASE2G_EXECUTE.md'
+      - 'src/adversarial_sbox/phase2g*.py'
+      - 'src/adversarial_sbox/phase2_*seed_registry.py'
+      - 'tests/test_phase2g*.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase2g-pre-marker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact qualification runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'numpy==2.5.3'
+          python -m pip install -e '.[dev]'
+      - name: Run frozen Phase 2G contract suite
+        run: pytest -q tests/test_phase2g*.py
+      - name: Verify pre-H import isolation and execution lock
+        run: |
+          python - <<'PY'
+          import importlib
+          import sys
+          from pathlib import Path
+
+          marker = Path('research/PHASE2G_EXECUTE.md')
+          if marker.exists():
+              assert marker.read_text(encoding='utf-8').strip() == 'AUTHORIZED_PHASE2G_ADAPTIVE_COEVOLUTION_EXPERIMENT'
+              print('PHASE2G_POST_MARKER_TOKEN_VALID')
+          else:
+              print('PHASE2G_PRE_MARKER_ABSENT_AS_REQUIRED')
+
+          pre_h_modules = (
+              'adversarial_sbox.phase2g',
+              'adversarial_sbox.phase2g_runner',
+              'adversarial_sbox.phase2g_arm_runner',
+              'adversarial_sbox.phase2g_checkpoint_adapter',
+              'adversarial_sbox.phase2g_ga_adapter',
+              'adversarial_sbox.phase2g_selection',
+              'adversarial_sbox.phase2g_terminal_freeze',
+          )
+          for module in pre_h_modules:
+              importlib.import_module(module)
+          assert 'adversarial_sbox.phase2g_validation_seeds' not in sys.modules
+
+          from adversarial_sbox.phase2g import (
+              ARM_SEED_CELLS,
+              CHECKPOINT_TRAININGS_PER_CELL,
+              TOTAL_CHECKPOINT_TRAININGS,
+              TOTAL_HELDOUT_TRAININGS,
+              TOTAL_SCIENTIFIC_TRAININGS,
+          )
+          assert ARM_SEED_CELLS == 36
+          assert CHECKPOINT_TRAININGS_PER_CELL == 64
+          assert TOTAL_CHECKPOINT_TRAININGS == 2304
+          assert TOTAL_HELDOUT_TRAININGS == 576
+          assert TOTAL_SCIENTIFIC_TRAININGS == 2880
+          print('PHASE2G_PRE_MARKER_STATIC_GATES_GREEN')
+          PY
+      - name: Verify no scientific authorization was added accidentally
+        if: ${{ hashFiles('research/PHASE2G_EXECUTE.md') == '' }}
+        run: test ! -e research/PHASE2G_EXECUTE.md
