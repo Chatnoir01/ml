@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import ast
 import inspect
+from pathlib import Path
 import subprocess
 import sys
 
 import adversarial_sbox.phase2g as phase2g
 import adversarial_sbox.phase2g_arm_runner as arm_runner
 import adversarial_sbox.phase2g_checkpoint_adapter as checkpoint_adapter
+import adversarial_sbox.phase2g_experiment as experiment
 import adversarial_sbox.phase2g_runner as lifecycle_runner
 import adversarial_sbox.phase2g_selection as selection
 import adversarial_sbox.phase2g_shared_model as shared_model
@@ -44,6 +46,7 @@ def test_pre_h_modules_do_not_import_or_embed_h_seed_values() -> None:
         phase2g,
         arm_runner,
         checkpoint_adapter,
+        experiment,
         lifecycle_runner,
         selection,
         shared_model,
@@ -65,6 +68,7 @@ import sys
 import adversarial_sbox.phase2g
 import adversarial_sbox.phase2g_arm_runner
 import adversarial_sbox.phase2g_checkpoint_adapter
+import adversarial_sbox.phase2g_experiment
 import adversarial_sbox.phase2g_runner
 import adversarial_sbox.phase2g_selection
 import adversarial_sbox.phase2g_shared_model
@@ -72,6 +76,11 @@ import adversarial_sbox.phase2g_terminal_freeze
 assert 'adversarial_sbox.phase2g_validation_seeds' not in sys.modules
 """
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_qualification_static_pre_h_list_includes_scientific_cell_composer() -> None:
+    workflow = Path(".github/workflows/phase2g-qualification.yml").read_text(encoding="utf-8")
+    assert "'adversarial_sbox.phase2g_experiment'," in workflow
 
 
 def test_exact_h_seed_block_exists_only_in_separate_validation_module() -> None:
