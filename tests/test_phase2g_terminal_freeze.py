@@ -273,8 +273,10 @@ def test_freeze_rejects_scientific_receipt_tamper() -> None:
 
 def test_freeze_rejects_mismatched_initial_population_across_matched_arms() -> None:
     cells = _cells()
-    cells[0]["initial_population_digest_sha256"] = "a" * 64
-    _rehash_cell(cells[0])
+    mismatched = _cell(int(EVOLUTION_SEEDS[0]) + 1, ARMS[0], 0)
+    mismatched["seed"] = int(EVOLUTION_SEEDS[0])
+    _rehash_cell(mismatched)
+    cells[0] = mismatched
     with pytest.raises(ValueError, match="matched arms"):
         freeze_phase2g_terminals(cells)
 
