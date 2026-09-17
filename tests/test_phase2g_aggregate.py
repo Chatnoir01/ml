@@ -1,9 +1,8 @@
 """RED contract for deterministic post-H Phase 2G aggregation.
 
 Synthetic only: this test performs no neural training, evolution, or real held-out
-H access. It freezes 36 synthetic arm receipts, validates them with an injected
-synthetic H scorer, and requires a pure deterministic aggregate implementing the
-exact preregistered ten support checks.
+H access. It freezes 36 synthetic full-provenance arm receipts, validates them
+with an injected synthetic H scorer, and requires the exact frozen ten checks.
 """
 
 from __future__ import annotations
@@ -15,7 +14,6 @@ import pytest
 
 from adversarial_sbox.phase2g import (
     ARMS,
-    CHECKPOINT_GENERATIONS,
     EVOLUTION_SEEDS,
     SUPPORT_CHECKS,
     TOTAL_CHECKPOINT_TRAININGS,
@@ -26,26 +24,17 @@ from adversarial_sbox.phase2g_aggregate import aggregate_phase2g_results
 from adversarial_sbox.phase2g_terminal_freeze import freeze_phase2g_terminals
 from adversarial_sbox.phase2g_validation import validate_frozen_terminals
 from adversarial_sbox.provenance import fingerprint_sbox
+from phase2g_full_fixture import make_full_cell, sha_text
 
 
 def _canonical(payload):
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-def _sha_text(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
 def _attach_sha(payload: dict, field: str = "scientific_payload_sha256") -> dict:
     clean = {key: value for key, value in payload.items() if key != field}
     payload[field] = hashlib.sha256(_canonical(clean)).hexdigest()
     return payload
-
-
-def _sbox(offset: int) -> tuple[int, ...]:
-    offset = int(offset) % 256
-    values = list(range(256))
-    return tuple(values[offset:] + values[:offset])
 
 
 def _terminal_classical(arm: str) -> dict:
@@ -67,8 +56,8 @@ def _terminal_classical(arm: str) -> dict:
 
 
 def _ordering_event(seed: int, arm: str) -> dict:
-    first = _sha_text(f"phase2g-band:{seed}:first")
-    second = _sha_text(f"phase2g-band:{seed}:second")
+    first = sha_text(f"phase2g-band:{seed}:first")
+    second = sha_text(f"phase2g-band:{seed}:second")
     group = [first, second]
     if arm == "F":
         assigned = {first: 0.10, second: 0.20}
@@ -95,55 +84,15 @@ def _ordering_event(seed: int, arm: str) -> dict:
 
 
 def _arm_result(seed_index: int, arm_index: int, seed: int, arm: str) -> dict:
-    initial_digest = _sha_text(f"phase2g-initial:{seed}")
-    checkpoints = []
-    for generation in CHECKPOINT_GENERATIONS:
-        if arm == "F" or generation == 0:
-            curriculum_digest = initial_digest
-        elif arm == "A":
-            curriculum_digest = _sha_text(f"phase2g-A-current:{seed}:{generation}")
-        else:
-            curriculum_digest = _sha_text(
-                f"phase2g-{arm}-current:{seed}:{generation}"
-            )
-        checkpoints.append(
-            {
-                "generation": int(generation),
-                "training_count": 16,
-                "training_receipt_sha256": _sha_text(
-                    f"phase2g-train:{seed}:{arm}:{generation}"
-                ),
-                "curriculum_digest_sha256": curriculum_digest,
-            }
-        )
-
-    terminal = _sbox(1 + (seed_index * len(ARMS)) + arm_index)
-    selection_events = []
-    if arm in {"A", "F"}:
-        selection_events.append(_ordering_event(seed, arm))
-
-    payload = {
-        "schema_version": 1,
-        "phase": "2G",
-        "arm": arm,
-        "seed": int(seed),
-        "generation_count": 20,
-        "classical_evaluations": 340,
-        "checkpoint_training_count": 64,
-        "checkpoint_trainings": 64,
-        "initial_population_digest_sha256": initial_digest,
-        "terminal_population_digest_sha256": _sha_text(
-            f"phase2g-terminal-population:{seed}:{arm}"
-        ),
-        "terminal_sbox": list(terminal),
-        "terminal_fingerprint": fingerprint_sbox(terminal),
-        "terminal_classical": _terminal_classical(arm),
-        "terminal_selection_rule": "historical_classical_only",
-        "checkpoints": checkpoints,
-        "selection_events": selection_events,
-        "heldout_accessed": False,
-    }
-    return _attach_sha(payload)
+    events = [_ordering_event(seed, arm)] if arm in {"A", "F"} else []
+    return make_full_cell(
+        seed=int(seed),
+        arm=arm,
+        arm_index=arm_index,
+        terminal_offset=1 + (seed_index * len(ARMS)) + arm_index,
+        terminal_classical=_terminal_classical(arm),
+        selection_events=events,
+    )
 
 
 def _synthetic_inputs():
