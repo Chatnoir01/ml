@@ -9,8 +9,6 @@ from adversarial_sbox.phase2g import (
     TRAINING_DATASET_BASE_SEEDS,
     TRAINING_MODEL_BASE_SEEDS,
     SCORING_DATASET_BASE_SEEDS,
-    HELDOUT_DATASET_SEEDS,
-    HELDOUT_MODEL_SEEDS,
     CHECKPOINT_TRAININGS_PER_CELL,
     TOTAL_CHECKPOINT_TRAININGS,
     TOTAL_HELDOUT_TRAININGS,
@@ -18,6 +16,10 @@ from adversarial_sbox.phase2g import (
     SUPPORT_CHECKS,
     expanded_checkpoint_seed_block,
     phase2g_verdict,
+)
+from adversarial_sbox.phase2g_validation_seeds import (
+    HELDOUT_DATASET_SEEDS,
+    HELDOUT_MODEL_SEEDS,
 )
 from adversarial_sbox.phase2_evolution_seed_registry import (
     PHASE2G_RESERVED_EVOLUTION_SEEDS,
