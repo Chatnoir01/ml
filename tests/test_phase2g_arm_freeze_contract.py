@@ -1,8 +1,8 @@
-"""RED contract for direct Phase 2G arm-runner -> terminal-freeze compatibility.
+"""Contracts for the Phase 2G arm-runner / scientific-cell / freeze boundary.
 
-Synthetic only. No real neural training, GA scientific execution, or held-out H
-access. A completed arm cell must already contain every receipt needed by the
-36-cell pre-H terminal freeze; freezing must not require extra evaluation/training.
+Synthetic only. The low-level arm runner proves lifecycle budgets and receipts but
+is intentionally insufficient for held-out authorization until the scientific-cell
+composer adds the preregistered full provenance. No real training or H access.
 """
 
 from __future__ import annotations
@@ -10,12 +10,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 
+import pytest
+
 from adversarial_sbox.phase2g import ARMS, CHECKPOINT_GENERATIONS, EVOLUTION_SEEDS
 from adversarial_sbox.phase2g_arm_runner import TerminalClassicalMetrics, run_phase2g_arm
 from adversarial_sbox.phase2g_terminal_freeze import (
     freeze_phase2g_terminals,
     heldout_h_authorized,
 )
+from phase2g_full_fixture import make_full_cell
 
 
 def _sbox(offset: int) -> tuple[int, ...]:
@@ -85,25 +88,27 @@ def _run_cell(seed: int, arm: str) -> dict[str, object]:
     )
 
 
-def test_arm_result_is_directly_freeze_compatible_without_extra_work() -> None:
+def test_low_level_arm_result_has_base_receipts_but_cannot_authorize_h_without_full_provenance() -> None:
     cells = [_run_cell(seed, arm) for seed in EVOLUTION_SEEDS for arm in ARMS]
 
     for cell in cells:
         assert cell["checkpoint_trainings"] == 64
         assert len(cell["initial_population_digest_sha256"]) == 64
         assert len(cell["scientific_payload_sha256"]) == 64
-        assert set(cell["terminal_classical"]) >= {
-            "admissible",
-            "nonlinearity",
-            "differential_uniformity",
-            "max_abs_lat",
-            "algebraic_degree",
-        }
         checkpoints = cell["checkpoints"]
         assert [row["generation"] for row in checkpoints] == list(CHECKPOINT_GENERATIONS)
         assert all(row["training_count"] == 16 for row in checkpoints)
-        assert all(len(row["training_receipt_sha256"]) == 64 for row in checkpoints)
 
+    with pytest.raises(ValueError, match="provenance"):
+        freeze_phase2g_terminals(cells)
+
+
+def test_full_scientific_cell_receipts_freeze_without_extra_evaluation_or_training() -> None:
+    cells = [
+        make_full_cell(seed=int(seed), arm=arm, arm_index=arm_index)
+        for seed in EVOLUTION_SEEDS
+        for arm_index, arm in enumerate(ARMS)
+    ]
     frozen = freeze_phase2g_terminals(cells)
     assert frozen["cell_count"] == 36
     assert frozen["checkpoint_training_count"] == 36 * 64
