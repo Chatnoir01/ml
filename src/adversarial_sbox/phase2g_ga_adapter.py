@@ -239,32 +239,53 @@ class Phase2GGABlockAdapter:
                 raise RuntimeError("Phase-2G neural selection requires a checkpoint score ledger")
             scored = {candidate: float(score_ledger.score(candidate)) for candidate in group}
 
-        shuffle_rng = None
         shuffle_rng_seed = None
-        shuffle_rng_state = None
+        s_shuffle_assignment_receipt: dict[str, Any] | None = None
+        effective_scores = dict(scored)
+        selection_arm = self.arm
+
         if self.arm == "S":
             if shuffle_stream is None:
                 raise ValueError("Phase-2G S arm requires its persistent checkpoint shuffle stream")
-            shuffle_rng = shuffle_stream.rng
             shuffle_rng_seed = int(shuffle_stream.rng_seed)
             if neural_selection_enabled and boundary_opportunity:
-                shuffle_rng_state = shuffle_rng.getstate()
+                receipt = shuffle_stream.shuffle_assignment(
+                    [fingerprint_sbox(candidate) for candidate in group],
+                    [float(scored[candidate]) for candidate in group],
+                )
+                after = {fingerprint: float(score) for fingerprint, score in receipt.after}
+                effective_scores = {
+                    candidate: after[fingerprint_sbox(candidate)] for candidate in group
+                }
+                s_shuffle_assignment_receipt = {
+                    "evolution_seed": int(receipt.evolution_seed),
+                    "checkpoint_generation": int(receipt.checkpoint_generation),
+                    "rng_seed": int(receipt.rng_seed),
+                    "draw_index": int(receipt.draw_index),
+                    "before": [[fingerprint, float(score)] for fingerprint, score in receipt.before],
+                    "after": [[fingerprint, float(score)] for fingerprint, score in receipt.after],
+                    "receipt_sha256": str(receipt.receipt_sha256),
+                }
+                # S differs from A only by the preregistered shuffled score
+                # assignment. Once that single persistent draw is receipted,
+                # use the ordinary B1 order so no second RNG draw can occur.
+                selection_arm = "A"
 
         if neural_selection_enabled and boundary_opportunity:
             items = [
                 (
                     candidate,
                     self._ledger.cache[candidate],
-                    float(scored.get(candidate, 0.0)),
+                    float(effective_scores.get(candidate, 0.0)),
                 )
                 for candidate in base
             ]
             ordered_items = apply_phase2g_cutoff_order(
                 items,
                 constraints=self.constraints,
-                arm=self.arm,
+                arm=selection_arm,
                 cutoff_metrics=reference_metrics,
-                shuffle_rng=shuffle_rng,
+                shuffle_rng=None,
             )
             ordered = [validate_sbox(item[0]) for item in ordered_items]
         else:
@@ -272,17 +293,8 @@ class Phase2GGABlockAdapter:
 
         assigned_scores = {
             fingerprint_sbox(candidate): float(score)
-            for candidate, score in scored.items()
+            for candidate, score in effective_scores.items()
         }
-        if self.arm == "S" and scored and shuffle_rng_state is not None:
-            replay_rng = random.Random()
-            replay_rng.setstate(shuffle_rng_state)
-            shuffled_scores = [float(scored[candidate]) for candidate in group]
-            replay_rng.shuffle(shuffled_scores)
-            assigned_scores = {
-                fingerprint_sbox(candidate): float(score)
-                for candidate, score in zip(group, shuffled_scores)
-            }
 
         before_selected = set(base[: int(cutoff)])
         after_selected = set(ordered[: int(cutoff)])
@@ -330,6 +342,7 @@ class Phase2GGABlockAdapter:
                 "entered": entered,
                 "exited": exited,
                 "shuffle_rng_seed": shuffle_rng_seed,
+                "s_shuffle_assignment_receipt": s_shuffle_assignment_receipt,
             }
         )
         return ordered
