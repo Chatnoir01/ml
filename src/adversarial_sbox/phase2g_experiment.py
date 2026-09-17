@@ -24,6 +24,7 @@ from .phase2g_checkpoint_adapter import (
 )
 from .phase2g_ga_adapter import Phase2GGABlockAdapter
 from .phase2g_shared_model import score_candidate_checkpoint, train_shared_checkpoint_model
+from .provenance import fingerprint_sbox
 
 InitialPopulationFactory = Callable[[int], Sequence[Sequence[int]]]
 ModelTrainer = Callable[..., Any]
@@ -136,12 +137,18 @@ def run_phase2g_scientific_cell(
             raise TypeError(f"Phase-2G {name} must be callable")
 
     initial = _freeze_initial_population(initial_population_factory, frozen_seed)
+    score_ledgers: dict[int, Any] = {}
 
     def score_ledger_factory(bundle: Any) -> Any:
-        return make_phase2g_checkpoint_score_ledger(
+        ledger = make_phase2g_checkpoint_score_ledger(
             bundle,
             score_candidate=score_candidate,
         )
+        checkpoint = int(bundle.checkpoint_generation)
+        if checkpoint in score_ledgers:
+            raise RuntimeError("Phase-2G duplicate checkpoint score ledger")
+        score_ledgers[checkpoint] = ledger
+        return ledger
 
     adapter = ga_adapter_factory(
         arm=frozen_arm,
@@ -169,11 +176,12 @@ def run_phase2g_scientific_cell(
         )
 
     def evolve_block(**kwargs: Any) -> dict[str, Any]:
+        checkpoint = int(kwargs["start_generation"])
         before_evaluations = int(adapter.classical_evaluations)
         before_events = len(adapter.selection_events)
         population = adapter.evolve_block(
             population=kwargs["population"],
-            start_generation=int(kwargs["start_generation"]),
+            start_generation=checkpoint,
             end_generation=int(kwargs["end_generation"]),
             selection_enabled=bool(kwargs["selection_enabled"]),
             model=kwargs["model"],
@@ -181,10 +189,44 @@ def run_phase2g_scientific_cell(
         )
         after_evaluations = int(adapter.classical_evaluations)
         events = [dict(event) for event in adapter.selection_events[before_events:]]
+
+        # C is audit-only, not score-free.  Its checkpoint model scores every
+        # complete B1 opportunity after the classical decision has been frozen;
+        # this records the preregistered audit signal while making it impossible
+        # for that signal to alter shortlist/survival membership.
+        if frozen_arm == "C":
+            audit_ledger = score_ledgers.get(checkpoint)
+            if audit_ledger is None:
+                audit_ledger = score_ledger_factory(kwargs["model"])
+            classical_cache = getattr(getattr(adapter, "_ledger", None), "cache", {})
+            by_fingerprint = {
+                fingerprint_sbox(candidate): candidate for candidate in classical_cache
+            }
+            for event in events:
+                if not bool(event.get("boundary_opportunity", False)):
+                    continue
+                group = [str(value) for value in event.get("b1_group", ())]
+                if not group:
+                    continue
+                scores: dict[str, float] = {}
+                for fingerprint in group:
+                    candidate = by_fingerprint.get(fingerprint)
+                    if candidate is None:
+                        raise RuntimeError("Phase-2G C audit B1 candidate is missing from classical ledger")
+                    scores[fingerprint] = float(audit_ledger.score(candidate))
+                event["scored_candidate_count"] = len(scores)
+                event["assigned_scores"] = scores
+                if event.get("selected_before") != event.get("selected_after"):
+                    raise RuntimeError("Phase-2G C audit score altered classical selection")
+                event["membership_changed"] = False
+                event["ordering_changed"] = False
+                event["score_caused_entered"] = []
+                event["entered"] = []
+                event["exited"] = []
+
         return {
             "population": tuple(population),
-            "generation_count": int(kwargs["end_generation"])
-            - int(kwargs["start_generation"]),
+            "generation_count": int(kwargs["end_generation"]) - checkpoint,
             "classical_evaluations": after_evaluations - before_evaluations,
             "selection_events": events,
         }
