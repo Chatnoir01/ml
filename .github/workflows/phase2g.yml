@@ -1,0 +1,273 @@
+name: Phase 2G Adaptive Coevolution
+
+on:
+  push:
+    branches:
+      - research/phase2g-adaptive-coevolution
+    paths:
+      - research/PHASE2G_EXECUTE.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase2g-scientific-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact Phase 2G neural runtime
+        run: |
+          python -m pip install 'numpy==2.5.3'
+          python -m pip install -e '.[neural,dev]'
+      - name: Verify dedicated marker commit and frozen execution lock
+        run: |
+          changed="$(git diff-tree --no-commit-id --name-only -r HEAD)"
+          test "$changed" = "research/PHASE2G_EXECUTE.md"
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          marker = Path('research/PHASE2G_EXECUTE.md')
+          assert marker.read_text(encoding='utf-8').strip() == 'AUTHORIZED_PHASE2G_ADAPTIVE_COEVOLUTION_EXPERIMENT'
+
+          from adversarial_sbox.phase2g import (
+              ARM_SEED_CELLS,
+              CHECKPOINT_GENERATIONS,
+              CHECKPOINT_TRAININGS_PER_CELL,
+              TOTAL_CHECKPOINT_TRAININGS,
+              TOTAL_HELDOUT_TRAININGS,
+              TOTAL_SCIENTIFIC_TRAININGS,
+          )
+          from adversarial_sbox.phase2_evolution_seed_registry import phase2g_evolution_seeds_are_fresh
+          from adversarial_sbox.phase2g import EVOLUTION_SEEDS
+
+          assert ARM_SEED_CELLS == 36
+          assert tuple(CHECKPOINT_GENERATIONS) == (0, 5, 10, 15)
+          assert CHECKPOINT_TRAININGS_PER_CELL == 64
+          assert TOTAL_CHECKPOINT_TRAININGS == 2304
+          assert TOTAL_HELDOUT_TRAININGS == 576
+          assert TOTAL_SCIENTIFIC_TRAININGS == 2880
+          assert phase2g_evolution_seeds_are_fresh(EVOLUTION_SEEDS)
+          assert 'adversarial_sbox.phase2g_validation_seeds' not in sys.modules
+          print('PHASE2G_EXECUTION_LOCK_GREEN_PRE_H')
+          PY
+      - name: Re-run frozen Phase 2G contracts
+        run: pytest -q tests/test_phase2g*.py
+      - name: Record scientific and parent SHAs
+        run: |
+          echo "PHASE2G_MARKER_SHA=${GITHUB_SHA}"
+          echo "PHASE2G_PRE_MARKER_SHA=$(git rev-parse HEAD^)"
+
+  arm:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [C, F, A, S]
+        seed: [726011, 726023, 726037, 726049, 726061, 726073, 726087, 726099, 726113]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact Phase 2G neural runtime
+        run: |
+          python -m pip install 'numpy==2.5.3'
+          python -m pip install -e '.[neural]'
+      - name: Run frozen held-out-blind Phase 2G arm cell
+        run: |
+          python scripts/run_phase2g.py \
+            --seed '${{ matrix.seed }}' \
+            --arm '${{ matrix.arm }}' \
+            --output arm.json
+      - name: Verify exact arm budgets and provenance
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('arm.json'))
+          assert data['generation_count'] == 20
+          assert data['classical_evaluations'] == 340
+          assert data['checkpoint_training_count'] == 64
+          assert data['checkpoint_trainings'] == 64
+          assert data['terminal_selection_rule'] == 'historical_classical_only'
+          assert data['heldout_accessed'] is False
+          assert len(data['generation_trace']) == 20
+          assert len(data['classical_evaluation_ledger']) == 340
+          assert len({row['fingerprint'] for row in data['classical_evaluation_ledger']}) == 340
+          assert [row['generation'] for row in data['checkpoints']] == [0, 5, 10, 15]
+          assert all(row['training_count'] == 16 for row in data['checkpoints'])
+          assert all(len(row['model_receipts']) == 16 for row in data['checkpoints'])
+          assert all(len(row['training_dataset_seeds']) == 8 for row in data['checkpoints'])
+          assert all(len(row['training_model_seeds']) == 8 for row in data['checkpoints'])
+          assert all(len(row['scoring_dataset_seeds']) == 8 for row in data['checkpoints'])
+          assert len(data['scientific_payload_sha256']) == 64
+          print('ARM:', data['arm'], 'SEED:', data['seed'])
+          print('TERMINAL:', data['terminal_fingerprint'])
+          print('ARM_SHA256:', data['scientific_payload_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2g-arm-${{ matrix.arm }}-${{ matrix.seed }}-${{ github.sha }}
+          path: arm.json
+          if-no-files-found: error
+          retention-days: 90
+
+  terminal_freeze:
+    needs: arm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2g-arm-*-${{ github.sha }}
+          path: arm-results
+      - name: Freeze all 36 terminals twice and require byte identity
+        run: |
+          python scripts/run_phase2g.py \
+            --freeze-arm-files arm-results/phase2g-arm-*/arm.json \
+            --output freeze-1.json
+          python scripts/run_phase2g.py \
+            --freeze-arm-files arm-results/phase2g-arm-*/arm.json \
+            --output freeze-2.json
+          cmp freeze-1.json freeze-2.json
+          cp freeze-1.json phase2g-terminal-freeze.json
+          python - <<'PY'
+          import json
+          from adversarial_sbox.phase2g_terminal_freeze import heldout_h_authorized
+          data = json.load(open('phase2g-terminal-freeze.json'))
+          assert data['cell_count'] == 36
+          assert data['checkpoint_training_count'] == 2304
+          assert data['heldout_training_count'] == 0
+          assert data['heldout_accessed'] is False
+          assert len(data['terminals']) == 36
+          assert heldout_h_authorized(data) is True
+          print('TERMINAL_FREEZE_SHA256:', data['terminal_freeze_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2g-terminal-freeze-${{ github.sha }}
+          path: phase2g-terminal-freeze.json
+          if-no-files-found: error
+          retention-days: 90
+
+  validation:
+    needs: terminal_freeze
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact Phase 2G neural runtime
+        run: |
+          python -m pip install 'numpy==2.5.3'
+          python -m pip install -e '.[neural]'
+      - uses: actions/download-artifact@v4
+        with:
+          name: phase2g-terminal-freeze-${{ github.sha }}
+          path: terminal-freeze
+      - name: Score H only after complete terminal freeze
+        run: |
+          python scripts/run_phase2g.py \
+            --validate-terminal-freeze terminal-freeze/phase2g-terminal-freeze.json \
+            --output phase2g-heldout-validation.json
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2g-heldout-validation.json'))
+          assert data['cell_count'] == 36
+          assert data['heldout_training_count'] == 576
+          assert data['heldout_accessed'] is True
+          assert len(data['records']) == 36
+          assert all(row['training_count'] == 16 for row in data['records'])
+          print('H_VALIDATION_SHA256:', data['validation_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2g-heldout-validation-${{ github.sha }}
+          path: phase2g-heldout-validation.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    needs: validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: python -m pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2g-arm-*-${{ github.sha }}
+          path: arm-results
+      - uses: actions/download-artifact@v4
+        with:
+          name: phase2g-terminal-freeze-${{ github.sha }}
+          path: terminal-freeze
+      - uses: actions/download-artifact@v4
+        with:
+          name: phase2g-heldout-validation-${{ github.sha }}
+          path: heldout-validation
+      - name: Aggregate twice and require byte identity
+        run: |
+          python scripts/run_phase2g.py \
+            --aggregate-arm-files arm-results/phase2g-arm-*/arm.json \
+            --terminal-freeze terminal-freeze/phase2g-terminal-freeze.json \
+            --heldout-validation heldout-validation/phase2g-heldout-validation.json \
+            --output phase2g-result-1.json
+          python scripts/run_phase2g.py \
+            --aggregate-arm-files arm-results/phase2g-arm-*/arm.json \
+            --terminal-freeze terminal-freeze/phase2g-terminal-freeze.json \
+            --heldout-validation heldout-validation/phase2g-heldout-validation.json \
+            --output phase2g-result-2.json
+          cmp phase2g-result-1.json phase2g-result-2.json
+          cp phase2g-result-1.json phase2g-result.json
+      - name: Show frozen classification
+        run: |
+          python - <<'PY'
+          import json
+          data = json.load(open('phase2g-result.json'))
+          assert data['cell_count'] == 36
+          assert data['checkpoint_training_count'] == 2304
+          assert data['heldout_training_count'] == 576
+          assert data['total_training_count'] == 2880
+          assert data['verdict'] in {
+              'phase2g_adaptive_coevolution_supported',
+              'phase2g_adaptive_coevolution_not_supported',
+              'phase2g_inconclusive_prerequisites',
+          }
+          assert len(data['support_checks']) == 10
+          print('ADAPTATION_ACTIVITY:', json.dumps(data['adaptation_activity'], sort_keys=True))
+          print('MECHANISM_ACTIVITY:', json.dumps(data['mechanism_activity'], sort_keys=True))
+          print('SUPPORT_CHECKS:', json.dumps(data['support_checks'], sort_keys=True))
+          print('VERDICT:', data['verdict'])
+          print('AGGREGATE_SHA256:', data['aggregate_sha256'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2g-summary-${{ github.sha }}
+          path: phase2g-result.json
+          if-no-files-found: error
+          retention-days: 90
