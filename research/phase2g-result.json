@@ -76,7 +76,7 @@
     "mean_fixed": 0.24243693462748478,
     "mean_fixed_minus_adaptive": -0.04205693203250708,
     "mean_shuffled": 0.31244688754372996,
-    "sign_test_vs_fixed_p": 1,
+    "sign_test_vs_fixed_p": 1.0,
     "wins_vs_control": 9,
     "wins_vs_fixed": 0,
     "wins_vs_shuffled": 7
