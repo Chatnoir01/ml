@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "phase": "2G",
+  "status": "frozen_valid_negative",
+  "preregistration_issue": 118,
+  "execution_lock_issue": 119,
+  "scientific_pre_marker_sha": "6075576436389d997993b91fb56d921e5c58a2a1",
+  "scientific_marker_sha": "030652489dd489a4705bbf64a12d7e6fa01ca03b",
+  "workflow_run_id": 35572084785,
+  "workflow_name": "Phase 2G Adaptive Coevolution",
+  "workflow_conclusion": "success",
+  "arm_cell_count": 36,
+  "checkpoint_trainings_per_cell": 64,
+  "checkpoint_training_total": 2304,
+  "heldout_terminal_count": 36,
+  "heldout_trainings_per_terminal": 16,
+  "heldout_training_total": 576,
+  "scientific_neural_training_total": 2880,
+  "arm_artifacts": {
+    "count": 36,
+    "retention_days": 90
+  },
+  "terminal_freeze": {
+    "artifact_id": 10626482818,
+    "artifact_name": "phase2g-terminal-freeze-030652489dd489a4705bbf64a12d7e6fa01ca03b",
+    "artifact_zip_sha256": "9322708556238b2dfc26d14323cbe8c76dbb560c6fb8185b288f1bd732b3e153",
+    "terminal_freeze_sha256": "8c44e05600566781c56e746415f723de022cea0372986f7afcd5175b413f16c2",
+    "cell_count": 36,
+    "heldout_accessed": false
+  },
+  "heldout_validation": {
+    "artifact_id": 10626982348,
+    "artifact_name": "phase2g-heldout-validation-030652489dd489a4705bbf64a12d7e6fa01ca03b",
+    "artifact_zip_sha256": "bac06a665e27d0e95f59413f882b336c53f77767008db674ca50f21010184ad5",
+    "validation_sha256": "69248626568d856d16f6dcc1ea293d6f16f943c38ca28e8372c0113010323c40",
+    "cell_count": 36,
+    "heldout_training_count": 576
+  },
+  "aggregate": {
+    "artifact_id": 10627326790,
+    "artifact_name": "phase2g-summary-030652489dd489a4705bbf64a12d7e6fa01ca03b",
+    "artifact_zip_sha256": "9c00105fca8154be6eed5335fa0e205cb69094cf32bd87d97bfb69ade933b974",
+    "aggregate_payload_sha256": "1df1812bc58e088c6a639d7ccbb94e1f3a02feb0ebd9f8b04e4ac81b1ea983d2",
+    "verdict": "phase2g_adaptive_coevolution_not_supported"
+  }
+}
