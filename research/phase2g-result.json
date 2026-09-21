@@ -1,0 +1,118 @@
+{
+  "adaptation_activity": {
+    "curriculum_changed_seed_count": 9,
+    "curriculum_changed_seeds": [
+      726011,
+      726023,
+      726037,
+      726049,
+      726061,
+      726073,
+      726087,
+      726099,
+      726113
+    ],
+    "passes": true,
+    "score_ordering_changed_seed_count": 9,
+    "score_ordering_changed_seeds": [
+      726011,
+      726023,
+      726037,
+      726049,
+      726061,
+      726073,
+      726087,
+      726099,
+      726113
+    ]
+  },
+  "aggregate_sha256": "1df1812bc58e088c6a639d7ccbb94e1f3a02feb0ebd9f8b04e4ac81b1ea983d2",
+  "arms": [
+    "C",
+    "F",
+    "A",
+    "S"
+  ],
+  "cell_count": 36,
+  "checkpoint_training_count": 2304,
+  "classical_non_degradation": {
+    "passes": false,
+    "passing_seed_count": 7,
+    "passing_seeds": [
+      726023,
+      726037,
+      726049,
+      726061,
+      726073,
+      726087,
+      726113
+    ],
+    "per_seed": {
+      "726011": false,
+      "726023": true,
+      "726037": true,
+      "726049": true,
+      "726061": true,
+      "726073": true,
+      "726087": true,
+      "726099": false,
+      "726113": true
+    }
+  },
+  "evolution_seeds": [
+    726011,
+    726023,
+    726037,
+    726049,
+    726061,
+    726073,
+    726087,
+    726099,
+    726113
+  ],
+  "heldout_comparisons": {
+    "mean_adaptive": 0.2844938666599919,
+    "mean_control": 0.34902052233013925,
+    "mean_fixed": 0.24243693462748478,
+    "mean_fixed_minus_adaptive": -0.04205693203250708,
+    "mean_shuffled": 0.31244688754372996,
+    "sign_test_vs_fixed_p": 1.0,
+    "wins_vs_control": 9,
+    "wins_vs_fixed": 0,
+    "wins_vs_shuffled": 7
+  },
+  "heldout_training_count": 576,
+  "mechanism_activity": {
+    "cross_key_seed_count": 9,
+    "cross_key_seeds": [
+      726011,
+      726023,
+      726037,
+      726049,
+      726061,
+      726073,
+      726087,
+      726099,
+      726113
+    ],
+    "passes": true
+  },
+  "phase": "2G-aggregate",
+  "schema_version": 1,
+  "support_checks": {
+    "adaptation_activity": true,
+    "classical_non_degradation": false,
+    "effect_size_vs_fixed": false,
+    "mean_vs_control": true,
+    "mean_vs_shuffled": true,
+    "mechanism_activity": true,
+    "sign_test_vs_fixed": false,
+    "wins_vs_control": true,
+    "wins_vs_fixed": false,
+    "wins_vs_shuffled": true
+  },
+  "terminal_freeze_sha256": "8c44e05600566781c56e746415f723de022cea0372986f7afcd5175b413f16c2",
+  "total_training_count": 2880,
+  "validation_sha256": "69248626568d856d16f6dcc1ea293d6f16f943c38ca28e8372c0113010323c40",
+  "verdict": "phase2g_adaptive_coevolution_not_supported"
+}
