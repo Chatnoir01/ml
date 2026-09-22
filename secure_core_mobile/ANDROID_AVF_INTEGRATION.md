@@ -57,3 +57,16 @@ Secure Core now parses that documented leaf extension strictly and verifies
 challenge equality plus `isVmSecure=true`. This is still NOT sufficient for
 PLATFORM_VERIFIED: the RKP-backed chain and authoritative trust policy must also
 be validated, and expected component measurements/policy must be enforced.
+
+
+## Component-policy gate
+
+The verifier now enforces an explicit expected-component policy over the AOSP
+attestation fields: exact component names (by default), minimum securityVersion,
+pinned codeHash, and pinned authorityHash. A lower securityVersion is treated as
+rollback and fails closed.
+
+A generic caller-provided X.509 trust root can establish only
+CRYPTOGRAPHICALLY_VERIFIED. PLATFORM_VERIFIED additionally requires the
+separately provisioned authoritative Android AVF trust profile. No authoritative
+root bundle is fabricated in this repository.
