@@ -3,7 +3,7 @@
 This package is experimental. Importing it conveys no security assurance.
 """
 
-from enum import StrEnum
+from .compat import StrEnum
 
 
 class TrustState(StrEnum):
