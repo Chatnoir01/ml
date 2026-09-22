@@ -25,12 +25,17 @@ class BoundaryEvidence:
 
     @property
     def qualifies_for_hostile_host_experiment(self) -> bool:
+        try:
+            bytes.fromhex(self.evidence_sha256)
+            digest_valid = len(self.evidence_sha256) == 64
+        except ValueError:
+            digest_valid = False
         return (
             self.kind is BoundaryKind.ANDROID_PVM
             and self.isolated_from_host
             and self.owns_authorization_state
             and self.owns_monotonic_state
-            and len(self.evidence_sha256) == 64
+            and digest_valid
         )
 
 
