@@ -70,3 +70,27 @@ A generic caller-provided X.509 trust root can establish only
 CRYPTOGRAPHICALLY_VERIFIED. PLATFORM_VERIFIED additionally requires the
 separately provisioned authoritative Android AVF trust profile. No authoritative
 root bundle is fabricated in this repository.
+
+
+## Secretkeeper / rollback-protected persistence
+
+AOSP documents Secretkeeper as a higher-privilege secure-storage service for
+pVM clients. Its storage contract includes confidentiality, integrity,
+persistence and rollback detection. Access is gated by DICE policy.
+
+For updatable Microdroid VMs, AOSP documents a Secretkeeper-protected random
+secret plus DICE sealing material. The pVM communicates with Secretkeeper over
+an AuthGraph-derived encrypted channel even though Android transports the
+messages and is treated as untrusted.
+
+Secure Core therefore requires all of the following before mapping Secretkeeper
+to a rollback-resistant monotonic security root:
+
+- Secretkeeper identity verified by the pVM trust path;
+- AuthGraph secure channel established;
+- DICE policy-gated storage active;
+- rollback-protected storage capability established.
+
+The repository currently contains only the executable contract and a
+fail-closed unavailable backend. No Android HAL/AuthGraph implementation is
+claimed.
