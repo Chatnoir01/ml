@@ -160,6 +160,102 @@ def _mechanism_events(raw: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+
+def _classical_tuple(raw: Mapping[str, Any]) -> tuple[float, ...] | None:
+    """Return the frozen primary-security tuple from a serialized ledger row."""
+    try:
+        nl = float(raw["nonlinearity"])
+        du = float(raw["differential_uniformity"])
+        lc = float(raw["max_linear_correlation"])
+        degree = float(raw["algebraic_degree"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    # Admissibility is deliberately not reconstructed here: the artifact may omit
+    # the frozen constraint object. Primary coordinates remain directly auditable.
+    return (nl, -du, -lc, degree)
+
+
+def _classical_distortion(raw: Mapping[str, Any]) -> dict[str, Any]:
+    ledger_raw = raw.get("classical_evaluation_ledger", {})
+    if isinstance(ledger_raw, Sequence) and not isinstance(ledger_raw, (str, bytes, bytearray)):
+        ledger = {
+            str(row.get("fingerprint", "")): row
+            for row in ledger_raw
+            if isinstance(row, Mapping) and row.get("fingerprint")
+        }
+    elif isinstance(ledger_raw, Mapping):
+        ledger = {str(k): v for k, v in ledger_raw.items() if isinstance(v, Mapping)}
+    else:
+        ledger = {}
+
+    paired = worse = better = equal = unavailable = 0
+    by_generation: dict[str, dict[str, int]] = {}
+    for event in _selection_events(raw):
+        entered = event.get("score_caused_entered", ())
+        exited = event.get("score_caused_exited", ())
+        if not isinstance(entered, Sequence) or isinstance(entered, (str, bytes, bytearray)):
+            continue
+        if not isinstance(exited, Sequence) or isinstance(exited, (str, bytes, bytearray)):
+            continue
+        generation = str(int(event.get("generation", -1)))
+        row = by_generation.setdefault(
+            generation, {"paired": 0, "entered_worse": 0, "entered_better": 0, "equal": 0, "unavailable": 0}
+        )
+        for entrant, displaced in zip(sorted(map(str, entered)), sorted(map(str, exited))):
+            left = _classical_tuple(ledger.get(entrant, {}))
+            right = _classical_tuple(ledger.get(displaced, {}))
+            if left is None or right is None:
+                unavailable += 1
+                row["unavailable"] += 1
+                continue
+            paired += 1
+            row["paired"] += 1
+            if left < right:
+                worse += 1
+                row["entered_worse"] += 1
+            elif left > right:
+                better += 1
+                row["entered_better"] += 1
+            else:
+                equal += 1
+                row["equal"] += 1
+    return {
+        "paired_membership_changes": paired,
+        "entered_worse_primary_tuple": worse,
+        "entered_better_primary_tuple": better,
+        "equal_primary_tuple": equal,
+        "unavailable_pairs": unavailable,
+        "by_generation": by_generation,
+        "warning": "entrant/exit pairing is deterministic fingerprint order; use only when event semantics are set replacement",
+    }
+
+
+def _recurrence(raw: Mapping[str, Any]) -> dict[str, Any]:
+    cps = _checkpoints(raw)
+    curriculum_sets = {
+        g: set(map(str, cps[g].get("curriculum_fingerprints", ()))) for g in CHECKPOINT_GENERATIONS
+    }
+    population_sets = {
+        g: set(map(str, cps[g].get("population_after_fingerprints", ()))) for g in CHECKPOINT_GENERATIONS
+    }
+    nonadjacent = []
+    for i, left in enumerate(CHECKPOINT_GENERATIONS):
+        for right in CHECKPOINT_GENERATIONS[i + 2 :]:
+            c_union = curriculum_sets[left] | curriculum_sets[right]
+            p_union = population_sets[left] | population_sets[right]
+            nonadjacent.append({
+                "left_generation": int(left),
+                "right_generation": int(right),
+                "curriculum_jaccard": float(len(curriculum_sets[left] & curriculum_sets[right]) / len(c_union)) if c_union else 1.0,
+                "population_jaccard": float(len(population_sets[left] & population_sets[right]) / len(p_union)) if p_union else 1.0,
+            })
+    return {
+        "nonadjacent_checkpoint_overlap": nonadjacent,
+        "exact_curriculum_digest_recurrence": len({
+            str(cps[g]["curriculum_digest_sha256"]) for g in CHECKPOINT_GENERATIONS
+        }) < len(CHECKPOINT_GENERATIONS),
+    }
+
 def diagnose_phase2g_receipts(
     arm_results: Sequence[Mapping[str, Any]],
     *,
@@ -194,7 +290,7 @@ def diagnose_phase2g_receipts(
             "F_curriculum": _curriculum_drift(fixed),
             "A_mechanism": _mechanism_events(adaptive),
             "F_mechanism": _mechanism_events(fixed),
-            "A_vs_F_rank": _rank_diagnostics(adaptive, fixed),
+            "A_vs_F_rank": _rank_diagnostics(adaptive, fixed),\n            "A_classical_distortion": _classical_distortion(adaptive),\n            "F_classical_distortion": _classical_distortion(fixed),\n            "A_recurrence": _recurrence(adaptive),\n            "F_recurrence": _recurrence(fixed),
         }
 
     payload: dict[str, Any] = {
