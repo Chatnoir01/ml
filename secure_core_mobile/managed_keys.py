@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from .key_lifecycle import KeyRecord, KeyRegistry, LifecycleError, StoredKeyState
 from .opaque_provider import OpaqueEd25519Provider, PublicKeyRecord
+from .lifecycle_journal import InMemoryLifecycleJournal
 
 
 @dataclass(frozen=True)
@@ -18,9 +19,11 @@ class ManagedKey:
 
 
 class ManagedKeyService:
-    def __init__(self, *, registry: KeyRegistry, provider: OpaqueEd25519Provider) -> None:
+    def __init__(self, *, registry: KeyRegistry, provider: OpaqueEd25519Provider,
+                 journal: InMemoryLifecycleJournal | None = None) -> None:
         self._registry = registry
         self._provider = provider
+        self._journal = journal or InMemoryLifecycleJournal()
 
     def create(self) -> ManagedKey:
         material = self._provider.create_key()
@@ -39,8 +42,17 @@ class ManagedKeyService:
             raise LifecycleError("only active managed keys may destroy")
         if not self._provider.has_key(handle):
             raise LifecycleError("provider/registry divergence detected")
+        txid = self._journal.begin(operation="destroy", handle=handle)
         self._provider.destroy(handle)
-        return self._registry.destroy(handle)
+        updated = self._registry.destroy(handle)
+        self._journal.commit(txid, operation="destroy", handle=handle)
+        return updated
+
+    def recover(self) -> tuple[str, ...]:
+        """Fail closed on unfinished transitions; caller decides remediation."""
+        pending = self._journal.incomplete()
+        self._journal.verify_chain()
+        return tuple(f"{e.operation}:{e.handle}:{e.txid}" for e in pending)
 
     def assert_consistent(self, handle: str) -> None:
         record = self._registry.get(handle)
