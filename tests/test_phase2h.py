@@ -87,7 +87,7 @@ def test_phase2h_reports_unavailable_evidence_instead_of_inventing_it() -> None:
         _inputs(), phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256
     )
     assert result["availability"]["forgetting_matrix"] is False
-    assert result["availability"]["candidate_level_classical_distortion"] is False
+    assert result["availability"]["candidate_level_classical_distortion"] is True
 
 
 def test_phase2h_detects_adaptive_drift_and_rank_change() -> None:
@@ -100,3 +100,22 @@ def test_phase2h_detects_adaptive_drift_and_rank_change() -> None:
         assert row["F_curriculum"]["changed_from_initial_count"] == 0
         assert row["A_vs_F_rank"]["different_order_count"] == 1
         assert row["A_mechanism"]["score_caused_entry_event_count"] == 1
+
+
+def test_phase2h_recurrence_does_not_call_movement_cycling() -> None:
+    result = diagnose_phase2g_receipts(
+        _inputs(), phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256
+    )
+    for seed in EVOLUTION_SEEDS:
+        row = result["diagnostics"][str(int(seed))]
+        assert row["A_recurrence"]["exact_curriculum_digest_recurrence"] is False
+        assert row["F_recurrence"]["exact_curriculum_digest_recurrence"] is True
+
+
+def test_phase2h_classical_distortion_fails_closed_without_ledger_rows() -> None:
+    result = diagnose_phase2g_receipts(
+        _inputs(), phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256
+    )
+    for seed in EVOLUTION_SEEDS:
+        row = result["diagnostics"][str(int(seed))]
+        assert row["A_classical_distortion"]["paired_membership_changes"] == 0
