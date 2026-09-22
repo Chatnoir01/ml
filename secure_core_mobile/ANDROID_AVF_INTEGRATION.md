@@ -124,3 +124,18 @@ The codec intentionally supports only a narrow canonical-CBOR subset and is
 labelled development-only. It MUST NOT be treated as AOSP wire compatibility
 until tested byte-for-byte against authoritative Secretkeeper/AuthGraph vectors
 or a real Android implementation.
+
+
+## AOSP source reconciliation
+
+A source audit found two SecretManagement CDDL generations. The current AOSP
+file defines COSE Encrypt0 AAD with empty external_aad. An older/release branch
+explicitly binds RequestSeqNum as external AAD. Secure Core therefore no longer
+silently assumes one wire generation: the codec has an explicit ExternalAadMode
+and defaults to the current-AOSP EMPTY mode. Sequence-AAD compatibility is
+retained only as an explicit legacy/versioned mode.
+
+The AOSP VTS client confirms the architectural split of two AuthGraph AES keys:
+aes_keys[0] protects client->Secretkeeper requests and aes_keys[1] protects
+Secretkeeper->client responses, with the AuthGraph session_id supplied to the
+COSE cipher layer.
