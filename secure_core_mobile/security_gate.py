@@ -12,6 +12,7 @@ class SecurityCapability:
     monotonic_hardware_resistant: bool
     monotonic_boundary_owned: bool
     attestation_verified: bool
+    secretkeeper_verified: bool = False
 
     @property
     def hostile_host_ready(self) -> bool:
@@ -20,6 +21,7 @@ class SecurityCapability:
             and self.monotonic_hardware_resistant
             and self.monotonic_boundary_owned
             and self.attestation_verified
+            and self.secretkeeper_verified
         )
 
 
