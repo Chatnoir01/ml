@@ -84,7 +84,13 @@ def _rank_order(event: Mapping[str, Any]) -> tuple[str, ...] | None:
     return tuple(sorted(group, key=lambda fp: (numeric[fp], fp)))
 
 
-def _jaccard(left: Sequence[str], right: Sequence[str]) -> float:\n    a, b = set(str(v) for v in left), set(str(v) for v in right)\n    union = a | b\n    return float(len(a & b) / len(union)) if union else 1.0\n\n\ndef _curriculum_drift(raw: Mapping[str, Any]) -> dict[str, Any]:
+def _jaccard(left: Sequence[str], right: Sequence[str]) -> float:
+    a, b = set(str(v) for v in left), set(str(v) for v in right)
+    union = a | b
+    return float(len(a & b) / len(union)) if union else 1.0
+
+
+def _curriculum_drift(raw: Mapping[str, Any]) -> dict[str, Any]:
     cps = _checkpoints(raw)
     initial = str(cps[0]["curriculum_digest_sha256"])
     sequence = [str(cps[g]["curriculum_digest_sha256"]) for g in CHECKPOINT_GENERATIONS]
@@ -290,7 +296,11 @@ def diagnose_phase2g_receipts(
             "F_curriculum": _curriculum_drift(fixed),
             "A_mechanism": _mechanism_events(adaptive),
             "F_mechanism": _mechanism_events(fixed),
-            "A_vs_F_rank": _rank_diagnostics(adaptive, fixed),\n            "A_classical_distortion": _classical_distortion(adaptive),\n            "F_classical_distortion": _classical_distortion(fixed),\n            "A_recurrence": _recurrence(adaptive),\n            "F_recurrence": _recurrence(fixed),
+            "A_vs_F_rank": _rank_diagnostics(adaptive, fixed),
+            "A_classical_distortion": _classical_distortion(adaptive),
+            "F_classical_distortion": _classical_distortion(fixed),
+            "A_recurrence": _recurrence(adaptive),
+            "F_recurrence": _recurrence(fixed),
         }
 
     payload: dict[str, Any] = {
@@ -311,9 +321,9 @@ def diagnose_phase2g_receipts(
                 "requires immutable probe evaluation of checkpoint model states; "
                 "must not be reconstructed from absent evidence"
             ),
-            "candidate_level_classical_distortion": False,
-            "reason_for_missing_candidate_level_classical_distortion": (
-                "requires candidate-level classical tuples for score-caused entrants/exits"
+            "candidate_level_classical_distortion": True,
+            "candidate_level_classical_distortion_source": (
+                "official arm artifacts contain classical_evaluation_ledger plus score-caused entrants/exits"
             ),
         },
     }
