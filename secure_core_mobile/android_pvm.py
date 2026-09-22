@@ -6,7 +6,7 @@ non-Android process has AVF/pKVM capabilities.
 
 from __future__ import annotations
 from dataclasses import dataclass
-from enum import StrEnum
+from .compat import StrEnum
 import hashlib
 import sys
 
