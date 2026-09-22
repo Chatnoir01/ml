@@ -44,7 +44,7 @@ class PvmEvidenceBundle:
 
 
 class AndroidPvmAdapter:
-    def verify_evidence(self, bundle: PvmEvidenceBundle) -> BoundaryEvidence:
+    def ingest_unverified_evidence(self, bundle: PvmEvidenceBundle) -> BoundaryEvidence:
         if not bundle.boundary_id or not bundle.measurement or not bundle.raw_evidence:
             raise ValueError("incomplete pVM evidence")
         # Cryptographic/platform verification is deliberately not implemented yet.
