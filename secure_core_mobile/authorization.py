@@ -74,6 +74,12 @@ class AuthorizationService:
             current = self._registry.get(effective.key_handle)
             if current is None or current.state is not StoredKeyState.ACTIVE:
                 return self._result(effective, Decision.DENY, None, binding, counter_value)
+            provider_id = getattr(self._provider, "provider_id", None)
+            if provider_id is not None and current.provider_id != provider_id:
+                return self._result(effective, Decision.DENY, None, binding, counter_value)
+            has_key = getattr(self._provider, "has_key", None)
+            if callable(has_key) and not has_key(effective.key_handle):
+                return self._result(effective, Decision.DENY, None, binding, counter_value)
 
         output = self._provider.operate(
             operation=effective.operation,
