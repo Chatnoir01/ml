@@ -49,7 +49,7 @@ def test_trusted_measurement_is_not_enough_without_platform_verification():
     assert result.measurement_trusted is True
     assert result.signature_verified is False
     assert result.verified is False
-    assert result.reason == "platform-signature-verification-not-implemented"
+    assert result.reason == "invalid-leaf-certificate"
 
 
 def test_missing_signature_evidence_is_explicit():
