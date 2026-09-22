@@ -94,3 +94,20 @@ to a rollback-resistant monotonic security root:
 The repository currently contains only the executable contract and a
 fail-closed unavailable backend. No Android HAL/AuthGraph implementation is
 claimed.
+
+
+## AuthGraph + SecretManagement protocol contract
+
+AOSP SecretManagement.cddl fixes the core request opcodes to GetVersion=1,
+StoreSecret=2 and GetSecret=3. SecretId is exactly 64 bytes and Secret is
+exactly 32 bytes. StoreSecret requires a CBOR-encoded DICE sealing policy.
+
+The pVM client is AuthGraph P1/source and Secretkeeper is P2/sink. Secretkeeper's
+identity is a per-boot public key. For Microdroid, AOSP transports that
+CBOR-encoded COSE public key through the protected AVF device-tree path at
+/proc/device-tree/avf/secretkeeper_public_key; pvmfw verifies it against the VM
+reference DT before the guest consumes it.
+
+Secure Core now models these protocol sizes and the fail-closed session
+transition. Native AuthGraph key exchange, CBOR/COSE decoding, AES-GCM protected
+packets, Binder/HAL transport and device-tree retrieval remain unimplemented.
