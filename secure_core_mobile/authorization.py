@@ -1,10 +1,11 @@
-"""Authorization service enforcing policy -> state -> freshness -> binding -> provider."""
+"""Authorization service enforcing registry -> policy -> freshness -> binding -> provider."""
 
 from __future__ import annotations
 from dataclasses import dataclass
 
 from .counter import InMemoryMonotonicCounter
 from .freshness import InMemoryFreshnessStore
+from .key_lifecycle import KeyRegistry, StoredKeyState
 from .policy import AuthorizationRequest, Decision, KeyState, Policy, evaluate
 from .provider import CryptoProvider
 from .receipts import authorization_receipt
@@ -25,17 +26,19 @@ class AuthorizationService:
         freshness: InMemoryFreshnessStore,
         provider: CryptoProvider,
         counter: InMemoryMonotonicCounter | None = None,
+        registry: KeyRegistry | None = None,
     ):
         self._freshness = freshness
         self._provider = provider
         self._counter = counter or InMemoryMonotonicCounter()
+        self._registry = registry
 
     def execute(
         self,
         *,
         request: AuthorizationRequest,
         policy: Policy,
-        key_state: KeyState,
+        key_state: KeyState | None = None,
         payload: bytes,
         expected_counter: int | None = None,
     ) -> AuthorizationResult:
@@ -47,7 +50,12 @@ class AuthorizationService:
             hardware_backed=bool(self._provider.hardware_backed),
         )
         binding = request_digest(effective, payload=payload)
-        decision = evaluate(effective, policy, key_state)
+
+        resolved_state = self._resolve_key_state(effective.key_handle, key_state)
+        if resolved_state is None:
+            return self._result(effective, Decision.DENY, None, binding, None)
+
+        decision = evaluate(effective, policy, resolved_state)
         if decision is Decision.DENY:
             return self._result(effective, decision, None, binding, None)
 
@@ -59,12 +67,32 @@ class AuthorizationService:
         if counter_value is None:
             return self._result(effective, Decision.DENY, None, binding, None)
 
+        # Re-read lifecycle immediately before crossing the provider boundary.
+        # This narrows the revoke-vs-use race; stronger atomicity belongs in the
+        # future stronger trust boundary, not in this development host registry.
+        if self._registry is not None:
+            current = self._registry.get(effective.key_handle)
+            if current is None or current.state is not StoredKeyState.ACTIVE:
+                return self._result(effective, Decision.DENY, None, binding, counter_value)
+
         output = self._provider.operate(
             operation=effective.operation,
             key_handle=effective.key_handle,
             payload=payload,
         )
         return self._result(effective, Decision.ALLOW, output, binding, counter_value)
+
+    def _resolve_key_state(self, handle: str, supplied: KeyState | None) -> KeyState | None:
+        if self._registry is None:
+            return supplied
+        record = self._registry.get(handle)
+        if record is None:
+            return None
+        return {
+            StoredKeyState.ACTIVE: KeyState.ACTIVE,
+            StoredKeyState.REVOKED: KeyState.REVOKED,
+            StoredKeyState.DESTROYED: KeyState.DESTROYED,
+        }[record.state]
 
     @staticmethod
     def _result(
