@@ -13,6 +13,7 @@ import math
 from typing import Any
 
 from .phase2g import CHECKPOINT_GENERATIONS, EVOLUTION_SEEDS
+from .phase2h_timeline import build_divergence_timeline
 
 PARENT_PHASE2G_COMMIT = "ba1aec133c50ddac246a54a70bb3ff2f0994df3a"
 PARENT_AGGREGATE_SHA256 = "1df1812bc58e088c6a639d7ccbb94e1f3a02feb0ebd9f8b04e4ac81b1ea983d2"
@@ -301,6 +302,7 @@ def diagnose_phase2g_receipts(
             "F_classical_distortion": _classical_distortion(fixed),
             "A_recurrence": _recurrence(adaptive),
             "F_recurrence": _recurrence(fixed),
+            "A_vs_F_timeline": build_divergence_timeline(adaptive, fixed),
         }
 
     payload: dict[str, Any] = {
