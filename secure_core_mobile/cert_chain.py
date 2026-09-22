@@ -62,13 +62,25 @@ def verify_certificate_chain(
     current_time = now or datetime.now(timezone.utc)
     for cert in certs:
         _check_time(cert, current_time)
-    for child, issuer in zip(certs, certs[1:]):
+    for index, (child, issuer) in enumerate(zip(certs, certs[1:])):
         if child.issuer != issuer.subject:
             raise ValueError("certificate issuer mismatch")
+        try:
+            constraints = issuer.extensions.get_extension_for_class(x509.BasicConstraints).value
+        except x509.ExtensionNotFound as exc:
+            raise ValueError("issuer missing CA basic constraints") from exc
+        if not constraints.ca:
+            raise ValueError("non-CA certificate used as issuer")
         _verify_cert_signature(child, issuer)
     tail = certs[-1]
     for anchor in anchors:
         _check_time(anchor, current_time)
+        try:
+            anchor_constraints = anchor.extensions.get_extension_for_class(x509.BasicConstraints).value
+        except x509.ExtensionNotFound:
+            continue
+        if not anchor_constraints.ca:
+            continue
         if tail.fingerprint(hashes.SHA256()) == anchor.fingerprint(hashes.SHA256()):
             return True
         if tail.issuer == anchor.subject:
