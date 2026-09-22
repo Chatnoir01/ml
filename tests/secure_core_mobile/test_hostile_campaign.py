@@ -23,7 +23,7 @@ def test_any_provider_reach_fails_campaign():
 
 
 def test_development_campaign_can_pass_behavior_but_never_qualify_as_evidence():
-    capability = SecurityCapability(development_boundary(), False, False, False)
+    capability = SecurityCapability(development_boundary(), False, False, False, False)
     receipt = hostile_campaign_receipt(
         campaign=HostileCampaign(), capability=capability, results=_passing_results()
     )
