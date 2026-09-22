@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import secrets
 from threading import Lock
 
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 
@@ -29,14 +30,14 @@ class OpaqueEd25519Provider:
         handle = "scm_ed25519_" + secrets.token_hex(16)
         with self._lock:
             self._keys[handle] = private
-        return PublicKeyRecord(handle, private.public_key().public_bytes_raw())
+        return PublicKeyRecord(handle, private.public_key().public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw))
 
     def public_key(self, handle: str) -> bytes:
         with self._lock:
             key = self._keys.get(handle)
             if key is None:
                 raise KeyError("unknown key handle")
-            return key.public_key().public_bytes_raw()
+            return key.public_key().public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
 
     def operate(self, *, operation: str, key_handle: str, payload: bytes) -> bytes:
         if operation != "sign":
