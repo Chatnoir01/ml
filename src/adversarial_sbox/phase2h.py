@@ -84,7 +84,7 @@ def _rank_order(event: Mapping[str, Any]) -> tuple[str, ...] | None:
     return tuple(sorted(group, key=lambda fp: (numeric[fp], fp)))
 
 
-def _curriculum_drift(raw: Mapping[str, Any]) -> dict[str, Any]:
+def _jaccard(left: Sequence[str], right: Sequence[str]) -> float:\n    a, b = set(str(v) for v in left), set(str(v) for v in right)\n    union = a | b\n    return float(len(a & b) / len(union)) if union else 1.0\n\n\ndef _curriculum_drift(raw: Mapping[str, Any]) -> dict[str, Any]:
     cps = _checkpoints(raw)
     initial = str(cps[0]["curriculum_digest_sha256"])
     sequence = [str(cps[g]["curriculum_digest_sha256"]) for g in CHECKPOINT_GENERATIONS]
