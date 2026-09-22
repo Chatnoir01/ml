@@ -23,7 +23,7 @@ def test_avf_presence_is_not_trust_verification():
 
 
 def test_unverified_evidence_cannot_claim_host_isolation():
-    evidence = AndroidPvmAdapter().verify_evidence(PvmEvidenceBundle(
+    evidence = AndroidPvmAdapter().ingest_unverified_evidence(PvmEvidenceBundle(
         boundary_id="pvm-1",
         measurement="measurement-1",
         authorization_state_inside_boundary=True,
@@ -37,7 +37,7 @@ def test_unverified_evidence_cannot_claim_host_isolation():
 
 def test_incomplete_evidence_fails_closed():
     with pytest.raises(ValueError, match="incomplete"):
-        AndroidPvmAdapter().verify_evidence(PvmEvidenceBundle(
+        AndroidPvmAdapter().ingest_unverified_evidence(PvmEvidenceBundle(
             boundary_id="pvm-1",
             measurement="",
             authorization_state_inside_boundary=True,
