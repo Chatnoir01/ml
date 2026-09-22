@@ -6,7 +6,7 @@ It is not evidence of pKVM/pVM isolation and cannot promote SCM-I10 by itself.
 
 from __future__ import annotations
 from dataclasses import dataclass
-from enum import StrEnum
+from .compat import StrEnum
 
 from .authorization import AuthorizationResult, AuthorizationService
 from .policy import AuthorizationRequest, KeyState, Policy
