@@ -5,7 +5,7 @@ Development registry: metadata only. Raw key material is deliberately absent.
 
 from __future__ import annotations
 from dataclasses import dataclass
-from enum import StrEnum
+from .compat import StrEnum
 from threading import Lock
 import secrets
 
@@ -38,6 +38,16 @@ class KeyRegistry:
             raise LifecycleError("provider_id required")
         with self._lock:
             handle = "scm_" + secrets.token_hex(16)
+            record = KeyRecord(handle, 1, StoredKeyState.ACTIVE, provider_id)
+            self._records[handle] = record
+            return record
+
+    def register(self, *, handle: str, provider_id: str) -> KeyRecord:
+        if not handle or not provider_id:
+            raise LifecycleError("handle and provider_id required")
+        with self._lock:
+            if handle in self._records:
+                raise LifecycleError("opaque key handle already registered")
             record = KeyRecord(handle, 1, StoredKeyState.ACTIVE, provider_id)
             self._records[handle] = record
             return record
