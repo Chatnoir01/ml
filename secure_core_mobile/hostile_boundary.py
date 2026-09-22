@@ -6,7 +6,7 @@ boundary identity, isolation evidence and monotonic-state ownership.
 
 from __future__ import annotations
 from dataclasses import dataclass
-from enum import StrEnum
+from .compat import StrEnum
 
 
 class BoundaryKind(StrEnum):
