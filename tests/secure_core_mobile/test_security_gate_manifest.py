@@ -14,14 +14,14 @@ def _boundary():
 
 
 def test_development_capability_cannot_pass_hostile_host_gate():
-    cap = SecurityCapability(development_boundary(), False, False, False)
+    cap = SecurityCapability(development_boundary(), False, False, False, False)
     assert cap.hostile_host_ready is False
     with pytest.raises(RuntimeError):
         require_hostile_host_ready(cap)
 
 
 def test_all_independent_conditions_are_required():
-    cap = SecurityCapability(_boundary(), True, True, True)
+    cap = SecurityCapability(_boundary(), True, True, True, True)
     assert cap.hostile_host_ready is True
     require_hostile_host_ready(cap)
 
