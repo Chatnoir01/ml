@@ -20,6 +20,9 @@ class PublicKeyRecord:
 
 
 class OpaqueEd25519Provider:
+    hardware_backed = False
+    provider_id = "opaque-ed25519-development"
+
     def __init__(self) -> None:
         self._keys: dict[str, ed25519.Ed25519PrivateKey] = {}
         self._lock = Lock()
@@ -31,6 +34,10 @@ class OpaqueEd25519Provider:
         with self._lock:
             self._keys[handle] = private
         return PublicKeyRecord(handle, private.public_key().public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw))
+
+    def has_key(self, handle: str) -> bool:
+        with self._lock:
+            return handle in self._keys
 
     def public_key(self, handle: str) -> bytes:
         with self._lock:
