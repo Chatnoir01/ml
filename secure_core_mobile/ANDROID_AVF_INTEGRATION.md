@@ -111,3 +111,16 @@ reference DT before the guest consumes it.
 Secure Core now models these protocol sizes and the fail-closed session
 transition. Native AuthGraph key exchange, CBOR/COSE decoding, AES-GCM protected
 packets, Binder/HAL transport and device-tree retrieval remain unimplemented.
+
+
+## COSE_Encrypt0 development codec
+
+Secure Core now has an executable AES-256-GCM Encrypt0 development codec with
+authentication bound to the AuthGraph session identifier and request sequence
+number. Negative tests cover ciphertext mutation, IV mutation, session
+substitution and sequence substitution.
+
+The codec intentionally supports only a narrow canonical-CBOR subset and is
+labelled development-only. It MUST NOT be treated as AOSP wire compatibility
+until tested byte-for-byte against authoritative Secretkeeper/AuthGraph vectors
+or a real Android implementation.
