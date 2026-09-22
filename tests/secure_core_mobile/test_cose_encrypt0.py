@@ -1,7 +1,7 @@
 import pytest
 from cryptography.exceptions import InvalidTag
 
-from secure_core_mobile.cose_encrypt0 import decrypt, encrypt, Encrypt0Packet
+from secure_core_mobile.cose_encrypt0 import decrypt, encrypt, Encrypt0Packet, ExternalAadMode
 from secure_core_mobile.secretkeeper_packet import ProtectedPacketBinding
 
 
@@ -34,3 +34,15 @@ def test_iv_tamper_fails_authentication():
     binding = ProtectedPacketBinding(b"sid", 0, b"j"*12)
     with pytest.raises(InvalidTag):
         decrypt(key=KEY, packet=Encrypt0Packet(binding, packet.ciphertext), expected_session_id=b"sid", expected_sequence_number=0)
+
+
+def test_current_aosp_empty_external_aad_mode_roundtrip():
+    packet = encrypt(key=KEY, session_id=b"sid", sequence_number=0, plaintext=b"x", iv=IV)
+    assert decrypt(key=KEY, packet=packet, expected_session_id=b"sid", expected_sequence_number=0) == b"x"
+
+def test_seqnum_aad_branch_is_explicit_and_not_interchangeable():
+    packet = encrypt(key=KEY, session_id=b"sid", sequence_number=7, plaintext=b"x", iv=IV,
+                     aad_mode=ExternalAadMode.REQUEST_SEQNUM_U64)
+    with pytest.raises(InvalidTag):
+        decrypt(key=KEY, packet=packet, expected_session_id=b"sid", expected_sequence_number=7,
+                aad_mode=ExternalAadMode.EMPTY)
