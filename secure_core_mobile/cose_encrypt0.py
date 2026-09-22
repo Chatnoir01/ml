@@ -1,13 +1,15 @@
-"""Minimal deterministic COSE_Encrypt0 codec for Secretkeeper integration tests.
+"""AOSP-aligned COSE_Encrypt0 cryptographic core for Secretkeeper.
 
-Implements the COSE Enc_structure and AES-256-GCM primitive. The outer wire
-container remains an explicit project codec until byte-for-byte AOSP vectors
-are imported; therefore this module is not platform evidence.
+Current AOSP SecretManagement uses untagged COSE_Encrypt0 with protected
+{1:3, 4:session_id}, unprotected {5:iv}, AES-256-GCM, and an Enc_structure.
+The external AAD mode is explicit because AOSP branches exist both with empty
+external_aad and RequestSeqNum-bound external_aad.
 """
 
 from __future__ import annotations
 from dataclasses import dataclass
 import os
+from enum import Enum
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .secretkeeper_packet import ProtectedPacketBinding
@@ -15,36 +17,39 @@ from .secretkeeper_packet import ProtectedPacketBinding
 AES256_KEY_BYTES = 32
 
 
-def _u64(value: int) -> bytes:
-    if value < 0 or value > 0xFFFFFFFFFFFFFFFF:
+class ExternalAadMode(str, Enum):
+    EMPTY = "EMPTY"
+    REQUEST_SEQNUM_U64 = "REQUEST_SEQNUM_U64"
+
+
+def external_aad(sequence_number: int, mode: ExternalAadMode) -> bytes:
+    if mode is ExternalAadMode.EMPTY:
+        return b""
+    if sequence_number < 0 or sequence_number > 0xFFFFFFFFFFFFFFFF:
         raise ValueError("sequence out of uint64 range")
-    return value.to_bytes(8, "big")
+    return sequence_number.to_bytes(8, "big")
 
 
-def external_aad(sequence_number: int) -> bytes:
-    return _u64(sequence_number)
+def _head(major: int, n: int) -> bytes:
+    if n < 24: return bytes(((major << 5) | n,))
+    if n <= 0xff: return bytes(((major << 5) | 24, n))
+    if n <= 0xffff: return bytes(((major << 5) | 25,)) + n.to_bytes(2, "big")
+    raise ValueError("CBOR field too large")
+
+
+def _bstr(v: bytes) -> bytes: return _head(2, len(v)) + v
+def _tstr(v: str) -> bytes:
+    raw=v.encode(); return _head(3,len(raw))+raw
 
 
 def protected_header(binding: ProtectedPacketBinding) -> bytes:
     binding.validate()
-    # Canonical CBOR map {1: 3, 4: bstr(session_id)}.
-    # Major types used here have compact deterministic encodings.
-    sid = binding.session_id
-    if len(sid) > 23:
-        raise ValueError("session id too long for minimal codec")
-    return bytes((0xA2, 0x01, 0x03, 0x04, 0x40 + len(sid))) + sid
+    # canonical CBOR {1:3,4:bstr(session_id)}
+    return b"\xa2\x01\x03\x04" + _bstr(binding.session_id)
 
 
 def enc_structure(protected: bytes, aad: bytes) -> bytes:
-    # Canonical CBOR ["Encrypt0", protected-bstr, external_aad-bstr].
-    context = b"Encrypt0"
-    if len(protected) > 23 or len(aad) > 23:
-        raise ValueError("field too long for minimal codec")
-    return (
-        b"\x83" + bytes((0x60 + len(context),)) + context
-        + bytes((0x40 + len(protected),)) + protected
-        + bytes((0x40 + len(aad),)) + aad
-    )
+    return b"\x83" + _tstr("Encrypt0") + _bstr(protected) + _bstr(aad)
 
 
 @dataclass(frozen=True)
@@ -53,16 +58,18 @@ class Encrypt0Packet:
     ciphertext: bytes
 
 
-def encrypt(*, key: bytes, session_id: bytes, sequence_number: int, plaintext: bytes, iv: bytes | None = None) -> Encrypt0Packet:
+def encrypt(*, key: bytes, session_id: bytes, sequence_number: int, plaintext: bytes,
+            iv: bytes | None = None, aad_mode: ExternalAadMode = ExternalAadMode.EMPTY) -> Encrypt0Packet:
     if len(key) != AES256_KEY_BYTES:
         raise ValueError("AES-256-GCM key must be 32 bytes")
-    binding = ProtectedPacketBinding(session_id, sequence_number, iv or os.urandom(12))
-    header = protected_header(binding)
-    aad = enc_structure(header, external_aad(sequence_number))
-    return Encrypt0Packet(binding, AESGCM(key).encrypt(binding.iv, plaintext, aad))
+    binding=ProtectedPacketBinding(session_id,sequence_number,iv or os.urandom(12))
+    header=protected_header(binding)
+    aad=enc_structure(header, external_aad(sequence_number,aad_mode))
+    return Encrypt0Packet(binding,AESGCM(key).encrypt(binding.iv,plaintext,aad))
 
 
-def decrypt(*, key: bytes, packet: Encrypt0Packet, expected_session_id: bytes, expected_sequence_number: int) -> bytes:
+def decrypt(*, key: bytes, packet: Encrypt0Packet, expected_session_id: bytes,
+            expected_sequence_number: int, aad_mode: ExternalAadMode = ExternalAadMode.EMPTY) -> bytes:
     if len(key) != AES256_KEY_BYTES:
         raise ValueError("AES-256-GCM key must be 32 bytes")
     packet.binding.validate()
@@ -70,6 +77,6 @@ def decrypt(*, key: bytes, packet: Encrypt0Packet, expected_session_id: bytes, e
         raise ValueError("COSE session binding mismatch")
     if packet.binding.sequence_number != expected_sequence_number:
         raise ValueError("COSE sequence binding mismatch")
-    header = protected_header(packet.binding)
-    aad = enc_structure(header, external_aad(expected_sequence_number))
-    return AESGCM(key).decrypt(packet.binding.iv, packet.ciphertext, aad)
+    header=protected_header(packet.binding)
+    aad=enc_structure(header, external_aad(expected_sequence_number,aad_mode))
+    return AESGCM(key).decrypt(packet.binding.iv,packet.ciphertext,aad)
