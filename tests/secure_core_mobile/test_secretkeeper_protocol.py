@@ -15,19 +15,30 @@ def test_secret_management_sizes_match_aosp_contract():
 def test_authgraph_requires_pinned_and_verified_secretkeeper_identity():
     session = AuthGraphSession()
     with pytest.raises(ValueError, match="pinned"):
-        session.mark_native_exchange_established(peer_identity_verified=True)
+        session.mark_native_exchange_established(peer_identity_verified=True, session_id=b"sid")
     session.pin_secretkeeper_identity(b"cbor-cose-key")
     with pytest.raises(ValueError, match="failed"):
-        session.mark_native_exchange_established(peer_identity_verified=False)
+        session.mark_native_exchange_established(peer_identity_verified=False, session_id=b"sid")
     assert session.state is AuthGraphSessionState.PEER_IDENTITY_PINNED
-    session.mark_native_exchange_established(peer_identity_verified=True)
+    session.mark_native_exchange_established(peer_identity_verified=True, session_id=b"sid")
     assert session.can_process_secret_management
 
 
 def test_closed_session_erases_pinned_identity_and_cannot_process():
     session = AuthGraphSession()
     session.pin_secretkeeper_identity(b"key")
-    session.mark_native_exchange_established(peer_identity_verified=True)
+    session.mark_native_exchange_established(peer_identity_verified=True, session_id=b"sid")
     session.close()
     assert session.secretkeeper_public_key_cbor is None
     assert not session.can_process_secret_management
+
+
+def test_authgraph_allocates_monotonic_request_sequence_per_session():
+    session = AuthGraphSession()
+    session.pin_secretkeeper_identity(b"key")
+    session.mark_native_exchange_established(peer_identity_verified=True, session_id=b"sid")
+    assert session.allocate_request_sequence() == 0
+    assert session.allocate_request_sequence() == 1
+    session.close()
+    with pytest.raises(RuntimeError, match="not established"):
+        session.allocate_request_sequence()
