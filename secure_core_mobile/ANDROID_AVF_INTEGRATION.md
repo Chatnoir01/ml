@@ -43,3 +43,17 @@ intended pVM.
 Test roots may exercise the generic certificate verifier, but they MUST NOT be
 accepted as Android/AVF platform roots. Authoritative platform trust material
 must be provisioned separately with pinned provenance and versioning.
+
+
+## AOSP remote-attestation wire facts now implemented
+
+The pVM payload requests attestation with `AVmPayload_requestAttestation(challenge)`.
+AOSP documents an RKP-backed certificate chain and an attested private key known
+only to the pVM. The leaf certificate carries extension OID
+`1.3.6.1.4.1.11129.2.1.29.1`, containing the verifier challenge,
+`isVmSecure`, and VM component name/securityVersion/codeHash/authorityHash.
+
+Secure Core now parses that documented leaf extension strictly and verifies
+challenge equality plus `isVmSecure=true`. This is still NOT sufficient for
+PLATFORM_VERIFIED: the RKP-backed chain and authoritative trust policy must also
+be validated, and expected component measurements/policy must be enforced.
