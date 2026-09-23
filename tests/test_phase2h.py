@@ -69,9 +69,14 @@ def _inputs() -> list[dict]:
 
 def test_phase2h_is_deterministic_and_parent_bound() -> None:
     raw = _inputs()
-    first = diagnose_phase2g_receipts(raw, phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256)
+    first = diagnose_phase2g_receipts(
+        raw,
+        phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(raw),
+    )
+    reversed_raw = list(reversed(copy.deepcopy(raw)))
     second = diagnose_phase2g_receipts(
-        list(reversed(copy.deepcopy(raw))),
+        reversed_raw,
         phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
         evidence_manifest=_manifest(reversed_raw),
     )
@@ -87,14 +92,21 @@ def test_phase2h_fails_closed_on_wrong_parent() -> None:
 
 def test_phase2h_requires_all_primary_cells() -> None:
     raw = _inputs()
+    manifest = _manifest(raw)
     raw.pop()
-    with pytest.raises(ValueError, match="missing primary"):
-        diagnose_phase2g_receipts(raw, phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256)
+    with pytest.raises(ValueError, match="missing Phase-2H evidence cells"):
+        diagnose_phase2g_receipts(
+            raw,
+            phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+            evidence_manifest=manifest,
+        )
 
 
 def test_phase2h_reports_unavailable_evidence_instead_of_inventing_it() -> None:
     result = diagnose_phase2g_receipts(
-        _inputs(), phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256
+        _inputs(),
+        phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(_inputs()),
     )
     assert result["availability"]["forgetting_matrix"] is False
     assert result["availability"]["candidate_level_classical_distortion"] is True
@@ -102,7 +114,9 @@ def test_phase2h_reports_unavailable_evidence_instead_of_inventing_it() -> None:
 
 def test_phase2h_detects_adaptive_drift_and_rank_change() -> None:
     result = diagnose_phase2g_receipts(
-        _inputs(), phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256
+        _inputs(),
+        phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(_inputs()),
     )
     for seed in EVOLUTION_SEEDS:
         row = result["diagnostics"][str(int(seed))]
@@ -114,7 +128,9 @@ def test_phase2h_detects_adaptive_drift_and_rank_change() -> None:
 
 def test_phase2h_recurrence_does_not_call_movement_cycling() -> None:
     result = diagnose_phase2g_receipts(
-        _inputs(), phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256
+        _inputs(),
+        phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(_inputs()),
     )
     for seed in EVOLUTION_SEEDS:
         row = result["diagnostics"][str(int(seed))]
@@ -124,7 +140,9 @@ def test_phase2h_recurrence_does_not_call_movement_cycling() -> None:
 
 def test_phase2h_classical_distortion_fails_closed_without_ledger_rows() -> None:
     result = diagnose_phase2g_receipts(
-        _inputs(), phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256
+        _inputs(),
+        phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(_inputs()),
     )
     for seed in EVOLUTION_SEEDS:
         row = result["diagnostics"][str(int(seed))]
