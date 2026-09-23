@@ -154,3 +154,16 @@ encrypted with the request-direction key is rejected.
 
 This remains transport-independent: Binder ISecretkeeper and native AuthGraph
 key exchange are not simulated as trusted platform behavior.
+
+
+## DICE policy semantics implemented
+
+Secure Core now models the AOSP DICE policy v1 constraint semantics used by
+Secretkeeper: ExactMatch (type 1), GreaterOrEqual (type 2), exact chain-length
+matching, and explicit missing-value behavior.
+
+The Microdroid profile models AOSP's update-safe sealing rule: AUTHORITY_HASH
+and MODE are exact matches while SECURITY_VERSION is GreaterOrEqual. Payload
+subcomponents likewise pin authority and permit only non-decreasing security
+versions. This is an executable semantic model, not yet the authoritative CBOR
+wire encoder/path-label implementation.
