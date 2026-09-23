@@ -14,6 +14,7 @@ from typing import Any
 
 from .phase2g import CHECKPOINT_GENERATIONS, EVOLUTION_SEEDS
 from .phase2h_timeline import build_divergence_timeline
+from .phase2h_evidence import verify_evidence_manifest
 
 PARENT_PHASE2G_COMMIT = "ba1aec133c50ddac246a54a70bb3ff2f0994df3a"
 PARENT_AGGREGATE_SHA256 = "1df1812bc58e088c6a639d7ccbb94e1f3a02feb0ebd9f8b04e4ac81b1ea983d2"
@@ -267,8 +268,17 @@ def diagnose_phase2g_receipts(
     arm_results: Sequence[Mapping[str, Any]],
     *,
     phase2g_aggregate_sha256: str,
+    evidence_manifest: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Derive the preregistered receipt-only subset of Phase-2H diagnostics."""
+
+    if evidence_manifest is None:
+        raise ValueError("Phase-2H requires a frozen evidence manifest")
+    verify_evidence_manifest(arm_results, evidence_manifest)
+    if str(evidence_manifest.get("parent_phase2g_commit", "")) != PARENT_PHASE2G_COMMIT:
+        raise ValueError("Phase-2H evidence manifest parent commit mismatch")
+    if str(evidence_manifest.get("parent_phase2g_aggregate_sha256", "")) != PARENT_AGGREGATE_SHA256:
+        raise ValueError("Phase-2H evidence manifest parent aggregate mismatch")
 
     if str(phase2g_aggregate_sha256) != PARENT_AGGREGATE_SHA256:
         raise ValueError("Phase-2H parent aggregate binding failure")
