@@ -167,3 +167,15 @@ and MODE are exact matches while SECURITY_VERSION is GreaterOrEqual. Payload
 subcomponents likewise pin authority and permit only non-decreasing security
 versions. This is an executable semantic model, not yet the authoritative CBOR
 wire encoder/path-label implementation.
+
+
+## Android DICE numeric paths + wire encoder
+
+AOSP VTS pins Android DICE labels used by Secretkeeper sealing policy:
+AUTHORITY_HASH=-4670549, CONFIG_DESC=-4670548, KEY_MODE=-4670551,
+COMPONENT_NAME=-70002, COMPONENT_VERSION=-70003, SECURITY_VERSION=-70005.
+
+Secure Core now pins those constants and emits a deterministic CBOR subset for
+DicePolicy v1 using numeric paths. This removes the previous symbolic-path gap.
+It is still not called byte-for-byte AOSP compatible until golden vectors from
+AOSP's Rust policy builder are imported and compared.
