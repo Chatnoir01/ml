@@ -5,7 +5,7 @@ import copy
 import pytest
 
 from adversarial_sbox.phase2g import CHECKPOINT_GENERATIONS, EVOLUTION_SEEDS
-from adversarial_sbox.phase2h_evidence import build_evidence_manifest
+from adversarial_sbox.phase2h_evidence import build_evidence_manifest, verify_evidence_manifest
 
 
 def _cell(seed: int, arm: str) -> dict:
@@ -61,3 +61,23 @@ def test_evidence_manifest_hash_changes_on_payload_mutation() -> None:
     cells[0]["selection_events"].append({"generation": 2})
     second = build_evidence_manifest(cells, parent_commit="c", parent_aggregate_sha256="a")
     assert first["manifest_sha256"] != second["manifest_sha256"]
+
+
+def test_verify_manifest_accepts_exact_frozen_inputs() -> None:
+    cells = _all_cells()
+    manifest = build_evidence_manifest(cells, parent_commit="c", parent_aggregate_sha256="a")
+    verify_evidence_manifest(cells, manifest)
+
+def test_verify_manifest_rejects_payload_corruption() -> None:
+    cells = _all_cells()
+    manifest = build_evidence_manifest(cells, parent_commit="c", parent_aggregate_sha256="a")
+    cells[0]["selection_events"].append({"generation": 99})
+    with pytest.raises(ValueError, match="evidence hash mismatch"):
+        verify_evidence_manifest(cells, manifest)
+
+def test_verify_manifest_rejects_manifest_tamper() -> None:
+    cells = _all_cells()
+    manifest = build_evidence_manifest(cells, parent_commit="c", parent_aggregate_sha256="a")
+    manifest["cells"][0]["payload_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="manifest hash mismatch"):
+        verify_evidence_manifest(cells, manifest)
