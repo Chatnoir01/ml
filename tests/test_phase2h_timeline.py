@@ -36,9 +36,34 @@ def test_timeline_finds_first_divergence_without_guessing_between_checkpoints() 
     assert result["first_curriculum_divergence_generation"] == 5
     assert result["first_population_divergence_generation"] == 5
     assert result["first_model_divergence_generation"] == 0
+    assert result["earliest_divergence_generation"] == 0
+    assert result["earliest_divergence_signals"] == ["model"]
+    assert result["ordering_claim_available"] is True
+    assert result["ordering_claim"] == "model_diverges_first"
     assert result["checkpoints"][0]["curriculum_jaccard"] == 1.0
 
 
 def test_timeline_requires_complete_frozen_checkpoints() -> None:
     with pytest.raises(ValueError, match="incomplete"):
         build_divergence_timeline({"checkpoints": []}, {"checkpoints": []})
+
+
+def test_timeline_refuses_ordering_claim_when_signals_tie_at_checkpoint() -> None:
+    fixed = _arm(
+        [["x"], ["x"], ["x"], ["x"]],
+        [["p"], ["p"], ["p"], ["p"]],
+        "z",
+    )
+    adaptive = _arm(
+        [["x"], ["a"], ["a"], ["a"]],
+        [["p"], ["q"], ["q"], ["q"]],
+        "z",
+    )
+    # Keep model identity equal so curriculum/population are the first observable
+    # divergences, tied at generation 5.
+    result = build_divergence_timeline(adaptive, fixed)
+    assert result["earliest_divergence_generation"] == 5
+    assert result["earliest_divergence_signals"] == ["curriculum", "population"]
+    assert result["ordering_claim_available"] is False
+    assert result["ordering_claim"] is None
+    assert "cannot order signals" in result["ordering_note"]
