@@ -408,6 +408,27 @@ def diagnose_phase2g_receipts(
             ordering_summary["checkpoint_tie_count"] += 1
             ordering_summary["claims"][seed] = None
 
+    motion_counts: dict[str, int] = {}
+    cycling_seeds: list[int] = []
+    reversal_seeds: list[int] = []
+    for seed, row in seeds.items():
+        motion = row["A_H2_motion"]
+        classification = str(motion["classification"])
+        motion_counts[classification] = motion_counts.get(classification, 0) + 1
+        if bool(motion["cycling_supported_by_receipts"]):
+            cycling_seeds.append(int(seed))
+        if bool(motion["rank_direction_reversal_observed"]):
+            reversal_seeds.append(int(seed))
+
+    if cycling_seeds:
+        mechanism_verdict = "phase2h_receipt_level_cycling_evidence_observed"
+    elif reversal_seeds:
+        mechanism_verdict = "phase2h_rank_reversal_without_cycling_evidence"
+    elif motion_counts.get("drift_without_recurrence_or_rank_reversal", 0):
+        mechanism_verdict = "phase2h_drift_without_cycling_evidence"
+    else:
+        mechanism_verdict = "phase2h_no_adaptive_motion_evidence"
+
     payload: dict[str, Any] = {
         "schema_version": 1,
         "phase": "2H-diagnostics",
@@ -417,6 +438,16 @@ def diagnose_phase2g_receipts(
         "evolution_seeds": [int(seed) for seed in EVOLUTION_SEEDS],
         "primary_arms": list(PRIMARY_ARMS),
         "diagnostics": seeds,
+        "mechanism_verdict": mechanism_verdict,
+        "mechanism_verdict_basis": {
+            "A_motion_classification_counts": motion_counts,
+            "cycling_seed_count": len(cycling_seeds),
+            "cycling_seeds": sorted(cycling_seeds),
+            "rank_reversal_seed_count": len(reversal_seeds),
+            "rank_reversal_seeds": sorted(reversal_seeds),
+            "scope": "receipt_level_diagnostics_only",
+            "does_not_modify_phase2g_verdict": True,
+        },
         "A_vs_F_ordering_summary": ordering_summary,
         "causal_interpretation": {
             "causal_claim_supported": False,
