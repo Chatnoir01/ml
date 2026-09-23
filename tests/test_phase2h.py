@@ -213,3 +213,21 @@ def test_phase2h_never_promotes_checkpoint_ordering_to_causality() -> None:
         == len(EVOLUTION_SEEDS)
     )
     assert set(summary["claims"]) == {str(int(seed)) for seed in EVOLUTION_SEEDS}
+
+
+def test_phase2h_mechanism_verdict_is_conservative_and_phase2g_immutable() -> None:
+    raw = _inputs()
+    result = diagnose_phase2g_receipts(
+        raw,
+        phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(raw),
+    )
+    assert result["mechanism_verdict"] == "phase2h_drift_without_cycling_evidence"
+    basis = result["mechanism_verdict_basis"]
+    assert basis["cycling_seed_count"] == 0
+    assert basis["rank_reversal_seed_count"] == 0
+    assert basis["A_motion_classification_counts"] == {
+        "drift_without_recurrence_or_rank_reversal": len(EVOLUTION_SEEDS)
+    }
+    assert basis["scope"] == "receipt_level_diagnostics_only"
+    assert basis["does_not_modify_phase2g_verdict"] is True
