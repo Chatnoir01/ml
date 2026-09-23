@@ -16,7 +16,7 @@ def test_known_active_operation_can_be_authorized():
     assert evaluate(_request(), policy, KeyState.ACTIVE) is Decision.ALLOW
 
 
-@pytest.mark.parametrize("request", [
+@pytest.mark.parametrize("auth_request", [
     _request(operation=""),
     _request(key_handle=""),
     _request(nonce=""),
@@ -24,7 +24,7 @@ def test_known_active_operation_can_be_authorized():
     _request(policy_version=2),
     _request(hardware_backed=False),
 ])
-def test_invalid_or_unknown_request_denied(request):
+def test_invalid_or_unknown_request_denied(auth_request):
     policy = Policy(1, frozenset({"sign"}), require_hardware_backed=True)
     assert evaluate(request, policy, KeyState.ACTIVE) is Decision.DENY
 
