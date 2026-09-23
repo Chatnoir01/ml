@@ -193,3 +193,23 @@ def test_phase2h_h2_requires_actual_rank_direction_reversal() -> None:
     assert row["A_rank_reversal"]["pairwise_reversal_count"] >= 1
     # Rank reversal alone is still insufficient for a cycling claim.
     assert row["A_H2_motion"]["cycling_supported_by_receipts"] is False
+
+
+def test_phase2h_never_promotes_checkpoint_ordering_to_causality() -> None:
+    raw = _inputs()
+    result = diagnose_phase2g_receipts(
+        raw,
+        phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(raw),
+    )
+    causal = result["causal_interpretation"]
+    assert causal["causal_claim_supported"] is False
+    assert "observational" in causal["reason"]
+    summary = result["A_vs_F_ordering_summary"]
+    assert (
+        summary["single_signal_first_count"]
+        + summary["checkpoint_tie_count"]
+        + summary["unresolved_count"]
+        == len(EVOLUTION_SEEDS)
+    )
+    assert set(summary["claims"]) == {str(int(seed)) for seed in EVOLUTION_SEEDS}
