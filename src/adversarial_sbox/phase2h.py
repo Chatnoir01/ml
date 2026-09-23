@@ -257,11 +257,81 @@ def _recurrence(raw: Mapping[str, Any]) -> dict[str, Any]:
                 "curriculum_jaccard": float(len(curriculum_sets[left] & curriculum_sets[right]) / len(c_union)) if c_union else 1.0,
                 "population_jaccard": float(len(population_sets[left] & population_sets[right]) / len(p_union)) if p_union else 1.0,
             })
+    digest_groups: dict[str, list[int]] = {}
+    for generation in CHECKPOINT_GENERATIONS:
+        digest_groups.setdefault(
+            str(cps[generation]["curriculum_digest_sha256"]), []
+        ).append(int(generation))
+    exact_pairs = [
+        {"digest_sha256": digest, "generations": generations}
+        for digest, generations in sorted(digest_groups.items())
+        if len(generations) > 1
+    ]
     return {
         "nonadjacent_checkpoint_overlap": nonadjacent,
-        "exact_curriculum_digest_recurrence": len({
-            str(cps[g]["curriculum_digest_sha256"]) for g in CHECKPOINT_GENERATIONS
-        }) < len(CHECKPOINT_GENERATIONS),
+        "exact_curriculum_digest_recurrence": bool(exact_pairs),
+        "exact_curriculum_digest_recurrence_groups": exact_pairs,
+    }
+
+
+def _rank_reversals(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Detect actual pairwise rank-direction reversals across comparable events."""
+    observations: dict[tuple[str, str], list[tuple[int, int]]] = {}
+    comparable_events = 0
+    for event in sorted(_selection_events(raw), key=_event_key):
+        order = _rank_order(event)
+        if order is None:
+            continue
+        comparable_events += 1
+        position = {fp: index for index, fp in enumerate(order)}
+        generation = int(event.get("generation", -1))
+        for i, left in enumerate(order):
+            for right in order[i + 1:]:
+                pair = tuple(sorted((left, right)))
+                direction = 1 if position[pair[0]] < position[pair[1]] else -1
+                observations.setdefault(pair, []).append((generation, direction))
+
+    reversals = []
+    for pair, values in sorted(observations.items()):
+        directions = {direction for _, direction in values}
+        if len(directions) > 1:
+            reversals.append({
+                "pair": list(pair),
+                "observations": [
+                    {"generation": generation, "direction": direction}
+                    for generation, direction in values
+                ],
+            })
+    return {
+        "comparable_event_count": comparable_events,
+        "pairwise_reversal_count": len(reversals),
+        "pairwise_reversals": reversals,
+        "true_rank_reversal_observed": bool(reversals),
+    }
+
+
+def _h2_motion_classification(raw: Mapping[str, Any]) -> dict[str, Any]:
+    recurrence = _recurrence(raw)
+    reversal = _rank_reversals(raw)
+    drift = _curriculum_drift(raw)
+    exact = bool(recurrence["exact_curriculum_digest_recurrence"])
+    reversed_rank = bool(reversal["true_rank_reversal_observed"])
+    moved = int(drift["transition_change_count"]) > 0
+    if reversed_rank:
+        classification = "rank_direction_reversal_observed"
+    elif exact:
+        classification = "exact_recurrence_without_rank_reversal"
+    elif moved:
+        classification = "drift_without_recurrence_or_rank_reversal"
+    else:
+        classification = "stable_no_motion"
+    return {
+        "classification": classification,
+        "curriculum_moved": moved,
+        "exact_recurrence_observed": exact,
+        "rank_direction_reversal_observed": reversed_rank,
+        "cycling_supported_by_receipts": exact and reversed_rank,
+        "note": "movement alone is not classified as cycling",
     }
 
 def diagnose_phase2g_receipts(
@@ -312,6 +382,10 @@ def diagnose_phase2g_receipts(
             "F_classical_distortion": _classical_distortion(fixed),
             "A_recurrence": _recurrence(adaptive),
             "F_recurrence": _recurrence(fixed),
+            "A_rank_reversal": _rank_reversals(adaptive),
+            "F_rank_reversal": _rank_reversals(fixed),
+            "A_H2_motion": _h2_motion_classification(adaptive),
+            "F_H2_motion": _h2_motion_classification(fixed),
             "A_vs_F_timeline": build_divergence_timeline(adaptive, fixed),
         }
 
