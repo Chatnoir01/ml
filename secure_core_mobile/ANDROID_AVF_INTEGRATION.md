@@ -139,3 +139,18 @@ The AOSP VTS client confirms the architectural split of two AuthGraph AES keys:
 aes_keys[0] protects client->Secretkeeper requests and aes_keys[1] protects
 Secretkeeper->client responses, with the AuthGraph session_id supplied to the
 COSE cipher layer.
+
+
+## AOSP SkSession reconciliation
+
+Current AOSP Secretkeeper client code maintains two independent AES keys
+(encryption_key and decryption_key), one AuthGraph session_id, and independent
+outgoing/incoming SeqNum counters. The outgoing sequence is consumed for request
+AAD and the incoming sequence for response AAD.
+
+Secure Core now mirrors that state split in SecretkeeperSessionCore. Failed
+response authentication does not consume the incoming sequence. A response
+encrypted with the request-direction key is rejected.
+
+This remains transport-independent: Binder ISecretkeeper and native AuthGraph
+key exchange are not simulated as trusted platform behavior.
