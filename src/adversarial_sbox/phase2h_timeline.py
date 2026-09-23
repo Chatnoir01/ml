@@ -73,9 +73,32 @@ def build_divergence_timeline(
             }
         )
 
+    ordered_signals = [
+        ("curriculum", first_curriculum),
+        ("population", first_population),
+        ("model", first_model),
+    ]
+    observed = [(name, generation) for name, generation in ordered_signals if generation is not None]
+    earliest_generation = min((generation for _, generation in observed), default=None)
+    earliest_signals = [
+        name for name, generation in observed if generation == earliest_generation
+    ]
     return {
         "checkpoints": rows,
         "first_curriculum_divergence_generation": first_curriculum,
         "first_population_divergence_generation": first_population,
         "first_model_divergence_generation": first_model,
+        "earliest_divergence_generation": earliest_generation,
+        "earliest_divergence_signals": earliest_signals,
+        "ordering_claim_available": len(earliest_signals) == 1,
+        "ordering_claim": (
+            f"{earliest_signals[0]}_diverges_first"
+            if len(earliest_signals) == 1
+            else None
+        ),
+        "ordering_note": (
+            "checkpoint resolution cannot order signals tied at the earliest observed generation"
+            if len(earliest_signals) > 1
+            else None
+        ),
     }
