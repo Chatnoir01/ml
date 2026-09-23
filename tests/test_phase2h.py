@@ -5,6 +5,7 @@ import copy
 import pytest
 
 from adversarial_sbox.phase2g import CHECKPOINT_GENERATIONS, EVOLUTION_SEEDS
+from adversarial_sbox.phase2h_evidence import build_evidence_manifest
 from adversarial_sbox.phase2h import (
     PARENT_AGGREGATE_SHA256,
     PARENT_PHASE2G_COMMIT,
@@ -119,3 +120,8 @@ def test_phase2h_classical_distortion_fails_closed_without_ledger_rows() -> None
     for seed in EVOLUTION_SEEDS:
         row = result["diagnostics"][str(int(seed))]
         assert row["A_classical_distortion"]["paired_membership_changes"] == 0
+
+
+def test_diagnostics_refuse_to_run_without_frozen_manifest() -> None:
+    with pytest.raises(ValueError, match="requires a frozen evidence manifest"):
+        diagnose_phase2g_receipts([], phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256)
