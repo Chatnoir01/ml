@@ -35,8 +35,8 @@ Exit: every claimed distortion is traceable to exact fingerprints and ledger row
 
 ## Lane D — A/F divergence timeline
 
-- [ ] D1 define comparable state identities at checkpoints.
-- [ ] D2 identify earliest curriculum/model/rank/population divergence per seed.
+- [x] D1 define comparable state identities at checkpoints.
+- [x] D2 identify earliest curriculum/model/rank/population divergence per seed.
 - [ ] D3 attach downstream selection events.
 - [ ] D4 attach terminal A-F held-out gap only after causal ordering is frozen.
 
@@ -76,10 +76,10 @@ Exit: engineering ready; scientific execution still impossible before frozen 2H.
 
 ## Lane H — CI/repository integration
 
-- [ ] H1 detect first workflow attached to 2H head.
-- [ ] H2 inspect failures without changing scientific hypotheses.
-- [ ] H3 fix implementation defects only.
-- [ ] H4 require green scientific/test gates before merge.
-- [ ] H5 mergeability/base synchronization audit.
+- [x] H1 detect first workflow attached to 2H head.
+- [x] H2 inspect failures without changing scientific hypotheses. (No failures observed on current head.)
+- [x] H3 fix implementation defects only. (No CI defect observed on current head.)
+- [x] H4 require green scientific/test gates before merge. (Phase 0 CI + Phase 1 Benchmark green on audited head.)
+- [x] H5 mergeability/base synchronization audit. (PR mergeable on audited head.)
 
 Exit: repository proof agrees with local scientific contracts.
