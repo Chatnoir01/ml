@@ -26,7 +26,7 @@ def test_known_active_operation_can_be_authorized():
 ])
 def test_invalid_or_unknown_request_denied(auth_request):
     policy = Policy(1, frozenset({"sign"}), require_hardware_backed=True)
-    assert evaluate(request, policy, KeyState.ACTIVE) is Decision.DENY
+    assert evaluate(auth_request, policy, KeyState.ACTIVE) is Decision.DENY
 
 
 @pytest.mark.parametrize("state", [KeyState.REVOKED, KeyState.DESTROYED])
