@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from enum import StrEnum
+try:
+    from enum import StrEnum
+except ImportError:  # Python 3.10 compatibility
+    from enum import Enum
+
+    class StrEnum(str, Enum):
+        """Compatibility shim matching Python 3.11 enum.StrEnum values."""
+
+        def __str__(self) -> str:
+            return str(self.value)
 
 
 class Decision(StrEnum):
