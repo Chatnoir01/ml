@@ -152,3 +152,44 @@ def test_phase2h_classical_distortion_fails_closed_without_ledger_rows() -> None
 def test_diagnostics_refuse_to_run_without_frozen_manifest() -> None:
     with pytest.raises(ValueError, match="requires a frozen evidence manifest"):
         diagnose_phase2g_receipts([], phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256)
+
+
+def test_phase2h_h2_distinguishes_drift_from_cycling() -> None:
+    raw = _inputs()
+    result = diagnose_phase2g_receipts(
+        raw,
+        phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(raw),
+    )
+    for seed in EVOLUTION_SEEDS:
+        row = result["diagnostics"][str(int(seed))]
+        assert row["A_H2_motion"]["classification"] == "drift_without_recurrence_or_rank_reversal"
+        assert row["A_H2_motion"]["cycling_supported_by_receipts"] is False
+        assert row["F_H2_motion"]["classification"] == "exact_recurrence_without_rank_reversal"
+        assert row["F_H2_motion"]["cycling_supported_by_receipts"] is False
+
+
+def test_phase2h_h2_requires_actual_rank_direction_reversal() -> None:
+    raw = _inputs()
+    adaptive = next(item for item in raw if item["arm"] == "A")
+    adaptive["selection_events"].append({
+        "generation": 10,
+        "stage": "survivor",
+        "neural_selection_enabled": True,
+        "boundary_opportunity": True,
+        "b1_group": ["a", "b", "c"],
+        "scored_candidate_count": 3,
+        "assigned_scores": {"a": 0.05, "b": 0.2, "c": 0.3},
+        "cross_protected_key_membership_change": True,
+        "score_caused_entered": ["a"],
+    })
+    result = diagnose_phase2g_receipts(
+        raw,
+        phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(raw),
+    )
+    row = result["diagnostics"][str(int(adaptive["seed"]))]
+    assert row["A_rank_reversal"]["true_rank_reversal_observed"] is True
+    assert row["A_rank_reversal"]["pairwise_reversal_count"] >= 1
+    # Rank reversal alone is still insufficient for a cycling claim.
+    assert row["A_H2_motion"]["cycling_supported_by_receipts"] is False
