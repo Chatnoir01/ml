@@ -53,16 +53,45 @@ class InMemoryLifecycleJournal:
         return txid
 
     def commit(self, txid: str, *, operation: str, handle: str) -> JournalEntry:
-        return self._append(txid=txid, operation=operation, handle=handle, phase=JournalPhase.COMMIT)
+        with self._lock:
+            intents = [e for e in self._entries if e.txid == txid and e.phase is JournalPhase.INTENT]
+            commits = [e for e in self._entries if e.txid == txid and e.phase is JournalPhase.COMMIT]
+            if len(intents) != 1:
+                raise ValueError("lifecycle journal commit requires exactly one matching intent")
+            intent = intents[0]
+            if intent.operation != operation or intent.handle != handle:
+                raise ValueError("lifecycle journal commit metadata mismatch")
+            if commits:
+                raise ValueError("lifecycle journal transaction already committed")
+            previous = self._entries[-1].entry_sha256 if self._entries else "0" * 64
+            body = json.dumps({
+                "txid": txid, "operation": operation, "handle": handle,
+                "phase": JournalPhase.COMMIT.value, "previous_sha256": previous,
+            }, sort_keys=True, separators=(",", ":")).encode()
+            digest = hashlib.sha256(body).hexdigest()
+            entry = JournalEntry(txid, operation, handle, JournalPhase.COMMIT, previous, digest)
+            self._entries.append(entry)
+            return entry
 
     def incomplete(self) -> tuple[JournalEntry, ...]:
         with self._lock:
-            committed = {e.txid for e in self._entries if e.phase is JournalPhase.COMMIT}
-            return tuple(e for e in self._entries if e.phase is JournalPhase.INTENT and e.txid not in committed)
+            committed = {
+                (e.txid, e.operation, e.handle)
+                for e in self._entries if e.phase is JournalPhase.COMMIT
+            }
+            return tuple(
+                e for e in self._entries
+                if e.phase is JournalPhase.INTENT
+                and (e.txid, e.operation, e.handle) not in committed
+            )
 
     def verify_chain(self) -> None:
+        with self._lock:
+            entries = tuple(self._entries)
         previous = "0" * 64
-        for entry in self._entries:
+        seen_intents: dict[str, tuple[str, str]] = {}
+        committed: set[str] = set()
+        for entry in entries:
             if entry.previous_sha256 != previous:
                 raise ValueError("lifecycle journal chain broken")
             body = json.dumps({
@@ -71,4 +100,16 @@ class InMemoryLifecycleJournal:
             }, sort_keys=True, separators=(",", ":")).encode()
             if hashlib.sha256(body).hexdigest() != entry.entry_sha256:
                 raise ValueError("lifecycle journal entry digest mismatch")
+            if entry.phase is JournalPhase.INTENT:
+                if entry.txid in seen_intents:
+                    raise ValueError("duplicate lifecycle journal intent")
+                seen_intents[entry.txid] = (entry.operation, entry.handle)
+            else:
+                if entry.txid not in seen_intents:
+                    raise ValueError("lifecycle journal commit without intent")
+                if entry.txid in committed:
+                    raise ValueError("duplicate lifecycle journal commit")
+                if seen_intents[entry.txid] != (entry.operation, entry.handle):
+                    raise ValueError("lifecycle journal commit metadata mismatch")
+                committed.add(entry.txid)
             previous = entry.entry_sha256
