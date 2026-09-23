@@ -389,6 +389,25 @@ def diagnose_phase2g_receipts(
             "A_vs_F_timeline": build_divergence_timeline(adaptive, fixed),
         }
 
+    ordering_summary = {
+        "single_signal_first_count": 0,
+        "checkpoint_tie_count": 0,
+        "unresolved_count": 0,
+        "claims": {},
+    }
+    for seed, row in seeds.items():
+        timeline = row["A_vs_F_timeline"]
+        claim = timeline.get("ordering_claim")
+        if claim is not None:
+            ordering_summary["single_signal_first_count"] += 1
+            ordering_summary["claims"][seed] = claim
+        elif timeline.get("earliest_divergence_generation") is None:
+            ordering_summary["unresolved_count"] += 1
+            ordering_summary["claims"][seed] = None
+        else:
+            ordering_summary["checkpoint_tie_count"] += 1
+            ordering_summary["claims"][seed] = None
+
     payload: dict[str, Any] = {
         "schema_version": 1,
         "phase": "2H-diagnostics",
@@ -398,6 +417,14 @@ def diagnose_phase2g_receipts(
         "evolution_seeds": [int(seed) for seed in EVOLUTION_SEEDS],
         "primary_arms": list(PRIMARY_ARMS),
         "diagnostics": seeds,
+        "A_vs_F_ordering_summary": ordering_summary,
+        "causal_interpretation": {
+            "causal_claim_supported": False,
+            "reason": (
+                "checkpoint ordering is observational; receipts do not identify "
+                "an intervention isolating curriculum, population, or model effects"
+            ),
+        },
         "availability": {
             "curriculum_digest_drift": True,
             "A_vs_F_rank_turnover": True,
