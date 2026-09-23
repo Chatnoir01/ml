@@ -218,3 +218,17 @@ trailing-data rejection.
 Successful payload extraction is explicitly NOT signature verification. The
 next gate must verify each COSE_Sign1 signature and public-key chaining before
 any parsed chain can contribute authenticity evidence.
+
+
+## COSE_Sign1 cryptographic verification gate
+
+Secure Core now verifies the COSE Sig_structure
+["Signature1", protected, external_aad, payload] for an ES256/P-256 subset.
+COSE's raw 64-byte R||S signature is converted to the DER representation
+expected by the cryptography backend. Tests reject payload mutation, a wrong
+parent key and an unexpected protected algorithm.
+
+This proves only signature validity under the supplied parent key. Full DICE
+chain verification still requires extracting each next subject public key from
+the authenticated DICE payload and carrying it forward as the next parent.
+Platform provenance remains a separate gate.
