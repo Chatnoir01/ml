@@ -51,6 +51,14 @@ def _receipt(seed: int, arm: str, *, adaptive: bool) -> dict:
     }
 
 
+def _manifest(raw: list[dict]) -> dict:
+    return build_evidence_manifest(
+        raw,
+        parent_commit=PARENT_PHASE2G_COMMIT,
+        parent_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+    )
+
+
 def _inputs() -> list[dict]:
     out = []
     for seed in EVOLUTION_SEEDS:
@@ -65,6 +73,7 @@ def test_phase2h_is_deterministic_and_parent_bound() -> None:
     second = diagnose_phase2g_receipts(
         list(reversed(copy.deepcopy(raw))),
         phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(reversed_raw),
     )
     assert first == second
     assert first["parent_phase2g_commit"] == PARENT_PHASE2G_COMMIT
@@ -73,7 +82,7 @@ def test_phase2h_is_deterministic_and_parent_bound() -> None:
 
 def test_phase2h_fails_closed_on_wrong_parent() -> None:
     with pytest.raises(ValueError, match="parent aggregate"):
-        diagnose_phase2g_receipts(_inputs(), phase2g_aggregate_sha256="0" * 64)
+        diagnose_phase2g_receipts(_inputs(), phase2g_aggregate_sha256="0" * 64, evidence_manifest=_manifest(_inputs()))
 
 
 def test_phase2h_requires_all_primary_cells() -> None:
