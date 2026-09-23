@@ -205,3 +205,16 @@ Secure Core now reproduces that authoritative vector byte-for-byte and tests
 that input map order cannot alter the resulting explicit chain. This validates
 the minimal root-key canonicalization path only; COSE_Sign1 DiceChainEntry
 decoding/signature verification remains a separate gate.
+
+
+## COSE_Sign1 DICE entry structural parsing
+
+AOSP dice_policy treats explicit-chain nodes 0 and 1 directly, then parses each
+later DiceChainEntry as COSE_Sign1 and decodes the embedded payload as CBOR
+before applying policy constraints. Secure Core now implements that structural
+path with strict truncation, canonical integer/length, duplicate-map-key and
+trailing-data rejection.
+
+Successful payload extraction is explicitly NOT signature verification. The
+next gate must verify each COSE_Sign1 signature and public-key chaining before
+any parsed chain can contribute authenticity evidence.
