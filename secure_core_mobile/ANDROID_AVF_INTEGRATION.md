@@ -179,3 +179,16 @@ Secure Core now pins those constants and emits a deterministic CBOR subset for
 DicePolicy v1 using numeric paths. This removes the previous symbolic-path gap.
 It is still not called byte-for-byte AOSP compatible until golden vectors from
 AOSP's Rust policy builder are imported and compared.
+
+
+## DICE policy builder behavior
+
+The AOSP builder constructs policy from the observed DICE chain. It exact-matches
+the first two chain nodes (version and root public key), then applies requested
+ConstraintSpecs to later certificate nodes. MissingAction::Ignore skips a
+constraint only while policy is being built; it does not weaken later matching.
+
+Secure Core now has the same builder semantics over an already-decoded chain
+model, including fail/ignore handling and integer enforcement for
+GreaterOrEqual. DICE certificate-chain CBOR decoding is still outside this
+module and remains a separate compatibility gate.
