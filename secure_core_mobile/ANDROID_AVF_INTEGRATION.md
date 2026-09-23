@@ -245,3 +245,20 @@ chain and reject a second certificate signed by an unrelated attacker key.
 This establishes cryptographic chain continuity under the caller-supplied root.
 It still does not establish that the root itself is Android/AVF authoritative,
 and therefore cannot independently produce PLATFORM_VERIFIED evidence.
+
+
+## AuthGraph peer_identity binding
+
+AOSP Secretkeeper uses peer_identity returned by the AuthGraph exchange as the
+client DICE chain supplied to policy-gated storage. Secure Core now models that
+binding explicitly: a policy authorization context is tied to both the
+AuthGraph session_id and a digest of the exact peer_identity DICE chain.
+
+Tests reject substitution of an attacker-provided chain and replay of a valid
+peer identity into another session. This closes the semantic gap where a
+cryptographically valid but unrelated DICE chain could otherwise be passed to
+policy evaluation.
+
+This is still an integration contract. Until the native AuthGraph exchange
+produces the peer_identity in-process, test-created AuthGraphPeerIdentity values
+must not be treated as platform evidence.
