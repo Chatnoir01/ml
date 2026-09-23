@@ -192,3 +192,16 @@ Secure Core now has the same builder semantics over an already-decoded chain
 model, including fail/ignore handling and integer enforcement for
 GreaterOrEqual. DICE certificate-chain CBOR decoding is still outside this
 module and remains a separate compatibility gate.
+
+
+## First byte-for-byte AOSP golden vector
+
+AOSP libsecretkeeper_client contains a deterministic ExplicitKeyDiceCertChain
+unit vector. Its unordered root COSE_Key {"a":1, 3:-7, 1234:1, 1:1} must
+canonicalize to a4010103261904d201616101 and the complete two-node explicit
+chain must be 82014ca4010103261904d201616101.
+
+Secure Core now reproduces that authoritative vector byte-for-byte and tests
+that input map order cannot alter the resulting explicit chain. This validates
+the minimal root-key canonicalization path only; COSE_Sign1 DiceChainEntry
+decoding/signature verification remains a separate gate.
