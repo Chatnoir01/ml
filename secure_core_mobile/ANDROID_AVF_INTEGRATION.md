@@ -232,3 +232,16 @@ This proves only signature validity under the supplied parent key. Full DICE
 chain verification still requires extracting each next subject public key from
 the authenticated DICE payload and carrying it forward as the next parent.
 Platform provenance remains a separate gate.
+
+
+## Multi-hop DICE signature chaining
+
+Secure Core now verifies a multi-hop ES256 DICE subset. After each COSE_Sign1
+signature succeeds, SUBJECT_PUBLIC_KEY is read only from that authenticated
+payload, decoded as an EC2/P-256/ES256 COSE_Key, and carried forward as the
+parent verifier for the next entry. Tests include a two-hop root->middle->leaf
+chain and reject a second certificate signed by an unrelated attacker key.
+
+This establishes cryptographic chain continuity under the caller-supplied root.
+It still does not establish that the root itself is Android/AVF authoritative,
+and therefore cannot independently produce PLATFORM_VERIFIED evidence.
