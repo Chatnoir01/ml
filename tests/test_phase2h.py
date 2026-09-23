@@ -94,7 +94,7 @@ def test_phase2h_requires_all_primary_cells() -> None:
     raw = _inputs()
     manifest = _manifest(raw)
     raw.pop()
-    with pytest.raises(ValueError, match="missing Phase-2H evidence cells"):
+    with pytest.raises(ValueError, match="incomplete Phase-2H input evidence"):
         diagnose_phase2g_receipts(
             raw,
             phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
