@@ -3,10 +3,15 @@ import pytest
 from secure_core_mobile.authgraph_session import (
     AuthGraphSession,
     AuthGraphSessionState,
+    PvmfwValidatedSecretkeeperKey,
     VerifiedSecretkeeperIdentity,
     _TOKEN_KEY,
 )
 from secure_core_mobile.secretkeeper_protocol import StoreSecretRequest, GetSecretRequest
+
+
+def _pvmfw(key: bytes) -> PvmfwValidatedSecretkeeperKey:
+    return PvmfwValidatedSecretkeeperKey(key)
 
 
 def _verified(key: bytes) -> VerifiedSecretkeeperIdentity:
@@ -32,7 +37,7 @@ def test_authgraph_requires_pinned_and_verified_secretkeeper_identity():
         session.mark_native_exchange_established(
             verified_identity=_verified(b"cbor-cose-key"), session_id=b"sid"
         )
-    session.pin_secretkeeper_identity(b"cbor-cose-key")
+    session.pin_secretkeeper_identity(_pvmfw(b"cbor-cose-key"))
     with pytest.raises(ValueError, match="does not match"):
         session.mark_native_exchange_established(
             verified_identity=_verified(b"wrong-key"), session_id=b"sid"
@@ -46,7 +51,7 @@ def test_authgraph_requires_pinned_and_verified_secretkeeper_identity():
 
 def test_closed_session_erases_pinned_identity_and_cannot_process():
     session = AuthGraphSession()
-    session.pin_secretkeeper_identity(b"key")
+    session.pin_secretkeeper_identity(_pvmfw(b"key"))
     session.mark_native_exchange_established(
         verified_identity=_verified(b"key"), session_id=b"sid"
     )
@@ -57,7 +62,7 @@ def test_closed_session_erases_pinned_identity_and_cannot_process():
 
 def test_authgraph_allocates_monotonic_request_sequence_per_session():
     session = AuthGraphSession()
-    session.pin_secretkeeper_identity(b"key")
+    session.pin_secretkeeper_identity(_pvmfw(b"key"))
     session.mark_native_exchange_established(
         verified_identity=_verified(b"key"), session_id=b"sid"
     )
