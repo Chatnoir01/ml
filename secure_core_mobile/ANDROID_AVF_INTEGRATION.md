@@ -71,6 +71,15 @@ CRYPTOGRAPHICALLY_VERIFIED. PLATFORM_VERIFIED additionally requires the
 separately provisioned authoritative Android AVF trust profile. No authoritative
 root bundle is fabricated in this repository.
 
+The authoritative verifier engine is now executable: it accepts only a trust
+profile whose exact anchor bundle hashes to a pre-provisioned profile pin,
+verifies the certificate chain, challenge, secure-VM flag and component policy,
+then emits verifier-issued PLATFORM_VERIFIED evidence. The repository ships no
+production Android/RKP anchors and no production profile pin, so the default
+authoritative verifier remains fail-closed until those values are provisioned
+inside the protected deployment boundary. Synthetic roots are test-only and do
+not constitute Android platform evidence.
+
 
 ## Secretkeeper / rollback-protected persistence
 
