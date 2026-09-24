@@ -160,10 +160,16 @@ def load_aosp_secretkeeper_contract_lock(
         "vts_client_sha256",
         "contract_receipt_sha256",
     }
-    if set(payload) != expected_keys:
+    allowed_keys = expected_keys | {"lock_sha256"}
+    if set(payload) not in (expected_keys, allowed_keys):
         raise ValueError("unexpected AOSP Secretkeeper contract lock fields")
 
+    claimed_lock_sha = payload.pop("lock_sha256", None)
     lock = AospSecretkeeperContractLock(**payload)
+    if claimed_lock_sha is not None:
+        _require_sha256(claimed_lock_sha, label="lock")
+        if claimed_lock_sha != lock.lock_sha256:
+            raise ValueError("AOSP Secretkeeper lock self-digest mismatch")
     _require_sha256(lock.aidl_sha256, label="AIDL")
     _require_sha256(lock.client_sha256, label="client")
     _require_sha256(lock.vts_client_sha256, label="VTS client")
