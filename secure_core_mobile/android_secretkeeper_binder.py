@@ -15,7 +15,6 @@ from typing import Callable
 from .android_native_bridge import (
     AndroidNativeBridgeCallError,
     AndroidNativeBridgeUnavailable,
-    MAX_CERTIFICATE_CHAIN_BYTES,
     NativeBridgeProbe,
     NativeBridgeState,
 )
@@ -98,11 +97,7 @@ class AndroidSecretkeeperBinderBridge:
 
         try:
             size = int(response.size)
-            if (
-                size <= 0
-                or size > MAX_PROTECTED_PACKET_BYTES
-                or size > MAX_CERTIFICATE_CHAIN_BYTES * 2
-            ):
+            if size <= 0 or size > MAX_PROTECTED_PACKET_BYTES:
                 raise AndroidNativeBridgeUnavailable(
                     "Secretkeeper Binder bridge returned invalid response size"
                 )
