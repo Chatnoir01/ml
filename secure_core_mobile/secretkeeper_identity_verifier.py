@@ -2,7 +2,8 @@
 
 The native/platform evidence provider is deliberately unavailable. This module
 only implements the deterministic binding check that converts verifier-issued
-pvmfw reference-DT evidence into the token accepted by AuthGraphSession.
+pvmfw/reference-DT semantics plus authoritative AVF platform evidence into the
+token accepted by AuthGraphSession.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from .secretkeeper_cose_key import parse_secretkeeper_cose_key
 
 
 _EVIDENCE_ISSUER_KEY = object()
-PVMFW_BINDING_PROVENANCE = "pvmfw-reference-dt-verified"
+PVMFW_BINDING_PROVENANCE = "pvmfw-reference-dt-bound-to-platform-evidence"
 
 
 def _require_sha256(value: str, *, label: str) -> None:
@@ -34,7 +35,7 @@ class PvmfwSecretkeeperBindingEvidence:
 
     __slots__ = (
         "public_key_sha256",
-        "reference_dt_evidence_sha256",
+        "platform_evidence_sha256",
         "provenance",
     )
 
@@ -43,29 +44,29 @@ class PvmfwSecretkeeperBindingEvidence:
         *,
         _key: object,
         public_key_sha256: str,
-        reference_dt_evidence_sha256: str,
+        platform_evidence_sha256: str,
         provenance: str = PVMFW_BINDING_PROVENANCE,
     ) -> None:
         if _key is not _EVIDENCE_ISSUER_KEY:
             raise TypeError("pvmfw Secretkeeper binding evidence is verifier-issued only")
         _require_sha256(public_key_sha256, label="Secretkeeper public key")
-        _require_sha256(reference_dt_evidence_sha256, label="reference-DT evidence")
+        _require_sha256(platform_evidence_sha256, label="AVF platform evidence")
         if provenance != PVMFW_BINDING_PROVENANCE:
             raise ValueError("unexpected pvmfw Secretkeeper evidence provenance")
         self.public_key_sha256 = public_key_sha256
-        self.reference_dt_evidence_sha256 = reference_dt_evidence_sha256
+        self.platform_evidence_sha256 = platform_evidence_sha256
         self.provenance = provenance
 
 
 class PvmfwSecretkeeperEvidenceProviderUnavailable:
-    """Placeholder for the future native pvmfw/reference-DT evidence provider."""
+    """Placeholder for the future native pvmfw/AVF platform evidence provider."""
 
     def collect(
         self,
         public_key: PvmfwValidatedSecretkeeperKey,
     ) -> PvmfwSecretkeeperBindingEvidence:
         raise RuntimeError(
-            "pvmfw reference-DT Secretkeeper identity evidence provider not implemented"
+            "authoritative AVF-bound Secretkeeper identity evidence provider not implemented"
         )
 
 
@@ -94,6 +95,6 @@ class PvmfwSecretkeeperIdentityVerifier:
             public_key_sha256=actual,
             provenance=(
                 f"{evidence.provenance}:"
-                f"{evidence.reference_dt_evidence_sha256}"
+                f"{evidence.platform_evidence_sha256}"
             ),
         )
