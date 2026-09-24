@@ -45,7 +45,7 @@ def _evidence(encoded: bytes) -> PvmfwSecretkeeperBindingEvidence:
     return PvmfwSecretkeeperBindingEvidence(
         _key=_EVIDENCE_ISSUER_KEY,
         public_key_sha256=hashlib.sha256(encoded).hexdigest(),
-        reference_dt_evidence_sha256="a" * 64,
+        platform_evidence_sha256="a" * 64,
     )
 
 
@@ -54,7 +54,7 @@ def test_caller_cannot_self_issue_pvmfw_binding_evidence() -> None:
         PvmfwSecretkeeperBindingEvidence(
             _key=object(),
             public_key_sha256="b" * 64,
-            reference_dt_evidence_sha256="a" * 64,
+            platform_evidence_sha256="a" * 64,
         )
 
 
@@ -70,7 +70,7 @@ def test_pvmfw_binding_evidence_can_issue_authgraph_identity_token() -> None:
     identity = PvmfwSecretkeeperIdentityVerifier().verify(key, _evidence(encoded))
 
     assert identity.public_key_sha256 == hashlib.sha256(encoded).hexdigest()
-    assert identity.provenance.startswith("pvmfw-reference-dt-verified:")
+    assert identity.provenance.startswith("pvmfw-reference-dt-bound-to-platform-evidence:")
 
 
 def test_binding_evidence_for_different_key_is_rejected() -> None:
