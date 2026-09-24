@@ -5,7 +5,7 @@ import hashlib
 from .avf_certificate import verify_avf_leaf_claims
 from .avf_policy import AvfComponentPolicy
 from .cert_chain import CertificateTrustStore, verify_certificate_chain
-from .platform_evidence import PlatformEvidenceLevel, PlatformVerification
+from .platform_evidence import PlatformVerification, generic_crypto_result
 
 @dataclass(frozen=True)
 class AvfTrustProfile:
@@ -24,4 +24,4 @@ def verify_avf_platform(*,chain_der:tuple[bytes,...],challenge:bytes,component_p
     claims=verify_avf_leaf_claims(chain_der[0],expected_challenge=challenge)
     component_policy.verify(claims)
     evidence_sha=hashlib.sha256(b"".join(chain_der)).hexdigest()
-    return PlatformVerification(PlatformEvidenceLevel.CRYPTOGRAPHICALLY_VERIFIED,None,evidence_sha)
+    return generic_crypto_result(verified=True, evidence_sha256=evidence_sha)
