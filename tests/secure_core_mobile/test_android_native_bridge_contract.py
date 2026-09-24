@@ -20,7 +20,11 @@ def test_native_bridge_uses_attestation_chain_api_without_exporting_private_key(
     assert "AVmAttestationResult_free" in source
     assert "AVmAttestationResult_getPrivateKey" not in source
     assert "AVmAttestationResult_sign" not in source
-    assert 'shared_libs: ["libvm_payload#current"]' in ANDROID_BP.read_text(encoding="utf-8")
+    android_bp = ANDROID_BP.read_text(encoding="utf-8")
+    assert 'shared_libs: ["libvm_payload#current"]' in android_bp
+    assert "cc_library {" in android_bp
+    assert 'name: "libsecure_core_avf_attestation_bridge"' in android_bp
+    assert "cc_library_static {" not in android_bp
 
 
 def test_native_bridge_compiles_and_enforces_memory_contract(tmp_path: Path) -> None:
