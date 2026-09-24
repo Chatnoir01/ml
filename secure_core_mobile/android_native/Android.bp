@@ -25,6 +25,7 @@ cc_library {
     srcs: [
         "avf_attestation_bridge.cpp",
         "avf_profile_pin_bridge.cpp",
+        "rollback_protected_secret_bridge.cpp",
         "secretkeeper_transport_bridge.cpp",
     ],
     export_include_dirs: ["."],
