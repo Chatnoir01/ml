@@ -109,8 +109,11 @@ CBOR-encoded COSE public key through the protected AVF device-tree path at
 reference DT before the guest consumes it.
 
 Secure Core now models these protocol sizes and the fail-closed session
-transition. Native AuthGraph key exchange, CBOR/COSE decoding, AES-GCM protected
-packets, Binder/HAL transport and device-tree retrieval remain unimplemented.
+transition. The protected device-tree Secretkeeper-key retrieval path is now
+implemented as a bounded, exact-path, fail-closed input boundary. Reading that
+property does not verify Secretkeeper identity and cannot establish platform
+trust. Native AuthGraph key exchange, authoritative Secretkeeper identity
+verification, and Binder/HAL transport remain unimplemented.
 
 
 ## COSE_Encrypt0 development codec
