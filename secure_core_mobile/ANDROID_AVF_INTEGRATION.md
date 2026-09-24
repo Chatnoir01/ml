@@ -88,21 +88,20 @@ pVM clients. Its storage contract includes confidentiality, integrity,
 persistence and rollback detection. Access is gated by DICE policy.
 
 For updatable Microdroid VMs, AOSP documents a Secretkeeper-protected random
-secret plus DICE sealing material. The pVM communicates with Secretkeeper over
-an AuthGraph-derived encrypted channel even though Android transports the
-messages and is treated as untrusted.
+secret plus DICE sealing material. Current Microdroid places the Secretkeeper /
+AuthGraph interaction in Microdroid Manager on behalf of the payload. Ordinary
+payload code is not modeled as a general Binder client.
 
-Secure Core therefore requires all of the following before mapping Secretkeeper
-to a rollback-resistant monotonic security root:
+For the payload boundary, Secure Core therefore uses the VM Payload API:
+`AVmPayload_writeRollbackProtectedSecret` and
+`AVmPayload_readRollbackProtectedSecret`. These APIs expose exactly 32 bytes
+of rollback-detectable storage on supported systems while keeping the direct
+Secretkeeper/AuthGraph exchange outside the payload.
 
-- Secretkeeper identity verified by the pVM trust path;
-- AuthGraph secure channel established;
-- DICE policy-gated storage active;
-- rollback-protected storage capability established.
-
-The repository currently contains only the executable contract and a
-fail-closed unavailable backend. No Android HAL/AuthGraph implementation is
-claimed.
+Secure Core now has an executable native bridge and Python adapter for this
+32-byte storage plus a strict monotonic-state encoding. The resulting root
+still reports `hardware_resistant=false` and `boundary_owned=false` until
+real AVF/device evidence demonstrates those properties in the tested build.
 
 
 ## AuthGraph + SecretManagement protocol contract
@@ -153,15 +152,30 @@ bytes are excluded. Even an observed AVF certificate chain leaves
 `trusted_platform_boundary=false` until the authoritative AVF verifier has
 validated it against separately reviewed trust material.
 
-A bounded native Secretkeeper transport bridge is now present for already
-protected request/response packets. It enforces size limits, copies response
-bytes out of the platform-owned buffer, and frees platform memory on every
-handled path. It intentionally exposes no identity API and no plaintext
-StoreSecret/GetSecret API. The actual AuthGraph key exchange remains a separate
-gate: AOSP's Secretkeeper client performs that exchange before protected
-SecretManagement traffic is sent, and Secure Core does not yet claim a native
-SkSession/Binder integration.
+A bounded Secretkeeper Binder transport bridge also exists for AOSP/system-side
+integration. It is explicitly **not** the Microdroid payload path: the generic
+payload loader now fails closed and instructs callers to use the VM Payload API.
+The system-side bridge accepts only already-protected packets and exposes no
+plaintext StoreSecret/GetSecret surface.
 
+Secure Core also pins the expected AOSP Secretkeeper/AuthGraph source contract
+before any future system-side `SkSession` work. The reviewed target currently
+requires an API with `expected_sk_key` identity binding, VTS coverage of that
+binding, and exact source/repository locks. This avoids silently compiling
+against an older AuthGraph session API with weaker identity semantics.
+
+
+## Android 17 VM Payload contract gate
+
+The payload runtime target is separately pinned to AOSP
+`android-17.0.0_r1` for `packages/modules/Virtualization`. The offline
+contract gate verifies the exact Virtualization repository revision and hashes
+the local `vm_payload.h` plus `libvm_payload/README.md`.
+
+Eligibility requires remote attestation, VM instance secret derivation,
+rollback-protected read/write, the new-instance signal, and the documented
+restriction that payload code is not a general Binder client. A checkout that
+drops any of those properties is rejected before device integration work.
 
 ## COSE_Encrypt0 development codec
 
