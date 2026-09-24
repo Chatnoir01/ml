@@ -115,13 +115,17 @@ COSE_Key is restricted to the AOSP Ed25519, ECDSA P-256, or ECDSA P-384
 profiles and elliptic-curve points are validated before use. AuthGraph pinning
 accepts only the pvmfw-provenance wrapper, not arbitrary host bytes.
 
-The deterministic identity-binding verifier is also implemented: verifier-issued
-pvmfw/reference-DT evidence must hash to the exact retrieved key before an
-AuthGraph identity token can be emitted. The native provider that would produce
-that authoritative pvmfw/reference-DT evidence remains deliberately
-unimplemented, so these checks do not establish real platform identity by
-themselves. Native AuthGraph key exchange and Binder/HAL transport also remain
-unimplemented.
+The deterministic identity-binding verifier is also implemented. Because pvmfw
+performs the reference-DT check during pVM boot rather than exposing a separate
+verification receipt to the guest, Secure Core binds the exact retrieved key to
+an authoritative AVF platform-evidence token. Generic certificate-chain success
+is rejected at this gate.
+
+The pvmfw/Secretkeeper evidence provider is now executable once such an
+authoritative AVF token exists. The upstream Android AVF/RKP authoritative
+verifier is still deliberately unavailable, so the repository still cannot
+produce real platform identity evidence by itself. Native AuthGraph key exchange
+and Binder/HAL transport also remain unimplemented.
 
 
 ## COSE_Encrypt0 development codec
