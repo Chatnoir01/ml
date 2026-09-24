@@ -1,4 +1,6 @@
 from __future__ import annotations
+import hashlib
+import json
 import pytest
 
 from secure_core_mobile.claim_gate import promote_from_experiment
@@ -6,11 +8,12 @@ from secure_core_mobile.claims import ClaimLevel, ClaimRegistry, EvidenceRef, ba
 
 
 def _dev_receipt():
-    return {
-        "sha256": "b" * 64,
+    body = {
         "scope": "development-host-only",
         "qualifies_as_pkvm_evidence": False,
     }
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    return {**body, "sha256": hashlib.sha256(canonical).hexdigest()}
 
 
 def test_development_harness_cannot_promote_adversarial_claim():
