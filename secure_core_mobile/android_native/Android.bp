@@ -1,0 +1,11 @@
+cc_library_static {
+    name: "libsecure_core_avf_attestation_bridge",
+    srcs: ["avf_attestation_bridge.cpp"],
+    export_include_dirs: ["."],
+    shared_libs: ["libvm_payload#current"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+}
