@@ -43,11 +43,16 @@ class AuthGraphSession:
     session_id:bytes|None=None
     request_sequence_number:int=0
 
-    def pin_secretkeeper_identity(self,public_key_cbor:bytes)->None:
-        if self.state is not AuthGraphSessionState.NEW or not public_key_cbor:
+    def pin_secretkeeper_identity(
+        self,
+        public_key: PvmfwValidatedSecretkeeperKey,
+    ) -> None:
+        if self.state is not AuthGraphSessionState.NEW:
             raise ValueError("invalid Secretkeeper identity transition")
-        self.secretkeeper_public_key_cbor=bytes(public_key_cbor)
-        self.state=AuthGraphSessionState.PEER_IDENTITY_PINNED
+        if not isinstance(public_key, PvmfwValidatedSecretkeeperKey):
+            raise TypeError("pvmfw-validated Secretkeeper key required")
+        self.secretkeeper_public_key_cbor = bytes(public_key.public_key_cbor)
+        self.state = AuthGraphSessionState.PEER_IDENTITY_PINNED
 
     def mark_native_exchange_established(self,*,verified_identity:VerifiedSecretkeeperIdentity,session_id:bytes=b"")->None:
         if self.state is not AuthGraphSessionState.PEER_IDENTITY_PINNED:
