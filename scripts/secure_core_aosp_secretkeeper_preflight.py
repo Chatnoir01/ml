@@ -9,10 +9,12 @@ import json
 from pathlib import Path
 
 from secure_core_mobile.aosp_secretkeeper_contract import (
+    KNOWN_AOSP_SECRETKEEPER_TARGETS,
     inspect_aosp_secretkeeper_contract,
     load_aosp_secretkeeper_contract_lock,
     lock_aosp_secretkeeper_contract,
     verify_aosp_secretkeeper_contract_lock,
+    verify_aosp_secretkeeper_source_target,
 )
 
 
@@ -28,6 +30,11 @@ def main() -> None:
     parser.add_argument("--aosp-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
+        "--target",
+        choices=sorted(KNOWN_AOSP_SECRETKEEPER_TARGETS),
+        help="Require exact component revisions for a reviewed AOSP target.",
+    )
+    parser.add_argument(
         "--lock-output",
         type=Path,
         help="Write an exact reviewed source-contract lock when eligible.",
@@ -39,9 +46,16 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    target = None
+    if args.target is not None:
+        target = KNOWN_AOSP_SECRETKEEPER_TARGETS[args.target]
+        verify_aosp_secretkeeper_source_target(args.aosp_root, target)
+
     receipt = inspect_aosp_secretkeeper_contract(args.aosp_root)
     payload = asdict(receipt)
     payload["receipt_sha256"] = receipt.receipt_sha256
+    if target is not None:
+        payload["source_target"] = asdict(target)
     _write_json(args.output, payload)
 
     if args.require_lock is not None:
