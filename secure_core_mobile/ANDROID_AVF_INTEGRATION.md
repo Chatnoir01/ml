@@ -130,11 +130,19 @@ verification receipt to the guest, Secure Core binds the exact retrieved key to
 an authoritative AVF platform-evidence token. Generic certificate-chain success
 is rejected at this gate.
 
-The pvmfw/Secretkeeper evidence provider is now executable once such an
-authoritative AVF token exists. The upstream Android AVF/RKP authoritative
-verifier is still deliberately unavailable, so the repository still cannot
-produce real platform identity evidence by itself. Native AuthGraph key exchange
-and Binder/HAL transport also remain unimplemented.
+The pvmfw/Secretkeeper evidence provider is executable once such an
+authoritative AVF token exists. Production Android/RKP anchors are still not
+shipped by this repository, so real platform identity depends on reviewed
+device trust material and hardware execution.
+
+A bounded native Secretkeeper transport bridge is now present for already
+protected request/response packets. It enforces size limits, copies response
+bytes out of the platform-owned buffer, and frees platform memory on every
+handled path. It intentionally exposes no identity API and no plaintext
+StoreSecret/GetSecret API. The actual AuthGraph key exchange remains a separate
+gate: AOSP's Secretkeeper client performs that exchange before protected
+SecretManagement traffic is sent, and Secure Core does not yet claim a native
+SkSession/Binder integration.
 
 
 ## COSE_Encrypt0 development codec
