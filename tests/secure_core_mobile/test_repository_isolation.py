@@ -16,6 +16,10 @@ PVMFW_ISSUER_ALLOWED = Path("secure_core_mobile/secretkeeper_dt.py")
 PVMFW_TOKEN_CONSTRUCTOR = "PvmfwValidatedSecretkeeperKey"
 PVMFW_CONSTRUCTOR_ALLOWED = Path("secure_core_mobile/secretkeeper_dt.py")
 
+AVF_PIN_TOKEN_CONSTRUCTOR = "PreprovisionedAvfProfilePin"
+AVF_PIN_CONSTRUCTOR_ALLOWED = Path("secure_core_mobile/avf_platform_verifier.py")
+AVF_TEST_PIN_ISSUER = "_issue_preprovisioned_avf_profile_pin_for_test"
+
 
 def _forbidden_imports(path: Path) -> list[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -63,6 +67,17 @@ def _trust_token_violations(path: Path) -> list[str]:
             ):
                 violations.append(
                     f"{path}:{node.lineno}: pvmfw provenance token constructed outside reader"
+                )
+            if (
+                name == AVF_PIN_TOKEN_CONSTRUCTOR
+                and path != AVF_PIN_CONSTRUCTOR_ALLOWED
+            ):
+                violations.append(
+                    f"{path}:{node.lineno}: AVF protected-pin token constructed outside verifier module"
+                )
+            if name == AVF_TEST_PIN_ISSUER:
+                violations.append(
+                    f"{path}:{node.lineno}: test-only AVF pin issuer used in production"
                 )
 
     return violations
