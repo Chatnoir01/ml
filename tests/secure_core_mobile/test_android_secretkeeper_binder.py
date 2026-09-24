@@ -39,12 +39,17 @@ class _FakeBinderLibrary:
         *,
         response: bytes = b"protected-response",
         status: int = 0,
+        probe_status: int = 0,
     ) -> None:
         self.response = response
         self.status = status
+        self.probe_status = probe_status
         self.freed = False
         self.buffer = None
 
+        self.scm_secretkeeper_binder_probe_service = _FakeFunction(
+            lambda: self.probe_status
+        )
         self.scm_secretkeeper_binder_process = _FakeFunction(self._process)
         self.scm_secretkeeper_binder_free_packet = _FakeFunction(self._free)
 
@@ -111,6 +116,22 @@ def test_loaded_binder_bridge_remains_unverified() -> None:
     assert "authgraph-unverified" in bridge.probe.reason
 
 
+def test_binder_service_probe_reports_reachability_without_authgraph() -> None:
+    present = AndroidSecretkeeperBinderBridge(
+        _FakeBinderLibrary(probe_status=0),
+        source_path="/system/lib64/libsecure_core_secretkeeper_binder_bridge.so",
+    )
+    absent = AndroidSecretkeeperBinderBridge(
+        _FakeBinderLibrary(probe_status=-23002),
+        source_path="/system/lib64/libsecure_core_secretkeeper_binder_bridge.so",
+    )
+
+    assert present.probe_service() is True
+    assert absent.probe_service() is False
+    assert present.probe.trusted_platform_boundary is False
+    assert absent.probe.trusted_platform_boundary is False
+
+
 def test_protected_packet_response_is_copied_and_freed() -> None:
     library = _FakeBinderLibrary(response=b"opaque-protected-response")
     bridge = AndroidSecretkeeperBinderBridge(
@@ -155,6 +176,7 @@ def test_rust_bridge_uses_only_protected_binder_transport_contract() -> None:
         in source
     )
     assert "processSecretManagementRequest" in source
+    assert "scm_secretkeeper_binder_probe_service" in source
 
     # AuthGraph/crypto ownership remains outside this transport-only bridge.
     forbidden = (
