@@ -100,15 +100,6 @@ class ProtectedAvfProfilePinProviderUnavailable:
         raise RuntimeError("protected AVF profile pin provider not implemented")
 
 
-def _issue_preprovisioned_avf_profile_pin_for_test(
-    profile_sha256: str,
-) -> PreprovisionedAvfProfilePin:
-    """Test-only issuer; production modules must never call this helper."""
-    return PreprovisionedAvfProfilePin(
-        profile_sha256=profile_sha256,
-        provenance="synthetic-test-only",
-        _key=_AVF_PROFILE_PIN_ISSUER_KEY,
-    )
 
 
 @dataclass(frozen=True)
