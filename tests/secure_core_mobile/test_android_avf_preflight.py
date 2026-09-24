@@ -11,12 +11,20 @@ from secure_core_mobile.android_avf_preflight import (
     run_avf_guest_preflight,
 )
 from secure_core_mobile.avf_platform_verifier import (
-    _issue_preprovisioned_avf_profile_pin_for_test,
 )
 from secure_core_mobile.platform_evidence import (
     _issue_android_avf_platform_verification,
 )
 
+
+def _test_pin(profile_sha256: str):
+    from secure_core_mobile import avf_platform_verifier as verifier
+
+    return verifier.PreprovisionedAvfProfilePin(
+        profile_sha256=profile_sha256,
+        provenance="synthetic-test-only",
+        _key=verifier._AVF_PROFILE_PIN_ISSUER_KEY,
+    )
 
 def _valid_ed25519_cose_key() -> bytes:
     public_key = ed25519.Ed25519PrivateKey.generate().public_key()
@@ -29,7 +37,7 @@ def _valid_ed25519_cose_key() -> bytes:
 
 class _TestPinProvider:
     def load(self):
-        return _issue_preprovisioned_avf_profile_pin_for_test("a" * 64)
+        return _test_pin("a" * 64)
 
 
 def test_non_android_runtime_fails_closed() -> None:
