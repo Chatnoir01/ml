@@ -41,12 +41,21 @@ The reviewed `profile_sha256` must be provisioned through a channel that is
 outside attacker-controlled Android host state, for example immutable pVM image
 configuration or another boundary with equivalent integrity guarantees.
 
-The Python runtime deliberately has no production implementation for this step:
-`ProtectedAvfProfilePinProviderUnavailable` fails closed.
+The host/Python runtime deliberately has no authority to load this pin from an
+environment variable, normal Android file, app preference, or GitHub artifact.
 
-Until a real protected loader exists, the production path cannot construct the
-`PreprovisionedAvfProfilePin` capability required by
-`AuthoritativeAvfTrustProfile`.
+Secure Core now includes a native pVM-side loader in
+`android_native/avf_profile_pin_bridge.cpp`. Production builds may inject the
+reviewed 64-hex-character profile digest as `SCM_AVF_PROFILE_PIN_HEX` when
+building the measured Microdroid payload. With no build-time pin the native API
+returns `SCM_AVF_PROFILE_PIN_NOT_PROVISIONED`; malformed values fail closed.
+
+Because this constant becomes part of the payload binary, changing it changes
+the payload that AVF measures. This is the intended deployment direction, not a
+claim that the current repository has already been measured on production
+hardware. `ProtectedAvfProfilePinProviderUnavailable` remains the Python-side
+fail-closed placeholder until the native payload integration owns the complete
+runtime path.
 
 ## Runtime authorization path
 
