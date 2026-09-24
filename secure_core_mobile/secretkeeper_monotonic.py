@@ -7,10 +7,12 @@ class SecretkeeperMonotonicRoot:
     def __init__(self,*,capability:SecretkeeperCapability):
         if not capability.qualifies_for_monotonic_security_state:
             raise ValueError("Secretkeeper capability is not sufficient for monotonic security state")
-        # These flags describe the required Secretkeeper contract only. The
-        # methods remain fail-closed until the native backend is implemented.
-        self.hardware_resistant=True
-        self.boundary_owned=True
+        # Capability metadata is necessary but not authoritative evidence that
+        # this Python object itself owns a hardware-backed monotonic root.
+        # Stay fail-closed until the native AVF/Secretkeeper backend supplies
+        # independently verified boundary evidence.
+        self.hardware_resistant=False
+        self.boundary_owned=False
         self._capability=capability
     def advance(self)->MonotonicRootSnapshot:
         raise RuntimeError("Secretkeeper monotonic transaction backend not implemented")
