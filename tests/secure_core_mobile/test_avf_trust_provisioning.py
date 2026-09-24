@@ -12,6 +12,9 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.x509.oid import NameOID
 
+from secure_core_mobile.avf_platform_verifier import (
+    _issue_preprovisioned_avf_profile_pin_for_test,
+)
 from secure_core_mobile.avf_trust_provisioning import (
     activate_preprovisioned_profile,
     prepare_authoritative_profile,
@@ -98,16 +101,24 @@ def test_activation_requires_separately_matching_pin(tmp_path: Path) -> None:
     _write(tmp_path, "root.der", _cert_der("root"))
     store, receipt = prepare_authoritative_profile(tmp_path)
 
+    pin = _issue_preprovisioned_avf_profile_pin_for_test(receipt.profile_sha256)
     profile = activate_preprovisioned_profile(
         store,
-        expected_profile_sha256=receipt.profile_sha256,
+        protected_pin=pin,
     )
     assert profile.profile_sha256 == receipt.profile_sha256
 
+    wrong = _issue_preprovisioned_avf_profile_pin_for_test("0" * 64)
     with pytest.raises(ValueError, match="pin mismatch"):
         activate_preprovisioned_profile(
             store,
-            expected_profile_sha256="0" * 64,
+            protected_pin=wrong,
+        )
+
+    with pytest.raises(TypeError, match="protected AVF profile pin"):
+        activate_preprovisioned_profile(
+            store,
+            protected_pin=receipt.profile_sha256,
         )
 
 
