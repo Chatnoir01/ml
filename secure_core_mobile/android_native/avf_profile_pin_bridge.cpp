@@ -5,6 +5,7 @@
 
 namespace {
 
+#ifdef SCM_AVF_PROFILE_PIN_HEX
 constexpr int hex_value(char value) {
     if (value >= '0' && value <= '9') {
         return value - '0';
@@ -18,7 +19,6 @@ constexpr int hex_value(char value) {
     return -1;
 }
 
-#ifdef SCM_AVF_PROFILE_PIN_HEX
 constexpr char kProvisionedProfilePin[] = SCM_AVF_PROFILE_PIN_HEX;
 #endif
 
