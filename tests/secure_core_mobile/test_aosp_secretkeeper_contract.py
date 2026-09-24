@@ -5,13 +5,18 @@ from pathlib import Path
 import pytest
 
 from secure_core_mobile.aosp_secretkeeper_contract import (
+    ANDROID_SECURITY_17_R1,
+    AospSecretkeeperSourceTarget,
+    HARDWARE_INTERFACES_REPO,
     ISECRETKEEPER_AIDL,
     SECRETKEEPER_CLIENT,
     SECRETKEEPER_VTS_CLIENT,
+    SYSTEM_SECRETKEEPER_REPO,
     inspect_aosp_secretkeeper_contract,
     load_aosp_secretkeeper_contract_lock,
     lock_aosp_secretkeeper_contract,
     verify_aosp_secretkeeper_contract_lock,
+    verify_aosp_secretkeeper_source_target,
 )
 
 
@@ -210,3 +215,50 @@ def test_lock_loader_checks_self_digest(tmp_path: Path) -> None:
     lock_path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError, match="self-digest"):
         load_aosp_secretkeeper_contract_lock(lock_path)
+
+
+def test_android_17_target_pins_exact_component_commits(tmp_path: Path) -> None:
+    expected = {
+        tmp_path / SYSTEM_SECRETKEEPER_REPO:
+            ANDROID_SECURITY_17_R1.system_secretkeeper_commit,
+        tmp_path / HARDWARE_INTERFACES_REPO:
+            ANDROID_SECURITY_17_R1.hardware_interfaces_commit,
+    }
+
+    verify_aosp_secretkeeper_source_target(
+        tmp_path,
+        ANDROID_SECURITY_17_R1,
+        git_head_reader=lambda path: expected[path],
+    )
+
+    assert ANDROID_SECURITY_17_R1.name == "android-security-17.0.0_r1"
+    assert (
+        ANDROID_SECURITY_17_R1.system_secretkeeper_commit
+        == "c074ff08c0a82e1fdc04178d5b7ffc15c791d3a7"
+    )
+    assert (
+        ANDROID_SECURITY_17_R1.hardware_interfaces_commit
+        == "90199dea6abb112c1202cea61fe70ef75e72f726"
+    )
+
+
+def test_source_target_rejects_component_revision_mismatch(
+    tmp_path: Path,
+) -> None:
+    target = AospSecretkeeperSourceTarget(
+        name="test-target",
+        system_secretkeeper_commit="1" * 40,
+        hardware_interfaces_commit="2" * 40,
+    )
+
+    def heads(path: Path) -> str:
+        if path == tmp_path / SYSTEM_SECRETKEEPER_REPO:
+            return "1" * 40
+        return "3" * 40
+
+    with pytest.raises(ValueError, match="hardware/interfaces revision mismatch"):
+        verify_aosp_secretkeeper_source_target(
+            tmp_path,
+            target,
+            git_head_reader=heads,
+        )
