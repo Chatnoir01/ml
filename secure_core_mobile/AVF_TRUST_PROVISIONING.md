@@ -73,7 +73,7 @@ runtime path.
 
 ## Runtime authorization path
 
-The intended production chain is:
+The intended platform-evidence chain is:
 
 ```text
 reviewed Android/RKP anchor bundle
@@ -95,20 +95,30 @@ AndroidAvfAuthoritativeVerifier
         |
         v
 PLATFORM_VERIFIED
-        |
-        v
-pvmfw/Secretkeeper key binding
-        |
-        v
-VerifiedSecretkeeperIdentity
-        |
-        v
-AuthGraph session
 ```
 
-A caller-controlled string, environment variable, normal Android app file,
-ordinary GitHub artifact, or candidate receipt MUST NOT be treated as the
-protected pin capability.
+The payload persistence path is separate:
+
+```text
+measured Microdroid payload
+        |
+        v
+libvm_payload
+        |
+        v
+AVmPayload_{read,write}RollbackProtectedSecret
+        |
+        v
+Microdroid Manager / Secretkeeper-backed storage
+        |
+        v
+32-byte Secure Core monotonic state
+```
+
+Direct `ISecretkeeper` Binder access is reserved for system-side integration,
+not treated as the normal payload path. A caller-controlled string,
+environment variable, normal Android app file, ordinary GitHub artifact, or
+candidate receipt MUST NOT be treated as the protected pin capability.
 
 ## Relationship to Android RKP
 
@@ -122,11 +132,14 @@ Synthetic roots in unit tests only verify the software trust-transition logic.
 
 ## Current gate
 
-The native pin loader and build-time Soong provisioning path now exist. The
-remaining production gate is to provision real, reviewed Android/RKP trust
+The native pin loader, build-time Soong provisioning path, VM Payload
+rollback-storage bridge and executable monotonic-state semantics now exist.
+The remaining production gate is to provision real, reviewed Android/RKP trust
 material and the reviewed profile pin into a measured pVM build, install that
-build on supported hardware, then exercise the attestation + Secretkeeper +
-AuthGraph chain against the real platform services.
+build on supported hardware, then exercise remote attestation and
+rollback-protected storage on the real platform. System-side AuthGraph/
+Secretkeeper integration remains separately version-locked and must not be
+substituted for the payload VM Payload API path.
 
 Until then:
 
