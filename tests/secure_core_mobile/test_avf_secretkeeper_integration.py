@@ -12,7 +12,6 @@ from secure_core_mobile.avf_extension import AVF_ATTESTATION_OID
 from secure_core_mobile.avf_platform_verifier import (
     AndroidAvfAuthoritativeVerifier,
     AuthoritativeAvfTrustProfile,
-    _issue_preprovisioned_avf_profile_pin_for_test,
     authoritative_profile_sha256,
 )
 from secure_core_mobile.avf_policy import AvfComponentPolicy, ExpectedVmComponent
@@ -23,6 +22,15 @@ from secure_core_mobile.secretkeeper_identity_verifier import (
     PvmfwSecretkeeperIdentityVerifier,
 )
 
+
+def _test_pin(profile_sha256: str):
+    from secure_core_mobile import avf_platform_verifier as verifier
+
+    return verifier.PreprovisionedAvfProfilePin(
+        profile_sha256=profile_sha256,
+        provenance="synthetic-test-only",
+        _key=verifier._AVF_PROFILE_PIN_ISSUER_KEY,
+    )
 
 def _len(n: int) -> bytes:
     return bytes([n]) if n < 128 else b"\x81" + bytes([n])
@@ -123,7 +131,7 @@ def test_authoritative_avf_to_authgraph_identity_chain() -> None:
     store = CertificateTrustStore((root,))
     profile = AuthoritativeAvfTrustProfile(
         store,
-        _issue_preprovisioned_avf_profile_pin_for_test(
+        _test_pin(
             authoritative_profile_sha256(store)
         ),
     )
