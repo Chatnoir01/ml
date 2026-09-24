@@ -110,10 +110,18 @@ reference DT before the guest consumes it.
 
 Secure Core now models these protocol sizes and the fail-closed session
 transition. The protected device-tree Secretkeeper-key retrieval path is now
-implemented as a bounded, exact-path, fail-closed input boundary. Reading that
-property does not verify Secretkeeper identity and cannot establish platform
-trust. Native AuthGraph key exchange, authoritative Secretkeeper identity
-verification, and Binder/HAL transport remain unimplemented.
+implemented as a bounded, exact-path, fail-closed input boundary. The retrieved
+COSE_Key is restricted to the AOSP Ed25519, ECDSA P-256, or ECDSA P-384
+profiles and elliptic-curve points are validated before use. AuthGraph pinning
+accepts only the pvmfw-provenance wrapper, not arbitrary host bytes.
+
+The deterministic identity-binding verifier is also implemented: verifier-issued
+pvmfw/reference-DT evidence must hash to the exact retrieved key before an
+AuthGraph identity token can be emitted. The native provider that would produce
+that authoritative pvmfw/reference-DT evidence remains deliberately
+unimplemented, so these checks do not establish real platform identity by
+themselves. Native AuthGraph key exchange and Binder/HAL transport also remain
+unimplemented.
 
 
 ## COSE_Encrypt0 development codec
