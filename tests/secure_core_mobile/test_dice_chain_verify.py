@@ -10,10 +10,18 @@ from secure_core_mobile.dice_chain_verify import verify_chain, SUBJECT_PUBLIC_KE
 
 
 def _head(major,n):
-    return bytes(((major<<5)|n,)) if n<24 else bytes(((major<<5)|24,n))
+    if n < 24:
+        return bytes(((major << 5) | n,))
+    if n <= 0xff:
+        return bytes(((major << 5) | 24, n))
+    if n <= 0xffff:
+        return bytes(((major << 5) | 25,)) + n.to_bytes(2, "big")
+    if n <= 0xffffffff:
+        return bytes(((major << 5) | 26,)) + n.to_bytes(4, "big")
+    raise ValueError("CBOR integer too large for test helper")
+
 def _i(v):
-    n=-1-v
-    return bytes((0x20+n,)) if n<24 else bytes((0x38,n))
+    return _head(0, v) if v >= 0 else _head(1, -1 - v)
 def _b(v): return _head(2,len(v))+v
 def _map(items): return _head(5,len(items))+b"".join(k+v for k,v in items)
 
