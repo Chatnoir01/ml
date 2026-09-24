@@ -37,8 +37,9 @@ def _scalar(v:object)->bytes:
 
 def canonical_cose_key(key:Mapping[object,object])->bytes:
     encoded=[(_scalar(k),_scalar(v)) for k,v in key.items()]
-    # RFC 8949 core deterministic map order: shorter encoded key first, then lexical.
-    encoded.sort(key=lambda kv:(len(kv[0]),kv[0]))
+    # AOSP Secretkeeper's deterministic COSE-key vector orders encoded labels
+    # bytewise. This intentionally differs from RFC 8949 length-first map order.
+    encoded.sort(key=lambda kv: kv[0])
     return _head(5,len(encoded))+b"".join(k+v for k,v in encoded)
 
 
