@@ -1,9 +1,8 @@
 """Secretkeeper identity verification boundary for pvmfw evidence.
 
-The native/platform evidence provider is deliberately unavailable. This module
-only implements the deterministic binding check that converts verifier-issued
-pvmfw/reference-DT semantics plus authoritative AVF platform evidence into the
-token accepted by AuthGraphSession.
+This module binds pvmfw/reference-DT semantics to authoritative AVF platform
+evidence. It does not create that platform evidence itself; the authoritative
+Android AVF verifier remains the upstream trust gate.
 """
 
 from __future__ import annotations
