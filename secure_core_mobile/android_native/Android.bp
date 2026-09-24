@@ -1,13 +1,33 @@
+soong_config_module_type {
+    name: "secure_core_avf_cc_defaults",
+    module_type: "cc_defaults",
+    config_namespace: "secure_core_avf",
+    value_variables: ["profile_pin_hex"],
+    properties: ["cflags"],
+}
+
+secure_core_avf_cc_defaults {
+    name: "secure_core_avf_profile_pin_defaults",
+    soong_config_variables: {
+        profile_pin_hex: {
+            // Value is supplied by protected/product build configuration.
+            // When unset, conditions_default adds no macro and the bridge
+            // remains fail-closed with NOT_PROVISIONED.
+            cflags: ["-DSCM_AVF_PROFILE_PIN_HEX=\\\"%s\\\""],
+            conditions_default: {},
+        },
+    },
+}
+
 cc_library_static {
     name: "libsecure_core_avf_attestation_bridge",
+    defaults: ["secure_core_avf_profile_pin_defaults"],
     srcs: [
         "avf_attestation_bridge.cpp",
         "avf_profile_pin_bridge.cpp",
         "secretkeeper_transport_bridge.cpp",
     ],
     export_include_dirs: ["."],
-    // Production provisioning injects SCM_AVF_PROFILE_PIN_HEX at build time
-    // from reviewed material. The repository intentionally provides no default.
     shared_libs: ["libvm_payload#current"],
     cflags: [
         "-Wall",
