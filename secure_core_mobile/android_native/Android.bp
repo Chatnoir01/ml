@@ -3,6 +3,7 @@ cc_library_static {
     srcs: [
         "avf_attestation_bridge.cpp",
         "avf_profile_pin_bridge.cpp",
+        "secretkeeper_transport_bridge.cpp",
     ],
     export_include_dirs: ["."],
     // Production provisioning injects SCM_AVF_PROFILE_PIN_HEX at build time
