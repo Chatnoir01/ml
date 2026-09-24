@@ -55,7 +55,7 @@ extern "C" int32_t scm_secretkeeper_process_protected_packet(
         &platform_response,
         &platform_response_size);
     if (platform_status != 0) {
-        if (platform_response != nullptr || platform_response_size != 0) {
+        if (platform_response != nullptr) {
             transport->free_response(
                 transport->context,
                 platform_response,
