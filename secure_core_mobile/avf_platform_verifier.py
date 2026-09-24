@@ -100,7 +100,7 @@ class AndroidAvfAuthoritativeVerifierUnavailable:
     """Fail-closed default when no authoritative profile has been provisioned."""
 
     def verify(self, *args, **kwargs):
-        raise RuntimeError("authoritative Android AVF/RKP verifier not configured")
+        raise RuntimeError("authoritative Android AVF/RKP verifier not implemented/configured")
 
 
 class AndroidAvfAuthoritativeVerifier:
