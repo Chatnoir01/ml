@@ -21,16 +21,29 @@ class VerifiedSecretkeeperIdentity:
         self.public_key_sha256=public_key_sha256
         self.provenance=provenance
 
-@dataclass(frozen=True)
+_PVMFW_KEY_ISSUER_KEY = object()
+
+
 class PvmfwValidatedSecretkeeperKey:
-    """Key bytes read from the pvmfw-sanitized trusted /avf DT path."""
-    public_key_cbor: bytes
-    source_path: str = "/proc/device-tree/avf/secretkeeper_public_key"
-    def __post_init__(self):
-        if not self.public_key_cbor:
+    """Capability token issued only after trusted /avf DT retrieval."""
+
+    __slots__ = ("public_key_cbor", "source_path")
+
+    def __init__(
+        self,
+        public_key_cbor: bytes,
+        *,
+        source_path: str,
+        _key: object,
+    ) -> None:
+        if _key is not _PVMFW_KEY_ISSUER_KEY:
+            raise TypeError("pvmfw-validated Secretkeeper key is reader-issued only")
+        if not public_key_cbor:
             raise ValueError("empty Secretkeeper public key")
-        if self.source_path != "/proc/device-tree/avf/secretkeeper_public_key":
+        if source_path != "/proc/device-tree/avf/secretkeeper_public_key":
             raise ValueError("Secretkeeper key must come from trusted /avf DT path")
+        self.public_key_cbor = bytes(public_key_cbor)
+        self.source_path = source_path
 
 class SecretkeeperIdentityVerifierUnavailable:
     def verify(self,public_key:PvmfwValidatedSecretkeeperKey)->VerifiedSecretkeeperIdentity:
