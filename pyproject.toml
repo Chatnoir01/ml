@@ -18,4 +18,7 @@ addopts = "-q --strict-markers --disable-warnings"
 testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["adversarial_sbox*", "secure_core_mobile*"]
+exclude = ["tests*"]
+namespaces = false
