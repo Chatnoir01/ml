@@ -34,6 +34,7 @@ class _ScmSecretkeeperBinderPacket(ctypes.Structure):
 class AndroidSecretkeeperBinderBridge:
     def __init__(self, library: object, *, source_path: str) -> None:
         required = (
+            "scm_secretkeeper_binder_probe_service",
             "scm_secretkeeper_binder_process",
             "scm_secretkeeper_binder_free_packet",
         )
@@ -46,6 +47,10 @@ class AndroidSecretkeeperBinderBridge:
 
         self._library = library
         self.source_path = source_path
+
+        probe = library.scm_secretkeeper_binder_probe_service
+        probe.argtypes = []
+        probe.restype = ctypes.c_int32
 
         process = library.scm_secretkeeper_binder_process
         process.argtypes = [
@@ -67,6 +72,18 @@ class AndroidSecretkeeperBinderBridge:
             NativeBridgeState.LOADED_UNVERIFIED,
             self.source_path,
             "secretkeeper-binder-bridge-loaded-authgraph-unverified",
+        )
+
+    def probe_service(self) -> bool:
+        """Check Binder service reachability without creating an AuthGraph session."""
+        status = int(self._library.scm_secretkeeper_binder_probe_service())
+        if status == SCM_SK_BINDER_OK:
+            return True
+        if status == -23002:
+            return False
+        raise AndroidNativeBridgeCallError(
+            "Secretkeeper Binder service probe",
+            status,
         )
 
     def process_protected_packet(self, request: bytes) -> bytes:
