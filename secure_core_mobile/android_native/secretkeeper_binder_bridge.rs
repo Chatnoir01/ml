@@ -37,6 +37,16 @@ fn reset_packet(packet: *mut ScmSecretkeeperBinderPacket) {
 }
 
 #[no_mangle]
+pub extern "C" fn scm_secretkeeper_binder_probe_service() -> i32 {
+    let result: Result<binder::Strong<dyn ISecretkeeper>, _> =
+        binder::get_interface(SECRETKEEPER_DEFAULT_SERVICE);
+    match result {
+        Ok(_) => SCM_SK_BINDER_OK,
+        Err(_) => SCM_SK_BINDER_SERVICE_UNAVAILABLE,
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn scm_secretkeeper_binder_free_packet(
     packet: *mut ScmSecretkeeperBinderPacket,
 ) {
