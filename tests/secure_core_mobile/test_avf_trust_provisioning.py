@@ -13,7 +13,6 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.x509.oid import NameOID
 
 from secure_core_mobile.avf_platform_verifier import (
-    _issue_preprovisioned_avf_profile_pin_for_test,
 )
 from secure_core_mobile.avf_trust_provisioning import (
     activate_preprovisioned_profile,
@@ -23,6 +22,15 @@ from secure_core_mobile.avf_trust_provisioning import (
 
 SCRIPT = Path("scripts/prepare_secure_core_avf_trust.py")
 
+
+def _test_pin(profile_sha256: str):
+    from secure_core_mobile import avf_platform_verifier as verifier
+
+    return verifier.PreprovisionedAvfProfilePin(
+        profile_sha256=profile_sha256,
+        provenance="synthetic-test-only",
+        _key=verifier._AVF_PROFILE_PIN_ISSUER_KEY,
+    )
 
 def _cert_der(name: str, *, ca: bool = True) -> bytes:
     now = datetime.now(timezone.utc)
@@ -101,14 +109,14 @@ def test_activation_requires_separately_matching_pin(tmp_path: Path) -> None:
     _write(tmp_path, "root.der", _cert_der("root"))
     store, receipt = prepare_authoritative_profile(tmp_path)
 
-    pin = _issue_preprovisioned_avf_profile_pin_for_test(receipt.profile_sha256)
+    pin = _test_pin(receipt.profile_sha256)
     profile = activate_preprovisioned_profile(
         store,
         protected_pin=pin,
     )
     assert profile.profile_sha256 == receipt.profile_sha256
 
-    wrong = _issue_preprovisioned_avf_profile_pin_for_test("0" * 64)
+    wrong = _test_pin("0" * 64)
     with pytest.raises(ValueError, match="pin mismatch"):
         activate_preprovisioned_profile(
             store,
