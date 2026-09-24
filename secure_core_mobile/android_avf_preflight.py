@@ -90,7 +90,6 @@ def run_avf_guest_preflight(
     secretkeeper_reader: Callable[[Path], bytes] | None = None,
     platform_verification: PlatformVerification | None = None,
     protected_pin_provider: object | None = None,
-    native_authgraph_available: bool = False,
 ) -> AvfGuestPreflightReceipt:
     android = detect_android_runtime(platform=platform, exists=exists)
     if not android:
@@ -124,7 +123,7 @@ def run_avf_guest_preflight(
             secretkeeper_key_sha256=None,
             platform_verified=False,
             protected_profile_pin_loaded=False,
-            native_authgraph_available=bool(native_authgraph_available),
+            native_authgraph_available=False,
             hostile_host_ready=False,
             reason="secretkeeper-dt-key-unavailable-or-invalid",
         )
@@ -146,12 +145,10 @@ def run_avf_guest_preflight(
     except (AttributeError, RuntimeError, TypeError, ValueError):
         protected_pin_loaded = False
 
-    # Native AuthGraph/Binder transport is still a separate mandatory gate.
-    hostile_ready = (
-        platform_verified
-        and protected_pin_loaded
-        and bool(native_authgraph_available)
-    )
+    # Native AuthGraph/Binder transport has no production capability token yet.
+    # Therefore no caller-controlled flag can promote this preflight to ready.
+    native_authgraph_available = False
+    hostile_ready = False
 
     state = (
         AvfGuestPreflightState.PLATFORM_EVIDENCE_BOUND
@@ -176,7 +173,7 @@ def run_avf_guest_preflight(
         secretkeeper_key_sha256=parsed.encoded_sha256,
         platform_verified=platform_verified,
         protected_profile_pin_loaded=protected_pin_loaded,
-        native_authgraph_available=bool(native_authgraph_available),
+        native_authgraph_available=native_authgraph_available,
         hostile_host_ready=hostile_ready,
         reason=reason,
     )
