@@ -39,7 +39,10 @@ def _compile(
 #endif
 
 int main() {
-    uint8_t pin[SCM_AVF_PROFILE_PIN_BYTES] = {};
+    uint8_t pin[SCM_AVF_PROFILE_PIN_BYTES];
+    for (size_t i = 0; i < SCM_AVF_PROFILE_PIN_BYTES; ++i) {
+        pin[i] = 0xCC;
+    }
     assert(scm_avf_load_preprovisioned_profile_pin(
         nullptr, SCM_AVF_PROFILE_PIN_BYTES) == SCM_AVF_PROFILE_PIN_INVALID_ARGUMENT);
     assert(scm_avf_load_preprovisioned_profile_pin(
@@ -48,6 +51,12 @@ int main() {
     const int32_t status = scm_avf_load_preprovisioned_profile_pin(
         pin, SCM_AVF_PROFILE_PIN_BYTES);
     assert(status == EXPECT_STATUS);
+
+#if EXPECT_STATUS != SCM_AVF_PROFILE_PIN_OK
+    for (size_t i = 0; i < SCM_AVF_PROFILE_PIN_BYTES; ++i) {
+        assert(pin[i] == 0);
+    }
+#endif
 
 #ifdef EXPECT_FIRST_BYTE
     assert(pin[0] == EXPECT_FIRST_BYTE);
@@ -166,9 +175,15 @@ def test_native_pin_bridge_rejects_malformed_build_pin(
 #include <cstdint>
 
 int main() {
-    uint8_t pin[SCM_AVF_PROFILE_PIN_BYTES] = {};
+    uint8_t pin[SCM_AVF_PROFILE_PIN_BYTES];
+    for (size_t i = 0; i < SCM_AVF_PROFILE_PIN_BYTES; ++i) {
+        pin[i] = 0xCC;
+    }
     assert(scm_avf_load_preprovisioned_profile_pin(
         pin, sizeof(pin)) == SCM_AVF_PROFILE_PIN_MALFORMED);
+    for (size_t i = 0; i < SCM_AVF_PROFILE_PIN_BYTES; ++i) {
+        assert(pin[i] == 0);
+    }
     return 0;
 }
 """,
