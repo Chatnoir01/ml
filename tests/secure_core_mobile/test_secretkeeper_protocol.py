@@ -52,7 +52,7 @@ def _verified(key: PvmfwValidatedSecretkeeperKey):
     evidence = PvmfwSecretkeeperBindingEvidence(
         _key=_EVIDENCE_ISSUER_KEY,
         public_key_sha256=digest,
-        reference_dt_evidence_sha256="a" * 64,
+        platform_evidence_sha256="a" * 64,
     )
     return PvmfwSecretkeeperIdentityVerifier().verify(key, evidence)
 
