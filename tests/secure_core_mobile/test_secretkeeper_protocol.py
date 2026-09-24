@@ -8,6 +8,7 @@ from secure_core_mobile.authgraph_session import (
     AuthGraphSessionState,
     PvmfwValidatedSecretkeeperKey,
 )
+from secure_core_mobile.secretkeeper_dt import read_pvmfw_secretkeeper_key
 from secure_core_mobile.secretkeeper_identity_verifier import (
     PvmfwSecretkeeperBindingEvidence,
     PvmfwSecretkeeperIdentityVerifier,
@@ -44,7 +45,8 @@ def _valid_p256_cose_key() -> bytes:
 
 
 def _pvmfw(encoded: bytes | None = None) -> PvmfwValidatedSecretkeeperKey:
-    return PvmfwValidatedSecretkeeperKey(encoded or _valid_p256_cose_key())
+    value = encoded or _valid_p256_cose_key()
+    return read_pvmfw_secretkeeper_key(reader=lambda path: value)
 
 
 def _verified(key: PvmfwValidatedSecretkeeperKey):
