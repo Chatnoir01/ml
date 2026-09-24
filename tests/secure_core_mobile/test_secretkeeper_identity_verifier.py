@@ -6,6 +6,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from secure_core_mobile.authgraph_session import PvmfwValidatedSecretkeeperKey
+from secure_core_mobile.secretkeeper_dt import read_pvmfw_secretkeeper_key
 from secure_core_mobile.platform_evidence import (
     _issue_android_avf_platform_verification,
     generic_crypto_result,
@@ -63,7 +64,7 @@ def test_caller_cannot_self_issue_pvmfw_binding_evidence() -> None:
 
 
 def test_pvmfw_provider_rejects_generic_crypto_evidence() -> None:
-    key = PvmfwValidatedSecretkeeperKey(_valid_p256_key())
+    key = read_pvmfw_secretkeeper_key(reader=lambda path: _valid_p256_key())
     generic = generic_crypto_result(verified=True, evidence_sha256="a" * 64)
     with pytest.raises(ValueError, match="authoritative Android AVF"):
         PvmfwSecretkeeperEvidenceProvider().collect(key, generic)
@@ -71,7 +72,7 @@ def test_pvmfw_provider_rejects_generic_crypto_evidence() -> None:
 
 def test_pvmfw_provider_binds_authoritative_platform_digest_to_key() -> None:
     encoded = _valid_p256_key()
-    key = PvmfwValidatedSecretkeeperKey(encoded)
+    key = read_pvmfw_secretkeeper_key(reader=lambda path: encoded)
     platform = _issue_android_avf_platform_verification(evidence_sha256="c" * 64)
     evidence = PvmfwSecretkeeperEvidenceProvider().collect(key, platform)
 
@@ -81,7 +82,7 @@ def test_pvmfw_provider_binds_authoritative_platform_digest_to_key() -> None:
 
 def test_pvmfw_binding_evidence_can_issue_authgraph_identity_token() -> None:
     encoded = _valid_p256_key()
-    key = PvmfwValidatedSecretkeeperKey(encoded)
+    key = read_pvmfw_secretkeeper_key(reader=lambda path: encoded)
     identity = PvmfwSecretkeeperIdentityVerifier().verify(key, _evidence(encoded))
 
     assert identity.public_key_sha256 == hashlib.sha256(encoded).hexdigest()
@@ -94,7 +95,7 @@ def test_binding_evidence_for_different_key_is_rejected() -> None:
 
     with pytest.raises(ValueError, match="does not match"):
         PvmfwSecretkeeperIdentityVerifier().verify(
-            PvmfwValidatedSecretkeeperKey(actual),
+            read_pvmfw_secretkeeper_key(reader=lambda path: actual),
             _evidence(expected),
         )
 
@@ -103,6 +104,6 @@ def test_malformed_key_cannot_cross_identity_trust_transition() -> None:
     encoded = b"not-a-cose-key"
     with pytest.raises(ValueError):
         PvmfwSecretkeeperIdentityVerifier().verify(
-            PvmfwValidatedSecretkeeperKey(encoded),
+            read_pvmfw_secretkeeper_key(reader=lambda path: encoded),
             _evidence(encoded),
         )
