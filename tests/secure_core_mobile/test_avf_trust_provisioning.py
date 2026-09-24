@@ -12,8 +12,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.x509.oid import NameOID
 
-from secure_core_mobile.avf_platform_verifier import (
-)
 from secure_core_mobile.avf_trust_provisioning import (
     activate_preprovisioned_profile,
     prepare_authoritative_profile,
