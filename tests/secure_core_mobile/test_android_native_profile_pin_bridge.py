@@ -231,4 +231,13 @@ def test_native_pin_bridge_has_no_mutable_host_runtime_source() -> None:
 
     android_bp = ANDROID_BP.read_text(encoding="utf-8")
     assert "avf_profile_pin_bridge.cpp" in android_bp
-    assert "SCM_AVF_PROFILE_PIN_HEX" in android_bp
+    assert 'config_namespace: "secure_core_avf"' in android_bp
+    assert 'value_variables: ["profile_pin_hex"]' in android_bp
+    assert '-DSCM_AVF_PROFILE_PIN_HEX=\\\\\\\"%s\\\\\\\"' in android_bp
+    assert "conditions_default: {}" in android_bp
+
+    # No reviewed pin is embedded in the repository by default.
+    assert "SCM_AVF_PROFILE_PIN_HEX=" not in android_bp.replace(
+        '-DSCM_AVF_PROFILE_PIN_HEX=\\\\\\\"%s\\\\\\\"',
+        "",
+    )
