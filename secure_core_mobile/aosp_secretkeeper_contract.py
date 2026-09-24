@@ -12,6 +12,8 @@ from dataclasses import asdict, dataclass
 import hashlib
 import json
 from pathlib import Path
+import subprocess
+from typing import Callable
 
 
 AOSP_CONTRACT_SCHEMA_VERSION = 1
@@ -29,6 +31,26 @@ SECRETKEEPER_VTS_CLIENT = Path(
     "hardware/interfaces/security/secretkeeper/aidl/vts/"
     "secretkeeper_test_client.rs"
 )
+SYSTEM_SECRETKEEPER_REPO = Path("system/secretkeeper")
+HARDWARE_INTERFACES_REPO = Path("hardware/interfaces")
+
+
+@dataclass(frozen=True)
+class AospSecretkeeperSourceTarget:
+    name: str
+    system_secretkeeper_commit: str
+    hardware_interfaces_commit: str
+
+
+ANDROID_SECURITY_17_R1 = AospSecretkeeperSourceTarget(
+    name="android-security-17.0.0_r1",
+    system_secretkeeper_commit="c074ff08c0a82e1fdc04178d5b7ffc15c791d3a7",
+    hardware_interfaces_commit="90199dea6abb112c1202cea61fe70ef75e72f726",
+)
+
+KNOWN_AOSP_SECRETKEEPER_TARGETS = {
+    ANDROID_SECURITY_17_R1.name: ANDROID_SECURITY_17_R1,
+}
 
 
 @dataclass(frozen=True)
@@ -178,6 +200,62 @@ def load_aosp_secretkeeper_contract_lock(
         label="contract receipt",
     )
     return lock
+
+
+def _default_git_head(repository: Path) -> str:
+    if repository.is_symlink():
+        raise ValueError(f"AOSP repository symlink rejected: {repository}")
+    if not repository.is_dir():
+        raise ValueError(f"AOSP repository unavailable: {repository}")
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repository), "rev-parse", "HEAD"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ValueError(f"unable to inspect AOSP repository: {repository}") from exc
+    if result.returncode != 0:
+        raise ValueError(f"unable to resolve AOSP repository HEAD: {repository}")
+    head = result.stdout.strip().lower()
+    try:
+        if len(head) != 40 or len(bytes.fromhex(head)) != 20:
+            raise ValueError
+    except ValueError as exc:
+        raise ValueError(f"invalid AOSP repository HEAD: {repository}") from exc
+    return head
+
+
+def verify_aosp_secretkeeper_source_target(
+    aosp_root: Path | str,
+    target: AospSecretkeeperSourceTarget,
+    *,
+    git_head_reader: Callable[[Path], str] = _default_git_head,
+) -> None:
+    root = Path(aosp_root)
+    if not isinstance(target, AospSecretkeeperSourceTarget):
+        raise TypeError("AOSP Secretkeeper source target required")
+
+    expected = (
+        (
+            root / SYSTEM_SECRETKEEPER_REPO,
+            target.system_secretkeeper_commit.lower(),
+            "system/secretkeeper",
+        ),
+        (
+            root / HARDWARE_INTERFACES_REPO,
+            target.hardware_interfaces_commit.lower(),
+            "hardware/interfaces",
+        ),
+    )
+    for repository, wanted, label in expected:
+        actual = git_head_reader(repository).strip().lower()
+        if actual != wanted:
+            raise ValueError(
+                f"AOSP {label} revision mismatch: expected {wanted}, got {actual}"
+            )
 
 
 def _read_source(root: Path, relative: Path) -> tuple[str, str]:
