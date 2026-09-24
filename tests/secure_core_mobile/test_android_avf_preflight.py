@@ -10,8 +10,6 @@ from secure_core_mobile.android_avf_preflight import (
     detect_android_runtime,
     run_avf_guest_preflight,
 )
-from secure_core_mobile.avf_platform_verifier import (
-)
 from secure_core_mobile.platform_evidence import (
     _issue_android_avf_platform_verification,
 )
