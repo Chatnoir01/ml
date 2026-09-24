@@ -10,7 +10,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from .authgraph_session import PvmfwValidatedSecretkeeperKey
+from .authgraph_session import (
+    PvmfwValidatedSecretkeeperKey,
+    _PVMFW_KEY_ISSUER_KEY,
+)
 from .secretkeeper_cose_key import parse_secretkeeper_cose_key
 
 TRUSTED_SECRETKEEPER_DT_PATH = Path(
@@ -61,4 +64,5 @@ def read_pvmfw_secretkeeper_key(
     return PvmfwValidatedSecretkeeperKey(
         public_key_cbor=key,
         source_path=str(TRUSTED_SECRETKEEPER_DT_PATH),
+        _key=_PVMFW_KEY_ISSUER_KEY,
     )
