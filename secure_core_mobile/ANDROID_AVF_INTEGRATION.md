@@ -135,6 +135,24 @@ authoritative AVF token exists. Production Android/RKP anchors are still not
 shipped by this repository, so real platform identity depends on reviewed
 device trust material and hardware execution.
 
+The Android native bridge is now connected to Python through a strict ctypes
+adapter. Soong builds `libsecure_core_avf_attestation_bridge` as a `cc_library`
+so both static and shared variants are available. The build-time
+`secure_core_avf.profile_pin_hex` value variable injects the reviewed profile
+pin only when explicitly provisioned; the default path defines no pin.
+
+The native adapter validates all required C ABI symbols, bounds challenge and
+certificate sizes, copies native certificate buffers before freeing them, and
+returns raw pin bytes only as transport data. Loading the shared library is
+classified as `LOADED_UNVERIFIED`, never as pVM/platform proof.
+
+`scripts/secure_core_android_native_preflight.py` can be executed inside an
+Android guest against an explicit bridge path. Its receipt contains only
+digests, counts and native status codes; raw challenges, certificates and pin
+bytes are excluded. Even an observed AVF certificate chain leaves
+`trusted_platform_boundary=false` until the authoritative AVF verifier has
+validated it against separately reviewed trust material.
+
 A bounded native Secretkeeper transport bridge is now present for already
 protected request/response packets. It enforces size limits, copies response
 bytes out of the platform-owned buffer, and frees platform memory on every
