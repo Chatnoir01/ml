@@ -6,9 +6,13 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from secure_core_mobile.authgraph_session import PvmfwValidatedSecretkeeperKey
+from secure_core_mobile.platform_evidence import (
+    _issue_android_avf_platform_verification,
+    generic_crypto_result,
+)
 from secure_core_mobile.secretkeeper_identity_verifier import (
     PvmfwSecretkeeperBindingEvidence,
-    PvmfwSecretkeeperEvidenceProviderUnavailable,
+    PvmfwSecretkeeperEvidenceProvider,
     PvmfwSecretkeeperIdentityVerifier,
     _EVIDENCE_ISSUER_KEY,
 )
@@ -58,10 +62,21 @@ def test_caller_cannot_self_issue_pvmfw_binding_evidence() -> None:
         )
 
 
-def test_native_pvmfw_evidence_provider_remains_fail_closed() -> None:
+def test_pvmfw_provider_rejects_generic_crypto_evidence() -> None:
     key = PvmfwValidatedSecretkeeperKey(_valid_p256_key())
-    with pytest.raises(RuntimeError, match="not implemented"):
-        PvmfwSecretkeeperEvidenceProviderUnavailable().collect(key)
+    generic = generic_crypto_result(verified=True, evidence_sha256="a" * 64)
+    with pytest.raises(ValueError, match="authoritative Android AVF"):
+        PvmfwSecretkeeperEvidenceProvider().collect(key, generic)
+
+
+def test_pvmfw_provider_binds_authoritative_platform_digest_to_key() -> None:
+    encoded = _valid_p256_key()
+    key = PvmfwValidatedSecretkeeperKey(encoded)
+    platform = _issue_android_avf_platform_verification(evidence_sha256="c" * 64)
+    evidence = PvmfwSecretkeeperEvidenceProvider().collect(key, platform)
+
+    assert evidence.public_key_sha256 == hashlib.sha256(encoded).hexdigest()
+    assert evidence.platform_evidence_sha256 == "c" * 64
 
 
 def test_pvmfw_binding_evidence_can_issue_authgraph_identity_token() -> None:
