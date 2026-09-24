@@ -16,6 +16,7 @@ from .authgraph_session import (
     _TOKEN_KEY,
 )
 from .secretkeeper_cose_key import parse_secretkeeper_cose_key
+from .platform_evidence import PlatformVerification
 
 
 _EVIDENCE_ISSUER_KEY = object()
@@ -58,15 +59,31 @@ class PvmfwSecretkeeperBindingEvidence:
         self.provenance = provenance
 
 
-class PvmfwSecretkeeperEvidenceProviderUnavailable:
-    """Placeholder for the future native pvmfw/AVF platform evidence provider."""
+class PvmfwSecretkeeperEvidenceProvider:
+    """Bind a trusted-DT key to authoritative AVF execution evidence.
+
+    pvmfw validates the trusted property during pVM boot. This provider does not
+    independently re-run pvmfw; it requires an authoritative AVF platform token
+    from the platform verifier and binds that evidence digest to the exact key.
+    """
 
     def collect(
         self,
         public_key: PvmfwValidatedSecretkeeperKey,
+        platform_verification: PlatformVerification,
     ) -> PvmfwSecretkeeperBindingEvidence:
-        raise RuntimeError(
-            "authoritative AVF-bound Secretkeeper identity evidence provider not implemented"
+        if not isinstance(public_key, PvmfwValidatedSecretkeeperKey):
+            raise TypeError("pvmfw-validated Secretkeeper key required")
+        if not isinstance(platform_verification, PlatformVerification):
+            raise TypeError("verifier-issued AVF platform evidence required")
+        if not platform_verification.qualifies_as_android_avf:
+            raise ValueError("authoritative Android AVF platform evidence required")
+
+        parse_secretkeeper_cose_key(public_key.public_key_cbor)
+        return PvmfwSecretkeeperBindingEvidence(
+            _key=_EVIDENCE_ISSUER_KEY,
+            public_key_sha256=hashlib.sha256(public_key.public_key_cbor).hexdigest(),
+            platform_evidence_sha256=platform_verification.evidence_sha256,
         )
 
 
