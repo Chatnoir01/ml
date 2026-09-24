@@ -14,6 +14,7 @@ from secure_core_mobile.android_native_bridge import (
 from secure_core_mobile.android_secretkeeper_binder import (
     AndroidSecretkeeperBinderBridge,
     load_secretkeeper_binder_bridge,
+    load_system_secretkeeper_binder_bridge,
 )
 
 
@@ -76,6 +77,14 @@ class _FakeBinderLibrary:
         self.freed = True
 
 
+def test_generic_binder_loader_is_disabled_for_vm_payloads() -> None:
+    with pytest.raises(AndroidNativeBridgeUnavailable, match="system-side only"):
+        load_secretkeeper_binder_bridge(
+            "/system/lib64/libsecure_core_secretkeeper_binder_bridge.so",
+            platform="android",
+        )
+
+
 def test_secretkeeper_binder_bridge_refuses_non_android_runtime() -> None:
     called = False
 
@@ -85,7 +94,7 @@ def test_secretkeeper_binder_bridge_refuses_non_android_runtime() -> None:
         return _FakeBinderLibrary()
 
     with pytest.raises(AndroidNativeBridgeUnavailable, match="outside Android"):
-        load_secretkeeper_binder_bridge(
+        load_system_secretkeeper_binder_bridge(
             "/system/lib64/libsecure_core_secretkeeper_binder_bridge.so",
             platform="linux",
             loader=loader,
@@ -98,7 +107,7 @@ def test_secretkeeper_binder_bridge_requires_all_symbols() -> None:
     del library.scm_secretkeeper_binder_free_packet
 
     with pytest.raises(AndroidNativeBridgeUnavailable, match="missing required"):
-        load_secretkeeper_binder_bridge(
+        load_system_secretkeeper_binder_bridge(
             "/system/lib64/libsecure_core_secretkeeper_binder_bridge.so",
             platform="android",
             loader=lambda path: library,
@@ -106,7 +115,7 @@ def test_secretkeeper_binder_bridge_requires_all_symbols() -> None:
 
 
 def test_loaded_binder_bridge_remains_unverified() -> None:
-    bridge = load_secretkeeper_binder_bridge(
+    bridge = load_system_secretkeeper_binder_bridge(
         "/system/lib64/libsecure_core_secretkeeper_binder_bridge.so",
         platform="android",
         loader=lambda path: _FakeBinderLibrary(),
