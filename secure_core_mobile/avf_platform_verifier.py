@@ -62,38 +62,77 @@ def authoritative_profile_sha256(
     return hashlib.sha256(payload).hexdigest()
 
 
-@dataclass(frozen=True)
-class AuthoritativeAvfTrustProfile:
-    """Exact pinned root-of-trust configuration for Android AVF verification.
+_AVF_PROFILE_PIN_ISSUER_KEY = object()
 
-    expected_profile_sha256 must be provisioned from outside attacker-controlled
-    runtime state, for example as immutable pVM image configuration.
-    """
 
-    certificate_store: CertificateTrustStore
-    expected_profile_sha256: str
-    profile_version: int = 1
+class PreprovisionedAvfProfilePin:
+    """Capability token representing a pin loaded from a protected boundary."""
 
-    def __post_init__(self) -> None:
+    __slots__ = ("profile_sha256", "provenance")
+
+    def __init__(
+        self,
+        *,
+        profile_sha256: str,
+        provenance: str,
+        _key: object,
+    ) -> None:
+        if _key is not _AVF_PROFILE_PIN_ISSUER_KEY:
+            raise TypeError("AVF profile pin is protected-loader-issued only")
         try:
             if (
-                len(self.expected_profile_sha256) != 64
-                or len(bytes.fromhex(self.expected_profile_sha256)) != 32
+                len(profile_sha256) != 64
+                or len(bytes.fromhex(profile_sha256)) != 32
             ):
                 raise ValueError
         except ValueError as exc:
             raise ValueError("invalid authoritative AVF profile pin") from exc
+        if not provenance:
+            raise ValueError("AVF profile pin provenance required")
+        self.profile_sha256 = profile_sha256
+        self.provenance = provenance
+
+
+class ProtectedAvfProfilePinProviderUnavailable:
+    """Fail-closed placeholder for immutable/protected pin retrieval."""
+
+    def load(self) -> PreprovisionedAvfProfilePin:
+        raise RuntimeError("protected AVF profile pin provider not implemented")
+
+
+def _issue_preprovisioned_avf_profile_pin_for_test(
+    profile_sha256: str,
+) -> PreprovisionedAvfProfilePin:
+    """Test-only issuer; production modules must never call this helper."""
+    return PreprovisionedAvfProfilePin(
+        profile_sha256=profile_sha256,
+        provenance="synthetic-test-only",
+        _key=_AVF_PROFILE_PIN_ISSUER_KEY,
+    )
+
+
+@dataclass(frozen=True)
+class AuthoritativeAvfTrustProfile:
+    """Exact root-of-trust bundle bound to a protected preprovisioned pin."""
+
+    certificate_store: CertificateTrustStore
+    protected_pin: PreprovisionedAvfProfilePin
+    profile_version: int = 1
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.protected_pin, PreprovisionedAvfProfilePin):
+            raise TypeError("protected AVF profile pin required")
 
         actual = authoritative_profile_sha256(
             self.certificate_store,
             profile_version=self.profile_version,
         )
-        if not hmac.compare_digest(actual, self.expected_profile_sha256):
+        if not hmac.compare_digest(actual, self.protected_pin.profile_sha256):
             raise ValueError("authoritative AVF trust profile pin mismatch")
 
     @property
     def profile_sha256(self) -> str:
-        return self.expected_profile_sha256
+        return self.protected_pin.profile_sha256
 
 
 class AndroidAvfAuthoritativeVerifierUnavailable:
