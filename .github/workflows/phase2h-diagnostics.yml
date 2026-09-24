@@ -1,0 +1,108 @@
+name: Phase 2H Frozen Diagnostics
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/phase2h-diagnostics.yml"
+      - "scripts/run_phase2h.py"
+      - "src/adversarial_sbox/phase2h.py"
+      - "src/adversarial_sbox/phase2h_evidence.py"
+      - "src/adversarial_sbox/phase2h_timeline.py"
+      - "tests/test_phase2h*.py"
+      - "research/PHASE2H_PROTOCOL.md"
+      - "research/phase2h-evidence-inventory.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  frozen-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Download frozen Phase 2G A artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase2g-arm-A-*
+          path: phase2g-inputs/A
+          merge-multiple: false
+          github-token: ${{ github.token }}
+          run-id: 35572084785
+
+      - name: Download frozen Phase 2G F artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase2g-arm-F-*
+          path: phase2g-inputs/F
+          merge-multiple: false
+          github-token: ${{ github.token }}
+          run-id: 35572084785
+
+      - name: Verify exact primary evidence count
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t ARM_FILES < <(find phase2g-inputs -type f -name arm.json | sort)
+          printf '%s\n' "${ARM_FILES[@]}"
+          test "${#ARM_FILES[@]}" -eq 18
+
+      - name: Build frozen evidence manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t ARM_FILES < <(find phase2g-inputs -type f -name arm.json | sort)
+          python scripts/run_phase2h.py \
+            --arm-files "${ARM_FILES[@]}" \
+            --prepare-manifest \
+            --output research/phase2h-evidence-manifest.json
+
+      - name: Run Phase 2H diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t ARM_FILES < <(find phase2g-inputs -type f -name arm.json | sort)
+          python scripts/run_phase2h.py \
+            --arm-files "${ARM_FILES[@]}" \
+            --evidence-manifest research/phase2h-evidence-manifest.json \
+            --implementation-commit "${GITHUB_SHA}" \
+            --output research/phase2h-diagnostics.json \
+            --result-md research/PHASE2H_RESULT.md
+
+      - name: Re-run diagnostics and prove byte identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t ARM_FILES < <(find phase2g-inputs -type f -name arm.json | sort -r)
+          python scripts/run_phase2h.py \
+            --arm-files "${ARM_FILES[@]}" \
+            --evidence-manifest research/phase2h-evidence-manifest.json \
+            --implementation-commit "${GITHUB_SHA}" \
+            --output /tmp/phase2h-diagnostics-rerun.json \
+            --result-md /tmp/PHASE2H_RESULT-rerun.md
+          cmp research/phase2h-diagnostics.json /tmp/phase2h-diagnostics-rerun.json
+          cmp research/PHASE2H_RESULT.md /tmp/PHASE2H_RESULT-rerun.md
+
+      - name: Run Phase 2H tests
+        run: pytest -q tests/test_phase2h.py tests/test_phase2h_evidence.py tests/test_phase2h_timeline.py tests/test_phase2h_runner.py
+
+      - name: Upload Phase 2H deterministic product
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2h-diagnostics-${{ github.sha }}
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            research/phase2h-evidence-manifest.json
+            research/phase2h-diagnostics.json
+            research/PHASE2H_RESULT.md
