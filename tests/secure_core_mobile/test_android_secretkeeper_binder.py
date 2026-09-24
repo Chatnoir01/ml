@@ -156,16 +156,16 @@ def test_binder_native_status_is_preserved() -> None:
     assert "protected-packet" in exc.value.operation
 
 
-@pytest.mark.parametrize("request", [b"", b"x" * (1024 * 1024 + 1)])
+@pytest.mark.parametrize("packet", [b"", b"x" * (1024 * 1024 + 1)])
 def test_invalid_protected_packet_is_rejected_before_binder(
-    request: bytes,
+    packet: bytes,
 ) -> None:
     bridge = AndroidSecretkeeperBinderBridge(
         _FakeBinderLibrary(),
         source_path="/system/lib64/libsecure_core_secretkeeper_binder_bridge.so",
     )
     with pytest.raises(ValueError):
-        bridge.process_protected_packet(request)
+        bridge.process_protected_packet(packet)
 
 
 def test_rust_bridge_uses_only_protected_binder_transport_contract() -> None:
