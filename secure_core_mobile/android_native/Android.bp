@@ -19,7 +19,7 @@ secure_core_avf_cc_defaults {
     },
 }
 
-cc_library_static {
+cc_library {
     name: "libsecure_core_avf_attestation_bridge",
     defaults: ["secure_core_avf_profile_pin_defaults"],
     srcs: [
