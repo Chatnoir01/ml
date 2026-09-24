@@ -14,6 +14,7 @@ from .authgraph_session import (
     VerifiedSecretkeeperIdentity,
     _TOKEN_KEY,
 )
+from .secretkeeper_cose_key import parse_secretkeeper_cose_key
 
 
 _EVIDENCE_ISSUER_KEY = object()
@@ -81,6 +82,9 @@ class PvmfwSecretkeeperIdentityVerifier:
         if not isinstance(evidence, PvmfwSecretkeeperBindingEvidence):
             raise TypeError("verifier-issued pvmfw Secretkeeper evidence required")
 
+        # Re-validate the key profile at the trust transition as defense in
+        # depth; callers may have constructed the provenance wrapper directly.
+        parse_secretkeeper_cose_key(public_key.public_key_cbor)
         actual = hashlib.sha256(public_key.public_key_cbor).hexdigest()
         if evidence.public_key_sha256 != actual:
             raise ValueError("pvmfw Secretkeeper evidence does not match DT key")
