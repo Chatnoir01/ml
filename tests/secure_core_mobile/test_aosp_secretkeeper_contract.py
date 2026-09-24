@@ -9,6 +9,9 @@ from secure_core_mobile.aosp_secretkeeper_contract import (
     SECRETKEEPER_CLIENT,
     SECRETKEEPER_VTS_CLIENT,
     inspect_aosp_secretkeeper_contract,
+    load_aosp_secretkeeper_contract_lock,
+    lock_aosp_secretkeeper_contract,
+    verify_aosp_secretkeeper_contract_lock,
 )
 
 
@@ -143,3 +146,67 @@ def test_contract_source_symlink_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="symlink"):
         inspect_aosp_secretkeeper_contract(tmp_path)
+
+
+def test_exact_contract_lock_accepts_unchanged_snapshot(tmp_path: Path) -> None:
+    _eligible_tree(tmp_path)
+    receipt = inspect_aosp_secretkeeper_contract(tmp_path)
+    lock = lock_aosp_secretkeeper_contract(receipt)
+
+    verify_aosp_secretkeeper_contract_lock(receipt, lock)
+
+    assert len(lock.lock_sha256) == 64
+
+
+def test_contract_lock_rejects_source_drift_even_if_api_markers_remain(
+    tmp_path: Path,
+) -> None:
+    _eligible_tree(tmp_path)
+    original = inspect_aosp_secretkeeper_contract(tmp_path)
+    lock = lock_aosp_secretkeeper_contract(original)
+
+    client_path = tmp_path / SECRETKEEPER_CLIENT
+    client_path.write_text(
+        client_path.read_text(encoding="utf-8") + "\n// reviewed-source-drift\n",
+        encoding="utf-8",
+    )
+    drifted = inspect_aosp_secretkeeper_contract(tmp_path)
+    assert drifted.eligible_for_secure_core_native_authgraph is True
+
+    with pytest.raises(ValueError, match="client lock mismatch"):
+        verify_aosp_secretkeeper_contract_lock(drifted, lock)
+
+
+def test_ineligible_contract_cannot_be_locked(tmp_path: Path) -> None:
+    _eligible_tree(tmp_path)
+    _write(
+        tmp_path,
+        SECRETKEEPER_CLIENT,
+        "pub struct SkSession {}",
+    )
+    receipt = inspect_aosp_secretkeeper_contract(tmp_path)
+
+    with pytest.raises(ValueError, match="ineligible"):
+        lock_aosp_secretkeeper_contract(receipt)
+
+
+def test_lock_loader_checks_self_digest(tmp_path: Path) -> None:
+    import json
+    from dataclasses import asdict
+
+    _eligible_tree(tmp_path)
+    receipt = inspect_aosp_secretkeeper_contract(tmp_path)
+    lock = lock_aosp_secretkeeper_contract(receipt)
+    lock_path = tmp_path / "contract-lock.json"
+
+    payload = asdict(lock)
+    payload["lock_sha256"] = lock.lock_sha256
+    lock_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    loaded = load_aosp_secretkeeper_contract_lock(lock_path)
+    assert loaded == lock
+
+    payload["lock_sha256"] = "0" * 64
+    lock_path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="self-digest"):
+        load_aosp_secretkeeper_contract_lock(lock_path)
