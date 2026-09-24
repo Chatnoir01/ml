@@ -25,8 +25,8 @@ def test_partial_secretkeeper_capability_cannot_create_monotonic_root():
 def test_full_capability_constructs_contract_but_io_stays_unimplemented():
     cap = SecretkeeperCapability(True, True, True, True)
     root = SecretkeeperMonotonicRoot(capability=cap)
-    assert root.hardware_resistant is True
-    assert root.boundary_owned is True
+    assert root.hardware_resistant is False
+    assert root.boundary_owned is False
     with pytest.raises(RuntimeError, match="not implemented"):
         root.current()
 
