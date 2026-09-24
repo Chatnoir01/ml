@@ -11,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .authgraph_session import PvmfwValidatedSecretkeeperKey
+from .secretkeeper_cose_key import parse_secretkeeper_cose_key
 
 TRUSTED_SECRETKEEPER_DT_PATH = Path(
     "/proc/device-tree/avf/secretkeeper_public_key"
@@ -52,6 +53,10 @@ def read_pvmfw_secretkeeper_key(
         raise ValueError("empty Secretkeeper public key")
     if len(key) > MAX_SECRETKEEPER_KEY_BYTES:
         raise ValueError("Secretkeeper public key exceeds bounded input size")
+
+    # The trusted path is necessary provenance, but malformed or unsupported
+    # COSE keys must still fail closed before they enter AuthGraph state.
+    parse_secretkeeper_cose_key(key)
 
     return PvmfwValidatedSecretkeeperKey(
         public_key_cbor=key,
