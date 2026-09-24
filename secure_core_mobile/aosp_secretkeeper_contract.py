@@ -15,7 +15,9 @@ from pathlib import Path
 
 
 AOSP_CONTRACT_SCHEMA_VERSION = 1
+AOSP_CONTRACT_LOCK_SCHEMA_VERSION = 1
 MAX_SOURCE_BYTES = 4 * 1024 * 1024
+MAX_LOCK_BYTES = 64 * 1024
 
 ISECRETKEEPER_AIDL = Path(
     "hardware/interfaces/security/secretkeeper/aidl/aidl_api/"
@@ -54,6 +56,122 @@ class AospSecretkeeperContractReceipt:
     @property
     def receipt_sha256(self) -> str:
         return hashlib.sha256(self.canonical_bytes()).hexdigest()
+
+
+@dataclass(frozen=True)
+class AospSecretkeeperContractLock:
+    """Reviewed exact source snapshot allowed for native AuthGraph work."""
+
+    schema_version: int
+    aidl_sha256: str
+    client_sha256: str
+    vts_client_sha256: str
+    contract_receipt_sha256: str
+
+    def canonical_bytes(self) -> bytes:
+        return json.dumps(
+            asdict(self),
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+
+    @property
+    def lock_sha256(self) -> str:
+        return hashlib.sha256(self.canonical_bytes()).hexdigest()
+
+
+def _require_sha256(value: str, *, label: str) -> None:
+    try:
+        if len(value) != 64 or len(bytes.fromhex(value)) != 32:
+            raise ValueError
+    except ValueError as exc:
+        raise ValueError(f"invalid {label} SHA-256") from exc
+
+
+def lock_aosp_secretkeeper_contract(
+    receipt: AospSecretkeeperContractReceipt,
+) -> AospSecretkeeperContractLock:
+    if not isinstance(receipt, AospSecretkeeperContractReceipt):
+        raise TypeError("AOSP Secretkeeper contract receipt required")
+    if not receipt.eligible_for_secure_core_native_authgraph:
+        raise ValueError("ineligible AOSP Secretkeeper contract cannot be locked")
+
+    return AospSecretkeeperContractLock(
+        schema_version=AOSP_CONTRACT_LOCK_SCHEMA_VERSION,
+        aidl_sha256=receipt.aidl_sha256,
+        client_sha256=receipt.client_sha256,
+        vts_client_sha256=receipt.vts_client_sha256,
+        contract_receipt_sha256=receipt.receipt_sha256,
+    )
+
+
+def verify_aosp_secretkeeper_contract_lock(
+    receipt: AospSecretkeeperContractReceipt,
+    lock: AospSecretkeeperContractLock,
+) -> None:
+    if not isinstance(receipt, AospSecretkeeperContractReceipt):
+        raise TypeError("AOSP Secretkeeper contract receipt required")
+    if not isinstance(lock, AospSecretkeeperContractLock):
+        raise TypeError("AOSP Secretkeeper contract lock required")
+    if not receipt.eligible_for_secure_core_native_authgraph:
+        raise ValueError("AOSP Secretkeeper contract is no longer eligible")
+    if lock.schema_version != AOSP_CONTRACT_LOCK_SCHEMA_VERSION:
+        raise ValueError("unsupported AOSP Secretkeeper contract lock schema")
+
+    expected = (
+        ("AIDL", lock.aidl_sha256, receipt.aidl_sha256),
+        ("client", lock.client_sha256, receipt.client_sha256),
+        ("VTS client", lock.vts_client_sha256, receipt.vts_client_sha256),
+        (
+            "contract receipt",
+            lock.contract_receipt_sha256,
+            receipt.receipt_sha256,
+        ),
+    )
+    for label, locked, actual in expected:
+        _require_sha256(locked, label=label)
+        if locked != actual:
+            raise ValueError(f"AOSP Secretkeeper {label} lock mismatch")
+
+
+def load_aosp_secretkeeper_contract_lock(
+    path: Path | str,
+) -> AospSecretkeeperContractLock:
+    lock_path = Path(path)
+    if lock_path.is_symlink():
+        raise ValueError("AOSP Secretkeeper contract lock symlink rejected")
+    if not lock_path.is_file():
+        raise ValueError("AOSP Secretkeeper contract lock unavailable")
+    size = lock_path.stat().st_size
+    if size <= 0 or size > MAX_LOCK_BYTES:
+        raise ValueError("AOSP Secretkeeper contract lock size invalid")
+
+    try:
+        payload = json.loads(lock_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("malformed AOSP Secretkeeper contract lock") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("AOSP Secretkeeper contract lock must be an object")
+
+    expected_keys = {
+        "schema_version",
+        "aidl_sha256",
+        "client_sha256",
+        "vts_client_sha256",
+        "contract_receipt_sha256",
+    }
+    if set(payload) != expected_keys:
+        raise ValueError("unexpected AOSP Secretkeeper contract lock fields")
+
+    lock = AospSecretkeeperContractLock(**payload)
+    _require_sha256(lock.aidl_sha256, label="AIDL")
+    _require_sha256(lock.client_sha256, label="client")
+    _require_sha256(lock.vts_client_sha256, label="VTS client")
+    _require_sha256(
+        lock.contract_receipt_sha256,
+        label="contract receipt",
+    )
+    return lock
 
 
 def _read_source(root: Path, relative: Path) -> tuple[str, str]:
