@@ -58,7 +58,9 @@ def test_closed_session_erases_pinned_identity_and_cannot_process():
 def test_authgraph_allocates_monotonic_request_sequence_per_session():
     session = AuthGraphSession()
     session.pin_secretkeeper_identity(b"key")
-    session.mark_native_exchange_established(peer_identity_verified=True, session_id=b"sid")
+    session.mark_native_exchange_established(
+        verified_identity=_verified(b"key"), session_id=b"sid"
+    )
     assert session.allocate_request_sequence() == 0
     assert session.allocate_request_sequence() == 1
     session.close()
