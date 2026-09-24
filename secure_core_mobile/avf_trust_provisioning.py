@@ -26,6 +26,7 @@ from cryptography.hazmat.primitives import hashes
 
 from .avf_platform_verifier import (
     AuthoritativeAvfTrustProfile,
+    PreprovisionedAvfProfilePin,
     authoritative_profile_sha256,
 )
 from .cert_chain import CertificateTrustStore
@@ -136,12 +137,12 @@ def prepare_authoritative_profile(
 def activate_preprovisioned_profile(
     store: CertificateTrustStore,
     *,
-    expected_profile_sha256: str,
+    protected_pin: PreprovisionedAvfProfilePin,
     profile_version: int = 1,
 ) -> AuthoritativeAvfTrustProfile:
-    """Activate only against a pin supplied by a separate protected channel."""
+    """Activate only against a protected-loader-issued pin capability."""
     return AuthoritativeAvfTrustProfile(
         certificate_store=store,
-        expected_profile_sha256=expected_profile_sha256,
+        protected_pin=protected_pin,
         profile_version=profile_version,
     )
