@@ -1,8 +1,12 @@
-"""ctypes adapter for the Android Secretkeeper Binder FFI bridge.
+"""System-side ctypes adapter for the Android Secretkeeper Binder FFI bridge.
 
-The bridge transports already-protected SecretManagement packets only. Loading
-it or completing a Binder call does not establish AuthGraph identity, session
-keys, pVM trust, or hostile-host resistance.
+Microdroid VM payloads are not general Binder clients. Payload code must use the
+VM Payload API (for example rollback-protected storage) instead. This module is
+reserved for AOSP/system-component integration where ISecretkeeper Binder access
+is actually available.
+
+Even there, transporting already-protected packets does not establish AuthGraph
+identity, session keys, pVM trust, or hostile-host resistance.
 """
 
 from __future__ import annotations
@@ -129,7 +133,7 @@ class AndroidSecretkeeperBinderBridge:
             )
 
 
-def load_secretkeeper_binder_bridge(
+def load_system_secretkeeper_binder_bridge(
     path: Path | str,
     *,
     platform: str | None = None,
@@ -155,4 +159,12 @@ def load_secretkeeper_binder_bridge(
     return AndroidSecretkeeperBinderBridge(
         library,
         source_path=str(candidate),
+    )
+
+
+def load_secretkeeper_binder_bridge(*args, **kwargs):
+    """Reject the former generic loader to prevent VM-payload Binder misuse."""
+    raise AndroidNativeBridgeUnavailable(
+        "direct Secretkeeper Binder client is system-side only; "
+        "Microdroid payloads must use the VM Payload API"
     )
