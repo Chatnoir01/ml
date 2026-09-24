@@ -13,6 +13,7 @@ from secure_core_mobile.avf_platform_verifier import (
     AndroidAvfAuthoritativeVerifier,
     AuthoritativeAvfTrustProfile,
     AvfTrustProfile,
+    _issue_preprovisioned_avf_profile_pin_for_test,
     authoritative_profile_sha256,
     verify_avf_platform,
 )
@@ -97,8 +98,12 @@ def _policy() -> AvfComponentPolicy:
 def test_authoritative_profile_requires_exact_anchor_pin() -> None:
     _, root = _certificates()
     store = CertificateTrustStore((root,))
-    with pytest.raises(ValueError, match="pin mismatch"):
+    with pytest.raises(TypeError, match="protected AVF profile pin"):
         AuthoritativeAvfTrustProfile(store, "0" * 64)
+
+    wrong = _issue_preprovisioned_avf_profile_pin_for_test("0" * 64)
+    with pytest.raises(ValueError, match="pin mismatch"):
+        AuthoritativeAvfTrustProfile(store, wrong)
 
 
 def test_generic_chain_verification_never_becomes_platform_verified() -> None:
@@ -118,7 +123,9 @@ def test_pre_pinned_profile_can_issue_platform_verified_token() -> None:
     store = CertificateTrustStore((root,))
     profile = AuthoritativeAvfTrustProfile(
         store,
-        authoritative_profile_sha256(store),
+        _issue_preprovisioned_avf_profile_pin_for_test(
+            authoritative_profile_sha256(store)
+        ),
     )
     result = AndroidAvfAuthoritativeVerifier(profile).verify(
         chain_der=(leaf,),
@@ -135,7 +142,9 @@ def test_authoritative_verifier_rejects_challenge_substitution() -> None:
     store = CertificateTrustStore((root,))
     profile = AuthoritativeAvfTrustProfile(
         store,
-        authoritative_profile_sha256(store),
+        _issue_preprovisioned_avf_profile_pin_for_test(
+            authoritative_profile_sha256(store)
+        ),
     )
     with pytest.raises(ValueError, match="challenge"):
         AndroidAvfAuthoritativeVerifier(profile).verify(
