@@ -179,10 +179,35 @@ AIDL, `client/src/lib.rs`, and VTS client. A drift in the explicit-DICE helper
 therefore invalidates the reviewed contract even if the visible `SkSession`
 signature remains unchanged.
 
-This Rust layer has not yet been built or executed inside the locked AOSP
-checkout on a real supported device. Until that compilation/runtime step is
-observed, it remains source-level integration evidence rather than native
-hardware evidence.
+The AOSP build step is now executable through
+`scripts/secure_core_aosp_verified_session_build.py`. It requires the reviewed
+Android 17 component revisions, an exact Secretkeeper contract-lock v2, and the
+Secure Core `android_native` directory to be physically integrated inside the
+same AOSP tree. Only then does it invoke
+`build/soong/soong_ui.bash --make-mode
+libsecure_core_secretkeeper_verified_session`. The build receipt contains
+source/lock/command/log digests and the Soong return code, never raw build logs.
+
+Typical sequence:
+
+```bash
+python scripts/secure_core_aosp_secretkeeper_preflight.py \
+  --aosp-root "$AOSP_ROOT" \
+  --target android-security-17.0.0_r1 \
+  --output secretkeeper-contract.json \
+  --lock-output secretkeeper-contract-lock.json
+
+python scripts/secure_core_aosp_verified_session_build.py \
+  --aosp-root "$AOSP_ROOT" \
+  --secure-core-native-dir "$AOSP_ROOT/external/secure_core/android_native" \
+  --contract-lock secretkeeper-contract-lock.json \
+  --output verified-sk-session-build.json
+```
+
+This Rust layer has not yet been built or executed inside a real locked AOSP
+checkout in this repository session. Until an actual Soong success receipt and
+device runtime evidence are observed, it remains source-level integration
+evidence rather than native hardware evidence.
 
 
 ## Android 17 VM Payload contract gate
