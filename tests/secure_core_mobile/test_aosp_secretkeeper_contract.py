@@ -10,6 +10,7 @@ from secure_core_mobile.aosp_secretkeeper_contract import (
     HARDWARE_INTERFACES_REPO,
     ISECRETKEEPER_AIDL,
     SECRETKEEPER_CLIENT,
+    SECRETKEEPER_EXPLICIT_DICE,
     SECRETKEEPER_VTS_CLIENT,
     SYSTEM_SECRETKEEPER_REPO,
     inspect_aosp_secretkeeper_contract,
@@ -56,6 +57,18 @@ impl SkSession {
     )
     _write(
         root,
+        SECRETKEEPER_EXPLICIT_DICE,
+        """
+pub struct OwnedDiceArtifactsWithExplicitKey {}
+impl OwnedDiceArtifactsWithExplicitKey {
+  pub fn from_owned_artifacts(artifacts: OwnedDiceArtifacts) -> Result<Self, Error> {
+      todo!()
+  }
+}
+""",
+    )
+    _write(
+        root,
         SECRETKEEPER_VTS_CLIENT,
         """
 fn with_expected_sk_identity(expected_sk_key: CoseKey) {
@@ -74,6 +87,7 @@ def test_eligible_aosp_contract_records_source_digests(tmp_path: Path) -> None:
     assert receipt.reason == "required-secretkeeper-authgraph-contract-present"
     assert len(receipt.aidl_sha256) == 64
     assert len(receipt.client_sha256) == 64
+    assert len(receipt.explicit_dice_sha256) == 64
     assert len(receipt.vts_client_sha256) == 64
     assert len(receipt.receipt_sha256) == 64
 
@@ -181,6 +195,25 @@ def test_contract_lock_rejects_source_drift_even_if_api_markers_remain(
     with pytest.raises(ValueError, match="client lock mismatch"):
         verify_aosp_secretkeeper_contract_lock(drifted, lock)
 
+
+
+def test_contract_lock_rejects_explicit_dice_source_drift(
+    tmp_path: Path,
+) -> None:
+    _eligible_tree(tmp_path)
+    original = inspect_aosp_secretkeeper_contract(tmp_path)
+    lock = lock_aosp_secretkeeper_contract(original)
+
+    dice_path = tmp_path / SECRETKEEPER_EXPLICIT_DICE
+    dice_path.write_text(
+        dice_path.read_text(encoding="utf-8") + "\n// explicit-dice-drift\n",
+        encoding="utf-8",
+    )
+    drifted = inspect_aosp_secretkeeper_contract(tmp_path)
+    assert drifted.eligible_for_secure_core_native_authgraph is True
+
+    with pytest.raises(ValueError, match="explicit DICE client lock mismatch"):
+        verify_aosp_secretkeeper_contract_lock(drifted, lock)
 
 def test_ineligible_contract_cannot_be_locked(tmp_path: Path) -> None:
     _eligible_tree(tmp_path)
