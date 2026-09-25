@@ -62,6 +62,7 @@ rust_library {
         "android.hardware.security.secretkeeper-V1-rust",
         "libbinder_rs",
         "libcoset",
+        "libexplicitkeydice",
         "libsecretkeeper_client",
     ],
 }
