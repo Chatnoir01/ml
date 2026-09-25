@@ -22,7 +22,7 @@ def test_development_harness_cannot_promote_adversarial_claim():
                      evidence=(EvidenceRef("impl", "implementation", "a"*64),))
     registry.promote("SCM-I10", target=ClaimLevel.TESTED,
                      evidence=(EvidenceRef("test", "test", "a"*64),))
-    with pytest.raises(ValueError, match="development-host"):
+    with pytest.raises(ValueError, match="verifier-issued hostile-host evidence"):
         promote_from_experiment(
             registry, "SCM-I10",
             target=ClaimLevel.ADVERSARIALLY_TESTED,
