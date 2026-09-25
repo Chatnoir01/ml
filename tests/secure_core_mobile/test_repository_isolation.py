@@ -16,6 +16,9 @@ PVMFW_ISSUER_ALLOWED = Path("secure_core_mobile/secretkeeper_dt.py")
 PVMFW_TOKEN_CONSTRUCTOR = "PvmfwValidatedSecretkeeperKey"
 PVMFW_CONSTRUCTOR_ALLOWED = Path("secure_core_mobile/secretkeeper_dt.py")
 
+HOSTILE_EVIDENCE_ISSUER = "_HOSTILE_EVIDENCE_TOKEN_KEY"
+HOSTILE_EVIDENCE_ISSUER_ALLOWED = Path("secure_core_mobile/claim_gate.py")
+
 AVF_PIN_TOKEN_CONSTRUCTOR = "PreprovisionedAvfProfilePin"
 AVF_PIN_CONSTRUCTOR_ALLOWED = Path("secure_core_mobile/avf_platform_verifier.py")
 
@@ -51,6 +54,13 @@ def _trust_token_violations(path: Path) -> list[str]:
             if PVMFW_ISSUER in imported and path != PVMFW_ISSUER_ALLOWED:
                 violations.append(
                     f"{path}:{node.lineno}: unauthorized pvmfw-token issuer import"
+                )
+            if (
+                HOSTILE_EVIDENCE_ISSUER in imported
+                and path != HOSTILE_EVIDENCE_ISSUER_ALLOWED
+            ):
+                violations.append(
+                    f"{path}:{node.lineno}: unauthorized hostile-evidence issuer import"
                 )
 
         if isinstance(node, ast.Call):
