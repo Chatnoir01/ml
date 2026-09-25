@@ -159,10 +159,24 @@ The system-side bridge accepts only already-protected packets and exposes no
 plaintext StoreSecret/GetSecret surface.
 
 Secure Core also pins the expected AOSP Secretkeeper/AuthGraph source contract
-before any future system-side `SkSession` work. The reviewed target currently
+before system-side `SkSession` integration. The reviewed Android 17 target
 requires an API with `expected_sk_key` identity binding, VTS coverage of that
 binding, and exact source/repository locks. This avoids silently compiling
 against an older AuthGraph session API with weaker identity semantics.
+
+A dedicated Rust wrapper,
+`libsecure_core_secretkeeper_verified_session`, now calls the reviewed AOSP
+`SkSession::new(sk, dice, Some(expected_sk_key))` path only. The wrapper has
+no unverified constructor, rejects empty expected identity, leaves AES session
+keys encapsulated inside AOSP `SkSession`, and exposes only protected
+SecretManagement requests plus the AuthGraph `session_id` for transcript
+binding. It links directly against `libsecretkeeper_client`,
+`libexplicitkeydice`, `libcoset`, Binder, and the current Secretkeeper AIDL.
+
+This Rust layer has not yet been built or executed inside the locked AOSP
+checkout on a real supported device. Until that compilation/runtime step is
+observed, it remains source-level integration evidence rather than native
+hardware evidence.
 
 
 ## Android 17 VM Payload contract gate
