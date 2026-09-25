@@ -145,8 +145,20 @@ def run_verified_session_soong_build(
         label="verified Secretkeeper Rust source",
     )
 
-    if f'name: "{VERIFIED_SESSION_MODULE}"' not in android_bp:
-        raise ValueError("verified Secretkeeper Soong module missing")
+    required_build_markers = (
+        f'name: "{VERIFIED_SESSION_MODULE}"',
+        '"android.hardware.security.secretkeeper-V1-rust"',
+        '"libbinder_rs"',
+        '"libcoset"',
+        '"libexplicitkeydice"',
+        '"libsecretkeeper_client"',
+    )
+    for marker in required_build_markers:
+        if marker not in android_bp:
+            raise ValueError(
+                f"verified Secretkeeper Soong module missing required marker: {marker}"
+            )
+
     required_markers = (
         "SkSession::new(sk, dice, Some(expected_sk_key))",
         "CoseKey::from_slice(expected_sk_key_cbor)",
