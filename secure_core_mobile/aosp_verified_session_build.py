@@ -102,6 +102,7 @@ def run_verified_session_soong_build(
     contract_lock_path: Path | str,
     runner: Callable[..., subprocess.CompletedProcess[str]] = _default_runner,
     timeout: int = 1800,
+    git_head_reader: Callable[[Path], str] | None = None,
 ) -> AospVerifiedSessionBuildReceipt:
     root = Path(aosp_root)
     if root.is_symlink():
@@ -111,7 +112,14 @@ def run_verified_session_soong_build(
     if timeout <= 0:
         raise ValueError("Soong build timeout must be positive")
 
-    verify_aosp_secretkeeper_source_target(root, ANDROID_SECURITY_17_R1)
+    if git_head_reader is None:
+        verify_aosp_secretkeeper_source_target(root, ANDROID_SECURITY_17_R1)
+    else:
+        verify_aosp_secretkeeper_source_target(
+            root,
+            ANDROID_SECURITY_17_R1,
+            git_head_reader=git_head_reader,
+        )
     contract = inspect_aosp_secretkeeper_contract(root)
     lock = load_aosp_secretkeeper_contract_lock(contract_lock_path)
     verify_aosp_secretkeeper_contract_lock(contract, lock)
