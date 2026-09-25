@@ -8,6 +8,7 @@ import sys
 from secure_core_mobile.aosp_secretkeeper_contract import (
     ISECRETKEEPER_AIDL,
     SECRETKEEPER_CLIENT,
+    SECRETKEEPER_EXPLICIT_DICE,
     SECRETKEEPER_VTS_CLIENT,
 )
 
@@ -50,6 +51,18 @@ impl SkSession {
     )
     _write(
         root,
+        SECRETKEEPER_EXPLICIT_DICE,
+        """
+pub struct OwnedDiceArtifactsWithExplicitKey {}
+impl OwnedDiceArtifactsWithExplicitKey {
+  pub fn from_owned_artifacts(artifacts: OwnedDiceArtifacts) -> Result<Self, Error> {
+    todo!()
+  }
+}
+""",
+    )
+    _write(
+        root,
         SECRETKEEPER_VTS_CLIENT,
         """
 fn with_expected_sk_identity(expected_sk_key: CoseKey) {
@@ -86,7 +99,12 @@ def test_cli_can_create_and_require_exact_contract_lock(tmp_path: Path) -> None:
     )
     assert created.returncode == 0, created.stderr
 
+    receipt_payload = json.loads(receipt.read_text(encoding="utf-8"))
     lock_payload = json.loads(lock.read_text(encoding="utf-8"))
+    assert receipt_payload["schema_version"] == 2
+    assert len(receipt_payload["explicit_dice_sha256"]) == 64
+    assert lock_payload["schema_version"] == 2
+    assert len(lock_payload["explicit_dice_sha256"]) == 64
     assert len(lock_payload["lock_sha256"]) == 64
 
     verified = _run(
@@ -115,6 +133,41 @@ def test_cli_can_create_and_require_exact_contract_lock(tmp_path: Path) -> None:
     assert rejected.returncode != 0
     assert "lock mismatch" in rejected.stderr
 
+
+
+def test_cli_lock_detects_explicit_dice_drift(tmp_path: Path) -> None:
+    aosp = tmp_path / "aosp"
+    aosp.mkdir()
+    _eligible_tree(aosp)
+
+    receipt = tmp_path / "receipt.json"
+    lock = tmp_path / "lock.json"
+    created = _run(
+        "--aosp-root",
+        str(aosp),
+        "--output",
+        str(receipt),
+        "--lock-output",
+        str(lock),
+    )
+    assert created.returncode == 0, created.stderr
+
+    dice = aosp / SECRETKEEPER_EXPLICIT_DICE
+    dice.write_text(
+        dice.read_text(encoding="utf-8") + "\n// explicit-dice-source-drift\n",
+        encoding="utf-8",
+    )
+
+    rejected = _run(
+        "--aosp-root",
+        str(aosp),
+        "--output",
+        str(tmp_path / "drifted.json"),
+        "--require-lock",
+        str(lock),
+    )
+    assert rejected.returncode != 0
+    assert "explicit DICE client lock mismatch" in rejected.stderr
 
 def test_cli_refuses_lock_creation_for_ineligible_contract(tmp_path: Path) -> None:
     aosp = tmp_path / "aosp"
