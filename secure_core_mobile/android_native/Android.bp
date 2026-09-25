@@ -49,3 +49,19 @@ rust_ffi_shared {
         "libbinder_rs",
     ],
 }
+
+
+rust_library {
+    name: "libsecure_core_secretkeeper_verified_session",
+    crate_name: "secure_core_secretkeeper_verified_session",
+    srcs: ["secretkeeper_verified_session.rs"],
+    edition: "2021",
+    lints: "android",
+    defaults: ["secretkeeper_use_latest_hal_aidl_rust"],
+    rustlibs: [
+        "android.hardware.security.secretkeeper-V1-rust",
+        "libbinder_rs",
+        "libcoset",
+        "libsecretkeeper_client",
+    ],
+}
