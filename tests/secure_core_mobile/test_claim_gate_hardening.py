@@ -82,3 +82,40 @@ def test_caller_cannot_construct_hostile_evidence_token():
             campaign_results_sha256="d" * 64,
             provenance="forged",
         )
+
+
+def test_experiment_receipt_cannot_authorize_external_validation():
+    from secure_core_mobile.claims import EvidenceRef
+
+    registry = ClaimRegistry(baseline_claims())
+    registry.promote(
+        "SCM-I1",
+        target=ClaimLevel.IMPLEMENTED,
+        evidence=(EvidenceRef("impl", "implementation", "a" * 64),),
+    )
+    registry.promote(
+        "SCM-I1",
+        target=ClaimLevel.TESTED,
+        evidence=(EvidenceRef("test", "test", "b" * 64),),
+    )
+    registry.promote(
+        "SCM-I1",
+        target=ClaimLevel.ADVERSARIALLY_TESTED,
+        evidence=(EvidenceRef("hostile", "hostile-host-test", "c" * 64),),
+    )
+    receipt = _signed({
+        "schema_version": 2,
+        "scope": "hostile-host-isolated-boundary",
+        "campaign_passed": True,
+        "boundary_evidence_sha256": "d" * 64,
+        "campaign_spec_sha256": "e" * 64,
+        "campaign_results_sha256": "f" * 64,
+    })
+
+    with pytest.raises(ValueError, match="external validation"):
+        promote_from_experiment(
+            registry,
+            "SCM-I1",
+            target=ClaimLevel.EXTERNALLY_VALIDATED,
+            experiment_receipt=receipt,
+        )
