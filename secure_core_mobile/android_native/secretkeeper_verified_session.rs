@@ -8,11 +8,8 @@
 use android_hardware_security_secretkeeper::aidl::android::hardware::security::secretkeeper::
     ISecretkeeper::ISecretkeeper;
 use coset::{CborSerializable, CoseKey};
-use secretkeeper_client::{
-    dice::OwnedDiceArtifactsWithExplicitKey,
-    Error as SkError,
-    SkSession,
-};
+use explicitkeydice::OwnedDiceArtifactsWithExplicitKey;
+use secretkeeper_client::{Error as SkError, SkSession};
 use std::fmt;
 
 #[derive(Debug)]
