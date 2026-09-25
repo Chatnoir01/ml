@@ -84,7 +84,7 @@ def promote_from_experiment(
 ) -> None:
     sha = _verify_receipt_sha(experiment_receipt)
 
-    if target >= ClaimLevel.ADVERSARIALLY_TESTED:
+    if target is ClaimLevel.ADVERSARIALLY_TESTED:
         # Qualifying booleans inside caller-created JSON are intentionally not
         # authority. A future real runtime/device verifier must issue the token.
         if not isinstance(
