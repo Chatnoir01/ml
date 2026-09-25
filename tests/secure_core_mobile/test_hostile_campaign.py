@@ -27,7 +27,35 @@ def test_development_campaign_can_pass_behavior_but_never_qualify_as_evidence():
     receipt = hostile_campaign_receipt(
         campaign=HostileCampaign(), capability=capability, results=_passing_results()
     )
+    assert receipt["schema_version"] == 2
+    assert receipt["scope"] == "development-host-only"
     assert receipt["campaign_passed"] is True
     assert receipt["hostile_host_ready"] is False
     assert receipt["qualifies_as_hostile_host_evidence"] is False
+    assert receipt["qualifies_as_pkvm_evidence"] is False
+    assert receipt["campaign_sha256"] == receipt["campaign_spec_sha256"]
+    assert len(receipt["campaign_results_sha256"]) == 64
     assert len(receipt["sha256"]) == 64
+
+
+def test_campaign_results_digest_is_order_invariant():
+    campaign = HostileCampaign()
+    capability = SecurityCapability(
+        development_boundary(), False, False, False, False
+    )
+    forward = _passing_results()
+    reverse = tuple(reversed(forward))
+
+    left = hostile_campaign_receipt(
+        campaign=campaign,
+        capability=capability,
+        results=forward,
+    )
+    right = hostile_campaign_receipt(
+        campaign=campaign,
+        capability=capability,
+        results=reverse,
+    )
+
+    assert left["campaign_results_sha256"] == right["campaign_results_sha256"]
+    assert left["sha256"] == right["sha256"]
