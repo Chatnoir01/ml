@@ -16,8 +16,8 @@ import subprocess
 from typing import Callable
 
 
-AOSP_CONTRACT_SCHEMA_VERSION = 1
-AOSP_CONTRACT_LOCK_SCHEMA_VERSION = 1
+AOSP_CONTRACT_SCHEMA_VERSION = 2
+AOSP_CONTRACT_LOCK_SCHEMA_VERSION = 2
 MAX_SOURCE_BYTES = 4 * 1024 * 1024
 MAX_LOCK_BYTES = 64 * 1024
 
@@ -27,6 +27,7 @@ ISECRETKEEPER_AIDL = Path(
     "android/hardware/security/secretkeeper/ISecretkeeper.aidl"
 )
 SECRETKEEPER_CLIENT = Path("system/secretkeeper/client/src/lib.rs")
+SECRETKEEPER_EXPLICIT_DICE = Path("system/secretkeeper/client/src/dice.rs")
 SECRETKEEPER_VTS_CLIENT = Path(
     "hardware/interfaces/security/secretkeeper/aidl/vts/"
     "secretkeeper_test_client.rs"
@@ -58,6 +59,7 @@ class AospSecretkeeperContractReceipt:
     schema_version: int
     aidl_sha256: str
     client_sha256: str
+    explicit_dice_sha256: str
     vts_client_sha256: str
     has_process_secret_management_request: bool
     has_get_authgraph_ke: bool
@@ -87,6 +89,7 @@ class AospSecretkeeperContractLock:
     schema_version: int
     aidl_sha256: str
     client_sha256: str
+    explicit_dice_sha256: str
     vts_client_sha256: str
     contract_receipt_sha256: str
 
@@ -122,6 +125,7 @@ def lock_aosp_secretkeeper_contract(
         schema_version=AOSP_CONTRACT_LOCK_SCHEMA_VERSION,
         aidl_sha256=receipt.aidl_sha256,
         client_sha256=receipt.client_sha256,
+        explicit_dice_sha256=receipt.explicit_dice_sha256,
         vts_client_sha256=receipt.vts_client_sha256,
         contract_receipt_sha256=receipt.receipt_sha256,
     )
@@ -143,6 +147,11 @@ def verify_aosp_secretkeeper_contract_lock(
     expected = (
         ("AIDL", lock.aidl_sha256, receipt.aidl_sha256),
         ("client", lock.client_sha256, receipt.client_sha256),
+        (
+            "explicit DICE client",
+            lock.explicit_dice_sha256,
+            receipt.explicit_dice_sha256,
+        ),
         ("VTS client", lock.vts_client_sha256, receipt.vts_client_sha256),
         (
             "contract receipt",
@@ -179,6 +188,7 @@ def load_aosp_secretkeeper_contract_lock(
         "schema_version",
         "aidl_sha256",
         "client_sha256",
+        "explicit_dice_sha256",
         "vts_client_sha256",
         "contract_receipt_sha256",
     }
@@ -194,6 +204,7 @@ def load_aosp_secretkeeper_contract_lock(
             raise ValueError("AOSP Secretkeeper lock self-digest mismatch")
     _require_sha256(lock.aidl_sha256, label="AIDL")
     _require_sha256(lock.client_sha256, label="client")
+    _require_sha256(lock.explicit_dice_sha256, label="explicit DICE client")
     _require_sha256(lock.vts_client_sha256, label="VTS client")
     _require_sha256(
         lock.contract_receipt_sha256,
@@ -290,12 +301,19 @@ def inspect_aosp_secretkeeper_contract(
 
     aidl, aidl_sha = _read_source(root, ISECRETKEEPER_AIDL)
     client, client_sha = _read_source(root, SECRETKEEPER_CLIENT)
+    explicit_dice, explicit_dice_sha = _read_source(
+        root, SECRETKEEPER_EXPLICIT_DICE
+    )
     vts, vts_sha = _read_source(root, SECRETKEEPER_VTS_CLIENT)
 
     process = "processSecretManagementRequest" in aidl
     authgraph = "getAuthGraphKe" in aidl
     sk_session = "pub struct SkSession" in client
-    explicit_dice = "OwnedDiceArtifactsWithExplicitKey" in client
+    explicit_dice_identity = (
+        "OwnedDiceArtifactsWithExplicitKey" in client
+        and "pub struct OwnedDiceArtifactsWithExplicitKey" in explicit_dice
+        and "from_owned_artifacts" in explicit_dice
+    )
     expected_identity = (
         "expected_sk_key" in client
         and "CoseKey" in client
@@ -312,7 +330,7 @@ def inspect_aosp_secretkeeper_contract(
         process,
         authgraph,
         sk_session,
-        explicit_dice,
+        explicit_dice_identity,
         expected_identity,
         vts_expected_identity,
     ))
@@ -327,7 +345,7 @@ def inspect_aosp_secretkeeper_contract(
             missing.append("getAuthGraphKe")
         if not sk_session:
             missing.append("SkSession")
-        if not explicit_dice:
+        if not explicit_dice_identity:
             missing.append("explicit-DICE-identity")
         if not expected_identity:
             missing.append("expected-Secretkeeper-identity-binding")
@@ -339,11 +357,12 @@ def inspect_aosp_secretkeeper_contract(
         schema_version=AOSP_CONTRACT_SCHEMA_VERSION,
         aidl_sha256=aidl_sha,
         client_sha256=client_sha,
+        explicit_dice_sha256=explicit_dice_sha,
         vts_client_sha256=vts_sha,
         has_process_secret_management_request=process,
         has_get_authgraph_ke=authgraph,
         has_sk_session=sk_session,
-        has_explicit_dice_identity=explicit_dice,
+        has_explicit_dice_identity=explicit_dice_identity,
         has_expected_secretkeeper_identity_binding=expected_identity,
         vts_exercises_expected_identity_binding=vts_expected_identity,
         eligible_for_secure_core_native_authgraph=eligible,
