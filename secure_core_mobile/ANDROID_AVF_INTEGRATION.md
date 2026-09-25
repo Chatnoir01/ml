@@ -173,6 +173,12 @@ SecretManagement requests plus the AuthGraph `session_id` for transcript
 binding. It links directly against `libsecretkeeper_client`,
 `libexplicitkeydice`, `libcoset`, Binder, and the current Secretkeeper AIDL.
 
+The Secretkeeper source-contract lock is now schema v2 and hashes the exact
+`client/src/dice.rs` source behind `libexplicitkeydice` in addition to the
+AIDL, `client/src/lib.rs`, and VTS client. A drift in the explicit-DICE helper
+therefore invalidates the reviewed contract even if the visible `SkSession`
+signature remains unchanged.
+
 This Rust layer has not yet been built or executed inside the locked AOSP
 checkout on a real supported device. Until that compilation/runtime step is
 observed, it remains source-level integration evidence rather than native
