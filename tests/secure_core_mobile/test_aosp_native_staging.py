@@ -120,7 +120,7 @@ def test_destination_symlink_is_rejected(tmp_path: Path) -> None:
 def test_source_file_symlink_is_rejected(tmp_path: Path) -> None:
     root = _aosp(tmp_path)
     source = _source(tmp_path)
-    target = source / "real.rs"
+    target = tmp_path / "real.rs"
     target.write_text("x", encoding="utf-8")
     victim = source / "secretkeeper_verified_session.rs"
     victim.unlink()
