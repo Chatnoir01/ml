@@ -191,6 +191,11 @@ source/lock/command/log digests and the Soong return code, never raw build logs.
 Typical sequence:
 
 ```bash
+python scripts/secure_core_stage_android_native.py \
+  --aosp-root "$AOSP_ROOT" \
+  --source-native-dir secure_core_mobile/android_native \
+  --output native-staging.json
+
 python scripts/secure_core_aosp_secretkeeper_preflight.py \
   --aosp-root "$AOSP_ROOT" \
   --target android-security-17.0.0_r1 \
@@ -203,6 +208,10 @@ python scripts/secure_core_aosp_verified_session_build.py \
   --contract-lock secretkeeper-contract-lock.json \
   --output verified-sk-session-build.json
 ```
+
+The staging step itself is allowlisted and hash-receipted. It rejects symlinked
+sources/destinations, unexpected native files, and differing destination
+content unless replacement is explicitly requested.
 
 This Rust layer has not yet been built or executed inside a real locked AOSP
 checkout in this repository session. Until an actual Soong success receipt and
