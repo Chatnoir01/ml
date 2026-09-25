@@ -13,6 +13,7 @@ def test_verified_sk_session_requires_expected_secretkeeper_identity() -> None:
 
     assert "expected_sk_key_cbor" in source
     assert "CoseKey::from_slice(expected_sk_key_cbor)" in source
+    assert "use explicitkeydice::OwnedDiceArtifactsWithExplicitKey;" in source
     assert re.search(
         r"SkSession::new\(\s*sk,\s*dice,\s*Some\(expected_sk_key\)\s*\)",
         source,
@@ -49,6 +50,7 @@ def test_verified_sk_session_soong_module_pins_aosp_dependencies() -> None:
         "android.hardware.security.secretkeeper-V1-rust",
         "libbinder_rs",
         "libcoset",
+        "libexplicitkeydice",
         "libsecretkeeper_client",
     ):
         assert f'"{dependency}"' in build
