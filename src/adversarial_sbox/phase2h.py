@@ -314,65 +314,131 @@ def _classical_distortion(raw: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _checkpoint_fingerprints(
+    checkpoint: Mapping[str, Any], field: str
+) -> frozenset[str] | None:
+    """Unavailable checkpoint evidence is unknown, never an empty identical set."""
+    raw = checkpoint.get(field)
+    if raw is None or raw == []:
+        return None
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes, bytearray)):
+        raise ValueError(f"malformed {field} evidence")
+    if any(not isinstance(fp, str) or not fp for fp in raw):
+        raise ValueError(f"malformed {field} fingerprint")
+    if len(set(raw)) != len(raw):
+        raise ValueError(f"duplicate {field} fingerprint")
+    return frozenset(raw)
+
+
+def _fingerprint_relation(left: frozenset[str] | None, right: frozenset[str] | None) -> dict[str, Any]:
+    if left is None or right is None:
+        return {"comparable": False, "jaccard": None, "identical": None, "intersection_size": None}
+    union = left | right
+    return {
+        "comparable": True,
+        "jaccard": float(len(left & right) / len(union)) if union else 1.0,
+        "identical": left == right,
+        "intersection_size": len(left & right),
+    }
+
+
 def _recurrence(raw: Mapping[str, Any]) -> dict[str, Any]:
     cps = _checkpoints(raw)
-    curriculum_sets = {
-        g: set(map(str, cps[g].get("curriculum_fingerprints", ()))) for g in CHECKPOINT_GENERATIONS
-    }
-    population_sets = {
-        g: set(map(str, cps[g].get("population_after_fingerprints", ()))) for g in CHECKPOINT_GENERATIONS
-    }
-    nonadjacent = []
+    curricula = {g: _checkpoint_fingerprints(cps[g], "curriculum_fingerprints")
+                 for g in CHECKPOINT_GENERATIONS}
+    populations = {g: _checkpoint_fingerprints(cps[g], "population_after_fingerprints")
+                   for g in CHECKPOINT_GENERATIONS}
+    # All six unordered pairs are retained, including adverse/null comparisons.
+    matrix = []
     for i, left in enumerate(CHECKPOINT_GENERATIONS):
-        for right in CHECKPOINT_GENERATIONS[i + 2 :]:
-            c_union = curriculum_sets[left] | curriculum_sets[right]
-            p_union = population_sets[left] | population_sets[right]
-            nonadjacent.append({
+        for right in CHECKPOINT_GENERATIONS[i + 1:]:
+            curr = _fingerprint_relation(curricula[left], curricula[right])
+            pop = _fingerprint_relation(populations[left], populations[right])
+            matrix.append({
                 "left_generation": int(left),
                 "right_generation": int(right),
-                "curriculum_jaccard": float(len(curriculum_sets[left] & curriculum_sets[right]) / len(c_union)) if c_union else 1.0,
-                "population_jaccard": float(len(population_sets[left] & population_sets[right]) / len(p_union)) if p_union else 1.0,
+                "adjacent": (right == CHECKPOINT_GENERATIONS[i + 1]),
+                "curriculum_comparable": curr["comparable"],
+                "curriculum_jaccard": curr["jaccard"],
+                "curriculum_identical": curr["identical"],
+                "curriculum_shared_fingerprint_count": curr["intersection_size"],
+                "population_comparable": pop["comparable"],
+                "population_jaccard": pop["jaccard"],
+                "population_identical": pop["identical"],
+                "population_shared_fingerprint_count": pop["intersection_size"],
             })
     digest_groups: dict[str, list[int]] = {}
     for generation in CHECKPOINT_GENERATIONS:
-        digest_groups.setdefault(
-            str(cps[generation]["curriculum_digest_sha256"]), []
-        ).append(int(generation))
+        digest_groups.setdefault(str(cps[generation]["curriculum_digest_sha256"]), []).append(int(generation))
     exact_pairs = [
         {"digest_sha256": digest, "generations": generations}
         for digest, generations in sorted(digest_groups.items())
         if len(generations) > 1
     ]
     return {
-        "nonadjacent_checkpoint_overlap": nonadjacent,
+        "checkpoint_fingerprint_recurrence_matrix": matrix,
+        "checkpoint_pair_count": len(matrix),
+        "curriculum_pairs_comparable": sum(int(row["curriculum_comparable"]) for row in matrix),
+        "population_pairs_comparable": sum(int(row["population_comparable"]) for row in matrix),
+        "nonadjacent_checkpoint_overlap": [
+            {
+                "left_generation": row["left_generation"],
+                "right_generation": row["right_generation"],
+                "curriculum_jaccard": row["curriculum_jaccard"],
+                "population_jaccard": row["population_jaccard"],
+            }
+            for row in matrix if not row["adjacent"]
+        ],
         "exact_curriculum_digest_recurrence": bool(exact_pairs),
         "exact_curriculum_digest_recurrence_groups": exact_pairs,
     }
 
 
 def _rank_reversals(raw: Mapping[str, Any]) -> dict[str, Any]:
-    """Detect actual pairwise rank-direction reversals across comparable events."""
-    observations: dict[tuple[str, str], list[tuple[int, int]]] = {}
+    """Only time-separated same-stage rankings can constitute rank reversal.
+
+    A shortlist-vs-survivor disagreement at the same generation is a distinct
+    selection context, not evidence that a model or curriculum reversed over time.
+    Evidence contradicting itself within the same generation and stage remains
+    ambiguous rather than silently creating a reversal.
+    """
+    observations: dict[tuple[str, str, str], dict[int, set[int]]] = {}
     comparable_events = 0
     for event in sorted(_selection_events(raw), key=_event_key):
         order = _rank_order(event)
-        if order is None:
+        if order is None or len(set(order)) != len(order):
+            continue
+        stage = str(event.get("stage", ""))
+        if not stage:
             continue
         comparable_events += 1
-        position = {fp: index for index, fp in enumerate(order)}
+        positions = {fp: i for i, fp in enumerate(order)}
         generation = int(event.get("generation", -1))
         for i, left in enumerate(order):
             for right in order[i + 1:]:
                 pair = tuple(sorted((left, right)))
-                direction = 1 if position[pair[0]] < position[pair[1]] else -1
-                observations.setdefault(pair, []).append((generation, direction))
+                direction = 1 if positions[pair[0]] < positions[pair[1]] else -1
+                observations.setdefault((stage, pair[0], pair[1]), {}).setdefault(
+                    generation, set()
+                ).add(direction)
 
     reversals = []
-    for pair, values in sorted(observations.items()):
-        directions = {direction for _, direction in values}
-        if len(directions) > 1:
+    ambiguous = []
+    for (stage, a, b), by_generation in sorted(observations.items()):
+        if any(len(directions) != 1 for directions in by_generation.values()):
+            ambiguous.append({
+                "stage": stage, "pair": [a, b],
+                "conflicting_generations": sorted(
+                    g for g, directions in by_generation.items() if len(directions) != 1
+                ),
+            })
+            continue
+        values = sorted((generation, next(iter(directions)))
+                        for generation, directions in by_generation.items())
+        if len(values) >= 2 and len({direction for _, direction in values}) > 1:
             reversals.append({
-                "pair": list(pair),
+                "stage": stage,
+                "pair": [a, b],
                 "observations": [
                     {"generation": generation, "direction": direction}
                     for generation, direction in values
@@ -382,6 +448,9 @@ def _rank_reversals(raw: Mapping[str, Any]) -> dict[str, Any]:
         "comparable_event_count": comparable_events,
         "pairwise_reversal_count": len(reversals),
         "pairwise_reversals": reversals,
+        "ambiguous_pair_stage_count": len(ambiguous),
+        "ambiguous_pairs": ambiguous,
+        "comparison_scope": "same_stage_distinct_generation",
         "true_rank_reversal_observed": bool(reversals),
     }
 
