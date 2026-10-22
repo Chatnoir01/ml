@@ -34,7 +34,7 @@ def _arm(curricula: list[list[str]], populations: list[list[str]], prefix: str) 
     }
 
 
-def test_timeline_finds_first_divergence_without_guessing_between_checkpoints() -> None:
+def test_timeline_reports_unmatched_pre_feedback_baseline_not_a_causal_first_divergence() -> None:
     fixed = _arm(
         [["x"], ["x"], ["x"], ["x"]],
         [["p0"], ["p5"], ["p10"], ["p15"]],
@@ -51,8 +51,13 @@ def test_timeline_finds_first_divergence_without_guessing_between_checkpoints() 
     assert result["first_model_divergence_generation"] == 0
     assert result["earliest_divergence_generation"] == 0
     assert result["earliest_divergence_signals"] == ["model"]
-    assert result["ordering_claim_available"] is True
-    assert result["ordering_claim"] == "model_diverges_first"
+    assert result["initial_baseline_comparable"] is True
+    assert result["initial_baseline_equivalent"] is False
+    assert result["initial_baseline_mismatch_reasons"] == ["checkpoint_model_state"]
+    assert result["ordering_unresolved_due_to_baseline"] is True
+    assert result["ordering_claim_available"] is False
+    assert result["ordering_claim"] is None
+    assert "baseline" in result["ordering_note"]
     assert result["checkpoints"][0]["curriculum_jaccard"] == 1.0
 
 
@@ -156,6 +161,7 @@ def test_arm_bound_receipts_do_not_manufacture_model_divergence_at_generation_ze
     adaptive["checkpoints"][1]["model_receipts"][0]["state_sha256"] = "e" * 64
     result = build_divergence_timeline(adaptive, fixed)
     assert result["checkpoints"][0]["model_same"] is True
+    assert result["initial_baseline_equivalent"] is True
     assert result["checkpoints"][0]["model_identity_basis"] == "16_checkpoint_state_sha256"
     assert result["first_model_divergence_generation"] == 5
     assert result["first_curriculum_divergence_generation"] == 5
