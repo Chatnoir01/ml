@@ -16,6 +16,7 @@ from .phase2g import CHECKPOINT_GENERATIONS, EVOLUTION_SEEDS
 from .phase2h_timeline import build_divergence_timeline
 from .phase2h_evidence import verify_evidence_manifest
 from .phase2h_h1_gate import assess_h1_receipt_feasibility
+from .phase2h_baseline import audit_checkpoint0_baseline
 
 PARENT_PHASE2G_COMMIT = "ba1aec133c50ddac246a54a70bb3ff2f0994df3a"
 PARENT_AGGREGATE_SHA256 = "1df1812bc58e088c6a639d7ccbb94e1f3a02feb0ebd9f8b04e4ac81b1ea983d2"
@@ -534,6 +535,7 @@ def diagnose_phase2g_receipts(
             "A_H2_motion": _h2_motion_classification(adaptive),
             "F_H2_motion": _h2_motion_classification(fixed),
             "A_vs_F_timeline": build_divergence_timeline(adaptive, fixed),
+            "A_vs_F_checkpoint0_provenance": audit_checkpoint0_baseline(adaptive, fixed),
         }
 
     ordering_summary = {
@@ -578,6 +580,21 @@ def diagnose_phase2g_receipts(
     )
     h1_evaluated_cells = len(seeds) * len(PRIMARY_ARMS)
 
+    checkpoint0_counts: dict[str, int] = {}
+    checkpoint0_model_mismatch_count = 0
+    checkpoint0_mismatched_seed_details: list[dict[str, Any]] = []
+    for seed, row in sorted(seeds.items(), key=lambda pair: int(pair[0])):
+        audit = row["A_vs_F_checkpoint0_provenance"]
+        status = str(audit["status"])
+        checkpoint0_counts[status] = checkpoint0_counts.get(status, 0) + 1
+        if status == "MATCHED_DECLARED_INPUTS_DIFFERENT_MODEL_HASHES":
+            checkpoint0_model_mismatch_count += 1
+            checkpoint0_mismatched_seed_details.append({
+                "seed": int(seed),
+                "different_model_state_sha256_count": audit["model_state_sha256_mismatches"],
+                "mismatches_by_difference": audit["mismatches_by_difference"],
+            })
+
     motion_counts: dict[str, int] = {}
     cycling_seeds: list[int] = []
     reversal_seeds: list[int] = []
@@ -619,6 +636,14 @@ def diagnose_phase2g_receipts(
             "does_not_modify_phase2g_verdict": True,
         },
         "A_vs_F_ordering_summary": ordering_summary,
+        "checkpoint0_provenance_summary": {
+            "seed_count": len(seeds),
+            "statuses": dict(sorted(checkpoint0_counts.items())),
+            "same_declared_inputs_model_mismatch_seed_count": checkpoint0_model_mismatch_count,
+            "same_declared_inputs_model_mismatch_details": checkpoint0_mismatched_seed_details,
+            "causal_explanation_established": False,
+            "scope": "official_frozen_phase2g_checkpoint0_metadata_only",
+        },
         "H1_evidence_summary": {
             "arm_cells_checked": h1_evaluated_cells,
             "complete_hash_receipt_grid_cells": h1_complete_hash_grids,

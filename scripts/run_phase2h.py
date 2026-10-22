@@ -99,6 +99,7 @@ def render_result_markdown(payload: dict[str, Any]) -> str:
     ordering = payload["A_vs_F_ordering_summary"]
     availability = payload["availability"]
     h1 = payload["H1_evidence_summary"]
+    baseline = payload["checkpoint0_provenance_summary"]
     lines = [
         "# Phase 2H — Mechanistic diagnostic result",
         "",
@@ -118,6 +119,13 @@ def render_result_markdown(payload: dict[str, Any]) -> str:
         f"- rank-reversal seeds: {basis['rank_reversal_seed_count']}",
         f"- scope: `{basis['scope']}`",
         f"- modifies Phase 2G verdict: {not bool(basis['does_not_modify_phase2g_verdict'])}",
+        "",
+        "## A/F checkpoint-0 comparability",
+        "",
+        f"- frozen seeds inspected: {baseline['seed_count']}",
+        f"- status counts: {json.dumps(baseline['statuses'], sort_keys=True)}",
+        f"- matching declared inputs, divergent model hashes: {baseline['same_declared_inputs_model_mismatch_seed_count']}",
+        "- causal explanation: NOT ESTABLISHED (requires separate prospective test)",
         "",
         "## Availability",
         "",

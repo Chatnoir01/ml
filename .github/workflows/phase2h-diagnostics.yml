@@ -7,6 +7,7 @@ on:
       - "scripts/run_phase2h.py"
       - "src/adversarial_sbox/phase2h.py"
       - "src/adversarial_sbox/phase2h_h1_gate.py"
+      - "src/adversarial_sbox/phase2h_baseline.py"
       - "src/adversarial_sbox/phase2h_evidence.py"
       - "src/adversarial_sbox/phase2h_timeline.py"
       - "tests/test_phase2h*.py"
@@ -95,7 +96,11 @@ jobs:
           cmp research/PHASE2H_RESULT.md /tmp/PHASE2H_RESULT-rerun.md
 
       - name: Run Phase 2H tests
-        run: python -m pytest -q tests/test_phase2h.py tests/test_phase2h_evidence.py tests/test_phase2h_timeline.py tests/test_phase2h_runner.py tests/test_phase2h_classical_sets.py tests/test_phase2h_h1_gate.py tests/test_phase2h_h2_temporal.py
+        run: python -m pytest -q tests/test_phase2h.py tests/test_phase2h_evidence.py tests/test_phase2h_timeline.py tests/test_phase2h_runner.py tests/test_phase2h_classical_sets.py tests/test_phase2h_h1_gate.py tests/test_phase2h_baseline.py tests/test_phase2h_h2_temporal.py
+
+      - name: Report frozen checkpoint-zero provenance summary
+        run: |
+          python -c 'import json; d=json.load(open("research/phase2h-diagnostics.json")); s=d["checkpoint0_provenance_summary"]; print("checkpoint-zero provenance:", json.dumps(s["statuses"], sort_keys=True)); print("same-declared-input different-model-hash seeds:", s["same_declared_inputs_model_mismatch_seed_count"]); print("cause established:", s["causal_explanation_established"])'
 
       - name: Upload Phase 2H deterministic product
         uses: actions/upload-artifact@v4
