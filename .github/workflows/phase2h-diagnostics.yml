@@ -7,6 +7,7 @@ on:
       - "scripts/run_phase2h.py"
       - "src/adversarial_sbox/phase2h.py"
       - "src/adversarial_sbox/phase2h_h1_gate.py"
+      - "src/adversarial_sbox/phase2h_baseline.py"
       - "src/adversarial_sbox/phase2h_evidence.py"
       - "src/adversarial_sbox/phase2h_timeline.py"
       - "tests/test_phase2h*.py"
