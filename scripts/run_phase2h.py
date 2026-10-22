@@ -99,6 +99,7 @@ def render_result_markdown(payload: dict[str, Any]) -> str:
     ordering = payload["A_vs_F_ordering_summary"]
     availability = payload["availability"]
     h1 = payload["H1_evidence_summary"]
+    baseline = payload["checkpoint0_provenance_summary"]
     lines = [
         "# Phase 2H — Mechanistic diagnostic result",
         "",
