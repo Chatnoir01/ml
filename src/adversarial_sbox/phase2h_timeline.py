@@ -162,7 +162,28 @@ def build_divergence_timeline(
             for row in rows
         )
     )
-    ordering_available = len(earliest_signals) == 1 and not missing_before_first
+    # A and F share the frozen initial curriculum and checkpoint-0 model
+    # training seeds. A mismatch before adaptive feedback can operate is a
+    # reproducibility/baseline-comparability question, not a causal mechanism.
+    initial = rows[0]
+    baseline_known = bool(
+        initial["curriculum_identity_comparable"] and
+        initial["model_identity_comparable"]
+    )
+    baseline_equivalent = (
+        initial["curriculum_same"] is True and initial["model_same"] is True
+    ) if baseline_known else None
+    baseline_mismatch_reasons = [
+        label for label, identical in (
+            ("curriculum", initial["curriculum_same"]),
+            ("checkpoint_model_state", initial["model_same"]),
+        ) if identical is False
+    ]
+    ordering_available = (
+        len(earliest_signals) == 1 and
+        not missing_before_first and
+        baseline_equivalent is True
+    )
     return {
         "checkpoints": rows,
         "first_curriculum_divergence_generation": first_curriculum,
@@ -170,6 +191,10 @@ def build_divergence_timeline(
         "first_model_divergence_generation": first_model,
         "earliest_divergence_generation": earliest_generation,
         "earliest_divergence_signals": earliest_signals,
+        "initial_baseline_comparable": baseline_known,
+        "initial_baseline_equivalent": baseline_equivalent,
+        "initial_baseline_mismatch_reasons": baseline_mismatch_reasons,
+        "ordering_unresolved_due_to_baseline": baseline_equivalent is not True,
         "ordering_unresolved_due_to_missing_evidence": bool(missing_before_first),
         "ordering_claim_available": ordering_available,
         "ordering_claim": (
@@ -178,7 +203,9 @@ def build_divergence_timeline(
             else None
         ),
         "ordering_note": (
-            "missing checkpoint identity evidence prevents a complete ordering claim"
+            "checkpoint-0 A/F baseline evidence is missing or non-equivalent; ordering cannot establish an adaptive mechanism"
+            if baseline_equivalent is not True
+            else "missing checkpoint identity evidence prevents a complete ordering claim"
             if missing_before_first
             else "checkpoint resolution cannot order signals tied at the earliest observed generation"
             if len(earliest_signals) > 1
