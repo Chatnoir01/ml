@@ -30,4 +30,4 @@ jobs:
       - name: Install receipt validation tests only
         run: python -m pip install -e ".[dev]"
       - name: Test synthetic receipt validation only — NO SCIENTIFIC EXECUTION
-        run: python -m pytest -q tests/test_phase2r_repro.py
+        run: python -m pytest -q tests/test_phase2r_repro.py tests/test_phase2r_serialization.py
