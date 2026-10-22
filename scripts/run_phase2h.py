@@ -96,6 +96,7 @@ def _bind_runtime_metadata(
 def render_result_markdown(payload: dict[str, Any]) -> str:
     basis = payload["mechanism_verdict_basis"]
     causal = payload["causal_interpretation"]
+    ordering = payload["A_vs_F_ordering_summary"]
     availability = payload["availability"]
     h1 = payload["H1_evidence_summary"]
     lines = [
@@ -127,6 +128,16 @@ def render_result_markdown(payload: dict[str, Any]) -> str:
         f"- H1 matrix authorized from frozen receipts: {h1['forgetting_matrix_supported_cells']}",
         f"- H1 limitation: {availability['reason_for_missing_forgetting_matrix']}",
         f"- classical-distortion evidence available: {bool(availability['candidate_level_classical_distortion'])}",
+        "",
+        "## Checkpoint-0 baseline comparability",
+        "",
+        f"- A/F seeds with identical baseline model states: {ordering['baseline_equivalent_seed_count']}",
+        f"- A/F seeds with non-equivalent baseline states: {ordering['baseline_non_equivalent_seed_count']}",
+        f"- A/F seeds with unavailable baseline evidence: {ordering['baseline_unknown_seed_count']}",
+        f"- non-equivalent seeds: {ordering['baseline_non_equivalent_seeds']}",
+        f"- single-signal first-order claims after baseline gate: {ordering['single_signal_first_count']}",
+        f"- unresolved ordering: {ordering['unresolved_count']}",
+        f"- checkpoint ties: {ordering['checkpoint_tie_count']}",
         "",
         "## Causal firewall",
         "",
