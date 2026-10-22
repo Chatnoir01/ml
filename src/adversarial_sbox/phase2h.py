@@ -540,10 +540,22 @@ def diagnose_phase2g_receipts(
         "single_signal_first_count": 0,
         "checkpoint_tie_count": 0,
         "unresolved_count": 0,
+        "baseline_equivalent_seed_count": 0,
+        "baseline_non_equivalent_seed_count": 0,
+        "baseline_unknown_seed_count": 0,
+        "baseline_non_equivalent_seeds": [],
         "claims": {},
     }
     for seed, row in seeds.items():
         timeline = row["A_vs_F_timeline"]
+        baseline = timeline.get("initial_baseline_equivalent")
+        if baseline is True:
+            ordering_summary["baseline_equivalent_seed_count"] += 1
+        elif baseline is False:
+            ordering_summary["baseline_non_equivalent_seed_count"] += 1
+            ordering_summary["baseline_non_equivalent_seeds"].append(int(seed))
+        else:
+            ordering_summary["baseline_unknown_seed_count"] += 1
         claim = timeline.get("ordering_claim")
         if claim is not None:
             ordering_summary["single_signal_first_count"] += 1
@@ -551,6 +563,7 @@ def diagnose_phase2g_receipts(
         elif (
             timeline.get("earliest_divergence_generation") is None
             or timeline.get("ordering_unresolved_due_to_missing_evidence")
+            or timeline.get("ordering_unresolved_due_to_baseline")
         ):
             ordering_summary["unresolved_count"] += 1
             ordering_summary["claims"][seed] = None
