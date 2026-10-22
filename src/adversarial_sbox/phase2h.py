@@ -170,71 +170,146 @@ def _mechanism_events(raw: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _classical_tuple(raw: Mapping[str, Any]) -> tuple[float, ...] | None:
-    """Return the frozen primary-security tuple from a serialized ledger row."""
+    """Direct primary coordinates only; never infer missing admissibility."""
     try:
         nl = float(raw["nonlinearity"])
         du = float(raw["differential_uniformity"])
-        lc = float(raw["max_linear_correlation"])
+        # The frozen Phase-2G evaluation ledger uses max_abs_lat; some
+        # in-memory ClassicalMetrics objects use max_linear_correlation.
+        correlation = raw["max_abs_lat"] if "max_abs_lat" in raw else raw["max_linear_correlation"]
+        lc = float(correlation)
         degree = float(raw["algebraic_degree"])
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError, OverflowError):
         return None
-    # Admissibility is deliberately not reconstructed here: the artifact may omit
-    # the frozen constraint object. Primary coordinates remain directly auditable.
+    if not all(math.isfinite(v) for v in (nl, du, lc, degree)):
+        return None
     return (nl, -du, -lc, degree)
 
 
-def _classical_distortion(raw: Mapping[str, Any]) -> dict[str, Any]:
-    ledger_raw = raw.get("classical_evaluation_ledger", {})
-    if isinstance(ledger_raw, Sequence) and not isinstance(ledger_raw, (str, bytes, bytearray)):
-        ledger = {
-            str(row.get("fingerprint", "")): row
-            for row in ledger_raw
-            if isinstance(row, Mapping) and row.get("fingerprint")
-        }
-    elif isinstance(ledger_raw, Mapping):
-        ledger = {str(k): v for k, v in ledger_raw.items() if isinstance(v, Mapping)}
-    else:
-        ledger = {}
+def _componentwise_comparison(
+    entrant: tuple[float, ...], displaced: tuple[float, ...]
+) -> str:
+    """Partial order over explicit coordinates, not an invented total ranking."""
+    if entrant == displaced:
+        return "equal"
+    if all(a >= b for a, b in zip(entrant, displaced)):
+        return "better"
+    if all(a <= b for a, b in zip(entrant, displaced)):
+        return "worse"
+    return "incomparable"
 
-    paired = worse = better = equal = unavailable = 0
-    by_generation: dict[str, dict[str, int]] = {}
-    for event in _selection_events(raw):
-        entered = event.get("score_caused_entered", ())
-        exited = event.get("score_caused_exited", ())
-        if not isinstance(entered, Sequence) or isinstance(entered, (str, bytes, bytearray)):
-            continue
-        if not isinstance(exited, Sequence) or isinstance(exited, (str, bytes, bytearray)):
-            continue
-        generation = str(int(event.get("generation", -1)))
-        row = by_generation.setdefault(
-            generation, {"paired": 0, "entered_worse": 0, "entered_better": 0, "equal": 0, "unavailable": 0}
-        )
-        for entrant, displaced in zip(sorted(map(str, entered)), sorted(map(str, exited))):
-            left = _classical_tuple(ledger.get(entrant, {}))
-            right = _classical_tuple(ledger.get(displaced, {}))
-            if left is None or right is None:
-                unavailable += 1
-                row["unavailable"] += 1
+
+def _exact_fingerprints(raw: object) -> set[str] | None:
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes, bytearray)):
+        return None
+    if any(not isinstance(value, str) or not value for value in raw):
+        return None
+    result = set(raw)
+    return result if len(result) == len(raw) else None
+
+
+def _classical_distortion(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Conservatively compare *sets* of score-caused entrants and exits.
+
+    The frozen 2G receipts contain `exited`, NOT `score_caused_exited`.
+    Neither event schema nor scientific protocol defines an entrant-to-exit
+    pairing, so lexicographically zipping fingerprints fabricates a mapping.
+    Report dominance only when every entrant has the same componentwise
+    relation to every displaced candidate; otherwise report incomparable.
+    """
+    source = raw.get("classical_evaluation_ledger")
+    ledger: dict[str, Mapping[str, Any]] = {}
+    invalid_ledger = False
+    if isinstance(source, Mapping):
+        ledger = {str(key): value for key, value in source.items() if isinstance(value, Mapping)}
+        invalid_ledger = len(ledger) != len(source)
+    elif isinstance(source, Sequence) and not isinstance(source, (str, bytes, bytearray)):
+        for row in source:
+            if not isinstance(row, Mapping) or not isinstance(row.get("fingerprint"), str):
+                invalid_ledger = True
                 continue
-            paired += 1
-            row["paired"] += 1
-            if left < right:
-                worse += 1
-                row["entered_worse"] += 1
-            elif left > right:
-                better += 1
-                row["entered_better"] += 1
+            fingerprint = row["fingerprint"]
+            if not fingerprint or fingerprint in ledger:
+                invalid_ledger = True
+                continue
+            ledger[fingerprint] = row
+    else:
+        invalid_ledger = True
+
+    categories = (
+        "collectively_worse",
+        "collectively_better",
+        "equal",
+        "mixed_or_incomparable",
+        "missing_metrics",
+        "invalid_event_semantics",
+    )
+    counts = {name: 0 for name in categories}
+    by_generation: dict[str, dict[str, int]] = {}
+    examined = 0
+
+    for event in _selection_events(raw):
+        score_entered = _exact_fingerprints(event.get("score_caused_entered"))
+        if score_entered is not None and len(score_entered) == 0:
+            continue
+        # Synthetic/incomplete receipts without score-caused changes are
+        # not promoted to proven distortion.
+        if score_entered is None and "score_caused_entered" not in event:
+            continue
+        examined += 1
+        generation = str(int(event.get("generation", -1)))
+        row = by_generation.setdefault(generation, {name: 0 for name in categories})
+        before = _exact_fingerprints(event.get("selected_before"))
+        after = _exact_fingerprints(event.get("selected_after"))
+        entered = _exact_fingerprints(event.get("entered"))
+        exited = _exact_fingerprints(event.get("exited"))
+        if (
+            score_entered is None
+            or before is None or after is None
+            or entered is None or exited is None
+            or not bool(event.get("neural_selection_enabled"))
+            or not bool(event.get("boundary_opportunity"))
+            or score_entered != entered
+            or entered != after - before
+            or exited != before - after
+            or len(entered) != len(exited)
+            or not entered
+        ):
+            label = "invalid_event_semantics"
+        elif invalid_ledger:
+            label = "missing_metrics"
+        else:
+            values_in = [_classical_tuple(ledger.get(fp, {})) for fp in sorted(entered)]
+            values_out = [_classical_tuple(ledger.get(fp, {})) for fp in sorted(exited)]
+            if any(value is None for value in (*values_in, *values_out)):
+                label = "missing_metrics"
             else:
-                equal += 1
-                row["equal"] += 1
+                relations = {
+                    _componentwise_comparison(a, b)
+                    for a in values_in for b in values_out
+                }
+                if relations == {"worse"}:
+                    label = "collectively_worse"
+                elif relations == {"better"}:
+                    label = "collectively_better"
+                elif relations == {"equal"}:
+                    label = "equal"
+                else:
+                    label = "mixed_or_incomparable"
+        counts[label] += 1
+        row[label] += 1
+
     return {
-        "paired_membership_changes": paired,
-        "entered_worse_primary_tuple": worse,
-        "entered_better_primary_tuple": better,
-        "equal_primary_tuple": equal,
-        "unavailable_pairs": unavailable,
+        "examined_score_caused_events": examined,
+        "set_comparison_counts": counts,
         "by_generation": by_generation,
-        "warning": "entrant/exit pairing is deterministic fingerprint order; use only when event semantics are set replacement",
+        "individual_pairing_authorized": False,
+        "paired_membership_changes": 0,
+        "warning": (
+            "No causal entrant-to-exit pairing is present in Phase-2G receipts. "
+            "Only conservative all-cross-pair componentwise dominance is reported; "
+            "admissibility is not reconstructed."
+        ),
     }
 
 
@@ -468,9 +543,12 @@ def diagnose_phase2g_receipts(
                 "requires immutable probe evaluation of checkpoint model states; "
                 "must not be reconstructed from absent evidence"
             ),
-            "candidate_level_classical_distortion": True,
-            "candidate_level_classical_distortion_source": (
-                "official arm artifacts contain classical_evaluation_ledger plus score-caused entrants/exits"
+            "candidate_level_classical_distortion": False,
+            "event_set_classical_comparison": True,
+            "event_set_classical_comparison_source": (
+                "frozen Phase-2G events provide score_caused_entered, entered, exited, "
+                "selected_before, selected_after and classical_evaluation_ledger; "
+                "individual pairing and admissibility are not available"
             ),
         },
     }
