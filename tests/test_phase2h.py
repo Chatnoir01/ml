@@ -109,7 +109,8 @@ def test_phase2h_reports_unavailable_evidence_instead_of_inventing_it() -> None:
         evidence_manifest=_manifest(_inputs()),
     )
     assert result["availability"]["forgetting_matrix"] is False
-    assert result["availability"]["candidate_level_classical_distortion"] is True
+    assert result["availability"]["candidate_level_classical_distortion"] is False
+    assert result["availability"]["event_set_classical_comparison"] is True
 
 
 def test_phase2h_detects_adaptive_drift_and_rank_change() -> None:
