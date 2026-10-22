@@ -401,7 +401,10 @@ def diagnose_phase2g_receipts(
         if claim is not None:
             ordering_summary["single_signal_first_count"] += 1
             ordering_summary["claims"][seed] = claim
-        elif timeline.get("earliest_divergence_generation") is None:
+        elif (
+            timeline.get("earliest_divergence_generation") is None
+            or timeline.get("ordering_unresolved_due_to_missing_evidence")
+        ):
             ordering_summary["unresolved_count"] += 1
             ordering_summary["claims"][seed] = None
         else:
