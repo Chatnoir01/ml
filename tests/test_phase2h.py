@@ -236,3 +236,38 @@ def test_phase2h_mechanism_verdict_is_conservative_and_phase2g_immutable() -> No
     }
     assert basis["scope"] == "receipt_level_diagnostics_only"
     assert basis["does_not_modify_phase2g_verdict"] is True
+
+
+def test_pre_feedback_model_state_difference_is_a_baseline_blocker() -> None:
+    raw = _inputs()
+    baseline_seed = int(EVOLUTION_SEEDS[0])
+    for arm in ("A", "F"):
+        row = next(item for item in raw if item["seed"] == baseline_seed and item["arm"] == arm)
+        for checkpoint in row["checkpoints"]:
+            checkpoint["curriculum_fingerprints"] = ["same"]
+            checkpoint["population_after_fingerprints"] = ["same"]
+            checkpoint["model_receipts"] = [
+                {
+                    "difference": difference,
+                    "replicate": replicate,
+                    "state_sha256": (
+                        f"{1 if arm == 'A' else 2:064x}"
+                        if checkpoint["generation"] == 0
+                        else f"{3:064x}"
+                    ),
+                }
+                for difference in (1, 256) for replicate in range(8)
+            ]
+    result = diagnose_phase2g_receipts(
+        raw,
+        phase2g_aggregate_sha256=PARENT_AGGREGATE_SHA256,
+        evidence_manifest=_manifest(raw),
+    )
+    summary = result["A_vs_F_ordering_summary"]
+    assert summary["baseline_non_equivalent_seed_count"] == 1
+    assert summary["baseline_non_equivalent_seeds"] == [baseline_seed]
+    assert summary["baseline_unknown_seed_count"] == len(EVOLUTION_SEEDS) - 1
+    assert summary["single_signal_first_count"] == 0
+    assert summary["checkpoint_tie_count"] == 0
+    assert summary["unresolved_count"] == len(EVOLUTION_SEEDS)
+    assert summary["claims"][str(baseline_seed)] is None
