@@ -65,6 +65,15 @@ all four labelled runs. Each run must contain:
 - **byte hashes** of generated train/validation/test data; initialization
   bytes; final serialized state bytes.
 
+The canonical ciphertext-pair serializer is implemented in
+src/adversarial_sbox/phase2r_serialization.py. It domain-separates each
+train/validation/test split, preserves row order and packs the two ciphertext
+blocks as uint32 little-endian and the binary label as uint8. It is covered by
+synthetic endian/order/label/split regression tests and does not generate data.
+The future model-initialization and final-state serializers, exact candidate
+fixture bytes and environment lock still require a separate preregistration
+gate. The verifier cannot attest supplied byte hashes were produced honestly.
+
 The serializer that will generate those hashes must itself be frozen and
 versioned *before* execution. Do **not** hash a Python repr or platform-
 dependent array representation and call that comparable across environments.
