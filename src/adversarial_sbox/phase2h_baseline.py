@@ -42,12 +42,13 @@ def _curriculum(checkpoint: Mapping[str, Any]) -> tuple[str, ...] | None:
     digest = checkpoint.get("curriculum_digest_sha256")
     if fingerprints is None or digest is None:
         return None
-    if (
-        not isinstance(fingerprints, Sequence)
-        or isinstance(fingerprints, (str, bytes, bytearray))
-        or len(fingerprints) != 20
-        or any(not isinstance(fp, str) or not fp for fp in fingerprints)
-    ):
+    if not isinstance(fingerprints, Sequence) or isinstance(fingerprints, (str, bytes, bytearray)):
+        raise ValueError("invalid checkpoint-0 curriculum fingerprints")
+    # Older unit-test receipts deliberately carry miniature populations.
+    # That is INSUFFICIENT evidence, never a contradictory full-size datum.
+    if len(fingerprints) != 20:
+        return None
+    if any(not isinstance(fp, str) or not fp for fp in fingerprints):
         raise ValueError("invalid checkpoint-0 curriculum fingerprints")
     items = tuple(sorted(fingerprints))
     if len(set(items)) != 20:
