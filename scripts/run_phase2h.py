@@ -97,6 +97,7 @@ def render_result_markdown(payload: dict[str, Any]) -> str:
     basis = payload["mechanism_verdict_basis"]
     causal = payload["causal_interpretation"]
     availability = payload["availability"]
+    h1 = payload["H1_evidence_summary"]
     lines = [
         "# Phase 2H — Mechanistic diagnostic result",
         "",
@@ -120,6 +121,11 @@ def render_result_markdown(payload: dict[str, Any]) -> str:
         "## Availability",
         "",
         f"- forgetting matrix available: {bool(availability['forgetting_matrix'])}",
+        f"- H1 evidence preflight: {h1['status']}",
+        f"- H1 A/F cells inventoried: {h1['arm_cells_checked']}",
+        f"- complete checkpoint-model hash grids: {h1['complete_hash_receipt_grid_cells']}",
+        f"- H1 matrix authorized from frozen receipts: {h1['forgetting_matrix_supported_cells']}",
+        f"- H1 limitation: {availability['reason_for_missing_forgetting_matrix']}",
         f"- classical-distortion evidence available: {bool(availability['candidate_level_classical_distortion'])}",
         "",
         "## Causal firewall",
