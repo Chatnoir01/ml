@@ -109,6 +109,10 @@ def test_phase2h_reports_unavailable_evidence_instead_of_inventing_it() -> None:
         evidence_manifest=_manifest(_inputs()),
     )
     assert result["availability"]["forgetting_matrix"] is False
+    assert result["availability"]["h1_feasibility_audited"] is True
+    assert result["H1_evidence_summary"]["arm_cells_checked"] == 18
+    assert result["H1_evidence_summary"]["forgetting_matrix_supported_cells"] == 0
+    assert result["diagnostics"][str(int(EVOLUTION_SEEDS[0]))]["A_H1_feasibility"]["forgetting_matrix_go"] is False
     assert result["availability"]["candidate_level_classical_distortion"] is False
     assert result["availability"]["event_set_classical_comparison"] is True
 

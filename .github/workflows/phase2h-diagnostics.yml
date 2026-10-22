@@ -6,6 +6,7 @@ on:
       - ".github/workflows/phase2h-diagnostics.yml"
       - "scripts/run_phase2h.py"
       - "src/adversarial_sbox/phase2h.py"
+      - "src/adversarial_sbox/phase2h_h1_gate.py"
       - "src/adversarial_sbox/phase2h_evidence.py"
       - "src/adversarial_sbox/phase2h_timeline.py"
       - "tests/test_phase2h*.py"
@@ -94,7 +95,7 @@ jobs:
           cmp research/PHASE2H_RESULT.md /tmp/PHASE2H_RESULT-rerun.md
 
       - name: Run Phase 2H tests
-        run: python -m pytest -q tests/test_phase2h.py tests/test_phase2h_evidence.py tests/test_phase2h_timeline.py tests/test_phase2h_runner.py tests/test_phase2h_classical_sets.py
+        run: python -m pytest -q tests/test_phase2h.py tests/test_phase2h_evidence.py tests/test_phase2h_timeline.py tests/test_phase2h_runner.py tests/test_phase2h_classical_sets.py tests/test_phase2h_h1_gate.py
 
       - name: Upload Phase 2H deterministic product
         uses: actions/upload-artifact@v4
