@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/adversarial_sbox/phase2r_repro.py"
+      - "src/adversarial_sbox/phase2r_serialization.py"
       - "tests/test_phase2r_repro.py"
       - "research/PHASE2R_REPRO_CONTROL_PROTOCOL.md"
       - ".github/workflows/phase2r-repro-contract.yml"
