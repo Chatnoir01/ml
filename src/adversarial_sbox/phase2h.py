@@ -15,6 +15,7 @@ from typing import Any
 from .phase2g import CHECKPOINT_GENERATIONS, EVOLUTION_SEEDS
 from .phase2h_timeline import build_divergence_timeline
 from .phase2h_evidence import verify_evidence_manifest
+from .phase2h_h1_gate import assess_h1_receipt_feasibility
 
 PARENT_PHASE2G_COMMIT = "ba1aec133c50ddac246a54a70bb3ff2f0994df3a"
 PARENT_AGGREGATE_SHA256 = "1df1812bc58e088c6a639d7ccbb94e1f3a02feb0ebd9f8b04e4ac81b1ea983d2"
@@ -448,6 +449,8 @@ def diagnose_phase2g_receipts(
         adaptive = indexed[(frozen, "A")]
         fixed = indexed[(frozen, "F")]
         seeds[str(frozen)] = {
+            "A_H1_feasibility": assess_h1_receipt_feasibility(adaptive),
+            "F_H1_feasibility": assess_h1_receipt_feasibility(fixed),
             "A_curriculum": _curriculum_drift(adaptive),
             "F_curriculum": _curriculum_drift(fixed),
             "A_mechanism": _mechanism_events(adaptive),
@@ -485,6 +488,13 @@ def diagnose_phase2g_receipts(
         else:
             ordering_summary["checkpoint_tie_count"] += 1
             ordering_summary["claims"][seed] = None
+
+    h1_complete_hash_grids = sum(
+        int(row[f"{arm}_H1_feasibility"]["hash_receipt_grid_complete"])
+        for row in seeds.values()
+        for arm in PRIMARY_ARMS
+    )
+    h1_evaluated_cells = len(seeds) * len(PRIMARY_ARMS)
 
     motion_counts: dict[str, int] = {}
     cycling_seeds: list[int] = []
@@ -527,6 +537,13 @@ def diagnose_phase2g_receipts(
             "does_not_modify_phase2g_verdict": True,
         },
         "A_vs_F_ordering_summary": ordering_summary,
+        "H1_evidence_summary": {
+            "arm_cells_checked": h1_evaluated_cells,
+            "complete_hash_receipt_grid_cells": h1_complete_hash_grids,
+            "forgetting_matrix_supported_cells": 0,
+            "status": "NO_GO_FROM_FROZEN_ARM_RECEIPTS",
+            "scope": "receipt_only_no_retraining",
+        },
         "causal_interpretation": {
             "causal_claim_supported": False,
             "reason": (
@@ -539,9 +556,12 @@ def diagnose_phase2g_receipts(
             "A_vs_F_rank_turnover": True,
             "selection_mechanism_counts": True,
             "forgetting_matrix": False,
+            "h1_feasibility_audited": True,
             "reason_for_missing_forgetting_matrix": (
-                "requires immutable probe evaluation of checkpoint model states; "
-                "must not be reconstructed from absent evidence"
+                "frozen 2G arm receipts contain model SHA-256 identities and seed "
+                "metadata, not independently verified checkpoint model state "
+                "snapshots and cross-checkpoint immutable probe evaluations; "
+                "must not re-train or invent missing H1 evidence"
             ),
             "candidate_level_classical_distortion": False,
             "event_set_classical_comparison": True,
