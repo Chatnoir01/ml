@@ -115,3 +115,12 @@ def test_curriculum_order_is_not_material_if_digest_is_canonical() -> None:
     fixed["checkpoints"][0]["curriculum_fingerprints"].reverse()
     result = audit_checkpoint0_baseline(_arm("A"), fixed)
     assert result["same_declared_training_inputs"] is True
+
+
+def test_miniature_fixture_is_unknown_not_automatically_invalid() -> None:
+    fixed = _arm("F")
+    fixed["checkpoints"][0]["curriculum_fingerprints"] = ["synthetic-only"]
+    result = audit_checkpoint0_baseline(_arm("A"), fixed)
+    assert result["curriculum_equal_and_hash_verified"] is None
+    assert result["status"] == "INSUFFICIENT_DECLARED_INPUT_EVIDENCE"
+    assert result["same_declared_training_inputs"] is False
