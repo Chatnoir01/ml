@@ -28,15 +28,49 @@ def _jaccard(left: set[str], right: set[str]) -> float:
     return float(len(left & right) / len(union)) if union else 1.0
 
 
-def _model_identity(checkpoint: Mapping[str, Any]) -> str | None:
-    value = checkpoint.get("model_sha256")
-    if value is None:
-        value = checkpoint.get("training_receipt_sha256")
-    if value is None or value == "":
+_FROZEN_MODEL_GRID = {(difference, replicate) for difference in (1, 256) for replicate in range(8)}
+
+
+def _model_identity(checkpoint: Mapping[str, Any]) -> tuple[tuple[int, int, str], ...] | None:
+    """Compare actual model-state hashes, not arm-tagged training receipts.
+
+    The Phase-2G training receipt includes the arm identifier in its signed
+    payload. Comparing those receipts makes the independent A and F arms
+    appear divergent at generation 0 even when all 16 trained model states
+    are byte-identical. The frozen arm.json supplies model_receipts, with a
+    state_sha256 for each (difference, replicate) cell, allowing a real
+    canonical 16-model state comparison without opening model weights.
+    """
+    values = checkpoint.get("model_receipts")
+    if values is None:
         return None
-    if not isinstance(value, str):
-        raise ValueError("invalid checkpoint model identity")
-    return value
+    if not isinstance(values, Sequence) or isinstance(values, (str, bytes, bytearray)):
+        raise ValueError("invalid Phase-2G model state receipt grid")
+    if len(values) != 16:
+        raise ValueError("incomplete Phase-2G model state receipt grid")
+    grid: dict[tuple[int, int], str] = {}
+    for row in values:
+        if not isinstance(row, Mapping):
+            raise ValueError("invalid Phase-2G model state receipt")
+        try:
+            difference = int(row["difference"])
+            replicate = int(row["replicate"])
+            digest = row["state_sha256"]
+        except (KeyError, ValueError, TypeError) as exc:
+            raise ValueError("invalid Phase-2G model state receipt") from exc
+        key = (difference, replicate)
+        if key not in _FROZEN_MODEL_GRID or key in grid:
+            raise ValueError("duplicate or unexpected Phase-2G model state identity")
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(c not in "0123456789abcdefABCDEF" for c in digest)
+        ):
+            raise ValueError("invalid Phase-2G model state SHA-256")
+        grid[key] = digest.lower()
+    if set(grid) != _FROZEN_MODEL_GRID:
+        raise ValueError("missing Phase-2G model state receipt")
+    return tuple((difference, replicate, grid[difference, replicate]) for difference, replicate in sorted(grid))
 
 
 def build_divergence_timeline(
@@ -101,6 +135,7 @@ def build_divergence_timeline(
                 "population_after_same": population_same,
                 "population_after_jaccard": _jaccard(a_pop, f_pop) if population_comparable else None,
                 "model_identity_comparable": model_comparable,
+                "model_identity_basis": "16_checkpoint_state_sha256" if model_comparable else None,
                 "model_same": model_same,
             }
         )
