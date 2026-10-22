@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from adversarial_sbox.phase2h_timeline import build_divergence_timeline
@@ -13,6 +15,17 @@ def _arm(curricula: list[list[str]], populations: list[list[str]], prefix: str) 
                 "curriculum_fingerprints": curriculum,
                 "population_after_fingerprints": population,
                 "training_receipt_sha256": (prefix + str(generation)).ljust(64, "0")[:64],
+                "model_receipts": [
+                    {
+                        "difference": difference,
+                        "replicate": replicate,
+                        "state_sha256": hashlib.sha256(
+                            f"{prefix}:{generation}:{difference}:{replicate}".encode()
+                        ).hexdigest(),
+                    }
+                    for difference in (1, 256)
+                    for replicate in range(8)
+                ],
             }
             for generation, curriculum, population in zip(
                 (0, 5, 10, 15), curricula, populations
@@ -120,3 +133,63 @@ def test_missing_population_with_same_values_does_not_claim_equivalence() -> Non
     result = build_divergence_timeline(adaptive, fixed)
     assert result["checkpoints"][0]["population_after_same"] is None
     assert result["checkpoints"][0]["population_after_jaccard"] is None
+
+
+def test_arm_bound_receipts_do_not_manufacture_model_divergence_at_generation_zero() -> None:
+    fixed = _arm(
+        [["initial"], ["initial"], ["initial"], ["initial"]],
+        [["same0"], ["fixed5"], ["fixed10"], ["fixed15"]],
+        "same_state",
+    )
+    adaptive = _arm(
+        [["initial"], ["adaptive5"], ["adaptive10"], ["adaptive15"]],
+        [["same0"], ["adaptive5"], ["adaptive10"], ["adaptive15"]],
+        "same_state",
+    )
+    # The official Phase-2G training receipt carries arm metadata, while the
+    # per-model state SHA-256 is over serialized weights only.
+    for cp in adaptive["checkpoints"]:
+        cp["training_receipt_sha256"] = "a" * 64
+    for cp in fixed["checkpoints"]:
+        cp["training_receipt_sha256"] = "f" * 64
+    # Different model at first adaptive curriculum update, not before.
+    adaptive["checkpoints"][1]["model_receipts"][0]["state_sha256"] = "e" * 64
+    result = build_divergence_timeline(adaptive, fixed)
+    assert result["checkpoints"][0]["model_same"] is True
+    assert result["checkpoints"][0]["model_identity_basis"] == "16_checkpoint_state_sha256"
+    assert result["first_model_divergence_generation"] == 5
+    assert result["first_curriculum_divergence_generation"] == 5
+    assert result["first_population_divergence_generation"] == 5
+    assert result["earliest_divergence_generation"] == 5
+    assert result["earliest_divergence_signals"] == ["curriculum", "population", "model"]
+    assert result["ordering_claim"] is None
+
+
+def test_model_training_receipt_alone_is_not_comparable_model_state_evidence() -> None:
+    fixed = _arm([["x"]] * 4, [["p"]] * 4, "f")
+    adaptive = _arm([["x"]] * 4, [["p"]] * 4, "a")
+    for arm in (adaptive, fixed):
+        for cp in arm["checkpoints"]:
+            cp.pop("model_receipts")
+    timeline = build_divergence_timeline(adaptive, fixed)
+    assert timeline["checkpoints"][0]["model_identity_comparable"] is False
+    assert timeline["checkpoints"][0]["model_same"] is None
+    assert timeline["ordering_claim"] is None
+
+
+def test_model_receipt_grid_must_contain_16_distinct_valid_state_hashes() -> None:
+    fixed = _arm([["x"]] * 4, [["p"]] * 4, "f")
+    adaptive = _arm([["x"]] * 4, [["p"]] * 4, "a")
+    adaptive["checkpoints"][0]["model_receipts"].pop()
+    with pytest.raises(ValueError, match="incomplete Phase-2G model state"):
+        build_divergence_timeline(adaptive, fixed)
+    adaptive = _arm([["x"]] * 4, [["p"]] * 4, "a")
+    adaptive["checkpoints"][0]["model_receipts"][1] = dict(
+        adaptive["checkpoints"][0]["model_receipts"][0]
+    )
+    with pytest.raises(ValueError, match="duplicate or unexpected"):
+        build_divergence_timeline(adaptive, fixed)
+    adaptive = _arm([["x"]] * 4, [["p"]] * 4, "a")
+    adaptive["checkpoints"][0]["model_receipts"][0]["state_sha256"] = "invalid"
+    with pytest.raises(ValueError, match="invalid Phase-2G model state SHA-256"):
+        build_divergence_timeline(adaptive, fixed)
