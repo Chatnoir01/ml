@@ -67,3 +67,56 @@ def test_timeline_refuses_ordering_claim_when_signals_tie_at_checkpoint() -> Non
     assert result["ordering_claim_available"] is False
     assert result["ordering_claim"] is None
     assert "cannot order signals" in result["ordering_note"]
+
+
+def test_missing_curriculum_is_unknown_not_fake_equal() -> None:
+    fixed = _arm([["x"]] * 4, [["p"]] * 4, "z")
+    adaptive = _arm([["x"]] * 4, [["p"]] * 4, "z")
+    for arm in (adaptive, fixed):
+        for row in arm["checkpoints"]:
+            row.pop("curriculum_fingerprints")
+    result = build_divergence_timeline(adaptive, fixed)
+    assert result["checkpoints"][0]["curriculum_same"] is None
+    assert result["checkpoints"][0]["curriculum_jaccard"] is None
+    assert result["first_curriculum_divergence_generation"] is None
+    assert result["ordering_claim"] is None
+
+
+def test_missing_identity_prevents_false_first_cause_ordering() -> None:
+    fixed = _arm([["x"]] * 4, [["p"]] * 4, "f")
+    adaptive = _arm([["x"]] * 4, [["p"]] * 4, "a")
+    adaptive["checkpoints"][0].pop("curriculum_fingerprints")
+    result = build_divergence_timeline(adaptive, fixed)
+    assert result["earliest_divergence_generation"] == 0
+    assert result["earliest_divergence_signals"] == ["model"]
+    assert result["ordering_claim_available"] is False
+    assert result["ordering_unresolved_due_to_missing_evidence"] is True
+    assert result["ordering_claim"] is None
+
+
+def test_duplicate_checkpoint_rejected_instead_of_overwriting_receipt() -> None:
+    fixed = _arm([["x"]] * 4, [["p"]] * 4, "z")
+    adaptive = _arm([["x"]] * 4, [["p"]] * 4, "a")
+    adaptive["checkpoints"].append(dict(adaptive["checkpoints"][0]))
+    with pytest.raises(ValueError, match="duplicate checkpoint"):
+        build_divergence_timeline(adaptive, fixed)
+
+
+def test_duplicate_or_malformed_checkpoint_fingerprints_are_rejected() -> None:
+    fixed = _arm([["x"]] * 4, [["p"]] * 4, "z")
+    adaptive = _arm([["x"]] * 4, [["p"]] * 4, "a")
+    adaptive["checkpoints"][0]["curriculum_fingerprints"] = ["x", "x"]
+    with pytest.raises(ValueError, match="duplicate curriculum fingerprint"):
+        build_divergence_timeline(adaptive, fixed)
+    adaptive["checkpoints"][0]["curriculum_fingerprints"] = "x"
+    with pytest.raises(ValueError, match="invalid curriculum fingerprint evidence"):
+        build_divergence_timeline(adaptive, fixed)
+
+
+def test_missing_population_with_same_values_does_not_claim_equivalence() -> None:
+    fixed = _arm([["x"]] * 4, [["p"]] * 4, "z")
+    adaptive = _arm([["x"]] * 4, [["p"]] * 4, "z")
+    adaptive["checkpoints"][0].pop("population_after_fingerprints")
+    result = build_divergence_timeline(adaptive, fixed)
+    assert result["checkpoints"][0]["population_after_same"] is None
+    assert result["checkpoints"][0]["population_after_jaccard"] is None
