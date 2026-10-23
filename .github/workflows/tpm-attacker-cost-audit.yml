@@ -1,0 +1,102 @@
+name: TPM Retrospective Attacker Workload (NO CRYPTO ASSURANCE)
+
+on:
+  pull_request:
+    paths:
+      - "src/tpm_lab/cost_audit.py"
+      - "tests/test_tpm_cost_audit.py"
+      - "scripts/run_tpm_cost_audit.py"
+      - "research/TPM_ATTACKER_COST_AUDIT_PROTOCOL.md"
+      - ".github/workflows/tpm-attacker-cost-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cost-audit-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10","3.11","3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install tests
+        run: python -m pip install -e ".[dev]"
+      - name: Verify original outcomes preserved and cost counters deterministic
+        run: python -m pytest -q tests/test_tpm_cost_audit.py
+      - name: Verify auditable smoke report
+        run: python scripts/run_tpm_cost_audit.py --smoke
+
+  cost-audit-64-retrospective:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install research tools
+        run: python -m pip install -e ".[dev]"
+      - name: Run non-mutating work audit on already observed 64 seeds
+        run: python scripts/run_tpm_cost_audit.py --full > tpm_attacker_64_costs.json
+      - name: Fail on altered outcomes, malformed counters or secret-state exports
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from tpm_lab.heldout import HoldoutPlan
+          report = json.loads(Path("tpm_attacker_64_costs.json").read_text())
+          assert report["plan_sha256"] == HoldoutPlan().sha256()
+          assert report["audited_first_n_trials"] == 64
+          assert report["cohort_already_used_for_holdout"]
+          assert report["operations_are_invocation_counts_not_CPU_equivalence"]
+          assert report["no_private_weights_or_keys_exported"]
+          assert report["not_crypto_security_assurance"]
+          assert report["security_verdict"] == "NOT_ESTABLISHED"
+          assert len(report["trial_records"]) == 64
+          assert [r["trial_index"] for r in report["trial_records"]] == list(range(64))
+          expected = {"ensemble9":30, "geometric9":53,"genetic16":2,"geometric16":58}
+          observed = {
+              arm:metrics["exact_state_matches"]
+              for arm,metrics in report["workload_summary"].items()
+          }
+          assert observed == expected, "instrumentation changed observed attack outcomes"
+          for row in report["trial_records"]:
+              assert set(row) == {"trial_index","synchronized","steps_to_sync","arms"}
+              for arm, val in row["arms"].items():
+                  counts=val["work"]
+                  assert counts["honest_constructions"] == 2
+                  assert counts["attacker_constructions"] >= 1
+                  assert counts["honest_evaluations"] == 2 * row["steps_to_sync"]
+                  assert counts["attacker_evaluations"] >= 0
+                  assert counts["attacker_attempted_weight_writes"] >= 0
+                  assert set(counts) == {
+                      "honest_constructions","attacker_constructions",
+                      "honest_evaluations","attacker_evaluations",
+                      "honest_updates","attacker_updates",
+                      "honest_attempted_weight_writes",
+                      "attacker_attempted_weight_writes",
+                  }
+          print("Retrospective 64-trial attacker invocation-cost receipt OK")
+          print("Exact-match counts:", observed)
+          print("Workload summary:", json.dumps(report["workload_summary"],sort_keys=True))
+          PY
+      - name: Upload original measured counters (NOT secure-key receipt)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tpm-64-retrospective-attacker-costs
+          path: tpm_attacker_64_costs.json
+          if-no-files-found: error
+          retention-days: 60
