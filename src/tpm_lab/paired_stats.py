@@ -6,6 +6,7 @@ pilot, so exploratory p-values MUST NOT be treated as confirmatory evidence.
 from __future__ import annotations
 
 import math
+import statistics
 from typing import Any
 
 ATTACKS = ("naive", "geometric", "random_flip", "ensemble", "genetic")
@@ -50,7 +51,7 @@ def audit_paired_report(report: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("trial count mismatch")
     expected_row_fields = {"trial_index", "synchronized", "steps_to_sync", *ATTACKS}
     for i, row in enumerate(rows):
-        if not isinstance(row, dict) or set(row) != expected_row_fields or row["trial_index"] != i:
+        if not isinstance(row, dict) or set(row) != expected_row_fields or type(row["trial_index"]) is not int or row["trial_index"] != i:
             raise ValueError("unexpected trial shape/index; possible data leak")
         if type(row["synchronized"]) is not bool:
             raise ValueError("synchronization must be boolean")
@@ -65,17 +66,34 @@ def audit_paired_report(report: dict[str, Any]) -> dict[str, Any]:
     observed = [r for r in rows if r["synchronized"]]
     if report.get("synchronized_trials") != len(observed) or report.get("censored_trials") != plan.trials - len(observed):
         raise ValueError("censoring denominator mismatch")
+    expected_median = statistics.median(r["steps_to_sync"] for r in observed) if observed else None
+    if report.get("median_sync_steps_conditional") != expected_median:
+        raise ValueError("median synchronization time disagrees with trial rows")
+    if report.get("resource_budgets_differ_across_arms") is not True:
+        raise ValueError("unequal attacker resources must be disclosed")
     attacks = report.get("attack_results")
     if not isinstance(attacks, dict) or set(attacks) != set(ATTACKS):
         raise ValueError("unexpected attack metrics")
+    from .comparison import wilson_interval
+    metrics_keys = {
+        "exact_match_trials", "denominator_synchronized",
+        "rate_conditional_on_sync", "wilson_95pct_descriptive",
+    }
     for name in ATTACKS:
         source = attacks[name]
+        if not isinstance(source, dict) or set(source) != metrics_keys:
+            raise ValueError("unexpected attack metrics fields")
         successes = sum(r[name] for r in observed)
         if source["exact_match_trials"] != successes or source["denominator_synchronized"] != len(observed):
             raise ValueError("aggregate/row successes disagree")
         expected = successes / len(observed) if observed else None
         if source["rate_conditional_on_sync"] != expected:
             raise ValueError("published rate disagrees with raw trial outcomes")
+        interval = wilson_interval(successes, len(observed))
+        if source["wilson_95pct_descriptive"] != interval and (
+            interval is None or source["wilson_95pct_descriptive"] != list(interval)
+        ):
+            raise ValueError("published interval disagrees with raw trial outcomes")
 
     comparisons = {}
     for first, second in CONTRASTS:
