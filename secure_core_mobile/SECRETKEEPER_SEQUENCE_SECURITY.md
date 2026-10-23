@@ -38,6 +38,34 @@ by this development codec.
 6. Keeps legacy `encrypt/decrypt` APIs for AOSP compatibility and explicitly
    documents their weaker protection when `EMPTY` is selected.
 
+## Experimental session-core hardening (follow-up)
+
+`SecretkeeperSessionCore` now refuses to initialize a replay-sensitive
+session with `ExternalAadMode.EMPTY`, or with equal request/response
+AES-256 keys. It requires byte-string session identity and starts both
+counters at zero. This is intentionally stricter than the low-level codec,
+whose EMPTY compatibility mode remains available for explicit legacy tests.
+
+- Outgoing messages are numbered while holding a send lock, and exact
+  12-byte IV reuse is rejected within the same live session object.
+- Incoming messages are decrypted with `decrypt_and_consume` under the
+  receive lock; a bad tag never advances the counter.
+- Complete development `request -> response` transactions are serialized
+  to avoid self-inflicted out-of-order responses in simultaneous callers.
+- Sequence overflow is denied. The object excludes session AES key bytes
+  from its generated `repr` representation.
+- Positive and negative concurrency, IV-reuse, tag-tampering and AAD-profile
+  tests are in `tests/secure_core_mobile/test_sk_session_invariants.py`.
+
+**Still unresolved:** session keys and IV uniqueness cannot be guaranteed
+across restarts or separate objects that accidentally reuse the same AES
+keys; the in-memory IV set is not trusted monotonic storage. The helper does
+not implement key agreement, native AuthGraph session establishment, hardware
+attestation or hostile-host compromise resistance. Its memory and publicly
+modifiable Python counters also preclude a high-assurance security claim.
+Production integration must instead derive direction-separated keys inside
+the verified boundary and pin the native platform's exact COSE AAD profile.
+
 ## Important non-goals and remaining security gates
 
 - The `SequenceWindow` is in-memory and **not rollback-protected**. A restart
