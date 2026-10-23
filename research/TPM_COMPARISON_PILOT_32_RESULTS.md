@@ -61,3 +61,31 @@ from the exact repository checkout and uploads
 JSON reproduction is available separately in the conversation.
 Await the exact-head workflow outcome before replacing this
 preliminary report with a verified source-run receipt.
+
+## Retrospective paired attacker audit (added after inspecting the pilot)
+
+Because every arm reuses **the same legitimate seed per trial**, direct
+paired-discordance analysis is more appropriate than treating each attack
+success count as independent.
+
+| Paired contrast | First-only wins | Second-only wins | Both win | Neither wins | Exploratory exact two-sided McNemar p |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Ensemble (9) vs geometric (1) | 8 | 5 | 10 | 9 | 0.5810546875 |
+| Geometric (1) vs naive (1) | 14 | 1 | 1 | 16 | 0.0009765625 |
+| Genetic-style (16) vs geometric (1) | 2 | 15 | 0 | 15 | 0.002349853515625 |
+
+**Critical statistical caveats:** these *specific contrasts were selected
+retrospectively after seeing pilot outcomes*. The p-values are unadjusted
+for the three comparisons, and therefore **cannot be cited as prospective
+confirmation of an effect**. Furthermore, collective and genetic-style
+attackers use different resources and heuristics than individual Eve.
+Do not claim that the ensemble significantly beats geometric (the
+observed 18 vs 15 successes are not compelling evidence). Do not
+claim the weak local-field genetic-style heuristic disproves published
+genetic-attack families.
+
+The new source-run `tpm_paired_audit.json` recomputes every attack count,
+validates the input plan SHA-256 and full protocol SHA-256, explicitly
+refuses secret-weight data in trial records, and computes exploratory
+paired discordances from the original 32 trial booleans. It cannot
+create a cryptographic assurance verdict.
