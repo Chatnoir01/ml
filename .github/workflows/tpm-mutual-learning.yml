@@ -11,6 +11,7 @@ on:
       - "src/tpm_lab/comparison.py"
       - "scripts/run_tpm_comparison.py"
       - "research/TPM_COMPARISON_PROTOCOL.md"
+      - "research/TPM_COMPARISON_PILOT_32_RESULTS.md"
       - "src/tpm_lab/genetic.py"
       - "research/TPM_GENETIC_ATTACK_PROTOCOL.md"
       - "src/tpm_lab/ensemble.py"
@@ -73,6 +74,9 @@ jobs:
           from tpm_lab.comparison import ComparisonPlan
           report = json.loads(Path("tpm_32_trial_report.json").read_text())
           assert report["plan_sha256"] == ComparisonPlan().sha256()
+          # Frozen local reference digests; mismatch requires explicit review.
+          assert report["plan_sha256"] == "f008b0327a1ef0b97c8b1c56815aa004e706bdb4af5553a33de3eadeda345280"
+          assert report["protocol_sha256"] == "862bb61917b8848f60f3ff21f688c44980d0afdb838d497f33be55412f1b77b0"
           assert report["synchronized_trials"] + report["censored_trials"] == 32
           assert len(report["trial_records"]) == 32
           assert set(report["attack_results"]) == {
