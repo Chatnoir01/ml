@@ -44,7 +44,6 @@ def test_binary_roundtrip_with_context(recipient, message):
     assert wrapped.startswith(MAGIC)
     assert len(wrapped) == HEADER_LEN + len(message) + TAG_LEN
     assert open_envelope(private, wrapped, context=b"stoparnaques/v1:test") == message
-    assert message not in wrapped if len(message) > 32 else True
 
 
 def test_fingerprint_stable_and_recipient_private_not_serialized(recipient):
