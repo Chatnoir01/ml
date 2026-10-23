@@ -85,11 +85,14 @@ def test_empty_external_aad_does_not_authenticate_sequence_metadata() -> None:
         expected_session_id=_SESSION, expected_sequence_number=1,
         aad_mode=ExternalAadMode.EMPTY,
     ) == b"legacy"
+    window = SequenceWindow()
+    window.consume(0)  # The receiver now expects a message with sequence 1.
     with pytest.raises(InvalidTag):
         decrypt_and_consume(
             key=_KEY, packet=relabelled, expected_session_id=_SESSION,
-            window=SequenceWindow(),
+            window=window,
         )
+    assert window.next_sequence_number == 1
 
 
 def test_invalid_tag_does_not_consume_sequence_number() -> None:
