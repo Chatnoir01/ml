@@ -6,6 +6,9 @@ on:
       - "src/tpm_lab/**"
       - "tests/test_tpm_lab.py"
       - "tests/test_tpm_ensemble.py"
+      - "tests/test_tpm_genetic.py"
+      - "src/tpm_lab/genetic.py"
+      - "research/TPM_GENETIC_ATTACK_PROTOCOL.md"
       - "src/tpm_lab/ensemble.py"
       - "research/TPM_ENSEMBLE_ATTACK_PROTOCOL.md"
       - "scripts/run_tpm_lab.py"
@@ -37,6 +40,6 @@ jobs:
       - name: Install test tools (no ML/crypto dependency needed)
         run: python -m pip install -e ".[dev]"
       - name: Deterministic synchronization and passive-attacker tests
-        run: python -m pytest -q tests/test_tpm_lab.py tests/test_tpm_ensemble.py
+        run: python -m pytest -q tests/test_tpm_lab.py tests/test_tpm_ensemble.py tests/test_tpm_genetic.py
       - name: Short lab smoke (non-security research only)
         run: python scripts/run_tpm_lab.py --smoke
