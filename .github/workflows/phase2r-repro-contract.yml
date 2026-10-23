@@ -5,6 +5,8 @@ on:
     paths:
       - "src/adversarial_sbox/phase2r_repro.py"
       - "src/adversarial_sbox/phase2r_serialization.py"
+      - "src/adversarial_sbox/phase2r_fixture.py"
+      - "research/fixtures/phase2r-synthetic-curriculum-v1.json"
       - "tests/test_phase2r_repro.py"
       - "tests/test_phase2r_serialization.py"
       - "research/PHASE2R_REPRO_CONTROL_PROTOCOL.md"
