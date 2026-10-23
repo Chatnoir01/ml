@@ -5,8 +5,11 @@ from __future__ import annotations
 import json
 import math
 
-import numpy as np
 import pytest
+
+# This neural-research extra is optional in legacy Phase 0.
+# The dedicated lab CI must install NumPy and execute these tests.
+np = pytest.importorskip("numpy")
 
 from neural_crypto_lab import MLP, Protocol, run_experiment
 from neural_crypto_lab.experiment import _bits, _loss, _retrain_attacker
