@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import pytest
+import sys
+from pathlib import Path
 
-from scripts.select_fast_tests import (
+# The complete CI uses the 'pytest' entry point (not 'python -m pytest').
+# Import the un-packaged CLI script explicitly under either invocation.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+from select_fast_tests import (
     CRYPTO_BASELINE,
     PHASE2R_GATES,
     SECURE_CORE_GATES,
