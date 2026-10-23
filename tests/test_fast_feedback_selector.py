@@ -14,6 +14,8 @@ from select_fast_tests import (
     CRYPTO_BASELINE,
     PHASE2R_GATES,
     SECURE_CORE_GATES,
+    SECURE_CORE_REQUIRED_GATES,
+    SECURE_CORE_OPTIONAL_GATES,
     SELECTOR_TEST,
     choose_fast_tests,
 )
@@ -79,7 +81,7 @@ def test_missing_phase2r_evidence_test_cannot_be_silently_skipped() -> None:
 
 
 def test_missing_secure_core_tests_fails_closed() -> None:
-    with pytest.raises(ValueError, match="without existing smoke tests"):
+    with pytest.raises(ValueError, match="required fast regression test missing"):
         choose_fast_tests(
             ["secure_core_mobile/authorization.py"],
             exists=lambda p: p in CRYPTO_BASELINE,
@@ -87,9 +89,27 @@ def test_missing_secure_core_tests_fails_closed() -> None:
 
 
 def test_secure_core_legacy_branch_without_latest_tests_uses_existing_gates() -> None:
-    legacy = tuple(SECURE_CORE_GATES[:3])
+    legacy = SECURE_CORE_REQUIRED_GATES
     result = choose_fast_tests(
         ["secure_core_mobile/authorization.py"],
         exists=lambda p: p in set(CRYPTO_BASELINE + legacy),
     )
     assert result == (*CRYPTO_BASELINE, *legacy)
+
+
+def test_deleted_required_secure_gate_blocks_merge_feedback() -> None:
+    deleted = SECURE_CORE_REQUIRED_GATES[0]
+    with pytest.raises(ValueError, match="required fast regression test missing"):
+        choose_fast_tests(
+            [deleted],
+            exists=lambda p: _available()(p) and p != deleted,
+        )
+
+
+def test_deleted_optional_secure_gate_is_not_silently_ignored() -> None:
+    deleted = SECURE_CORE_OPTIONAL_GATES[0]
+    with pytest.raises(ValueError, match="required fast regression test missing"):
+        choose_fast_tests(
+            [deleted],
+            exists=lambda p: _available()(p) and p != deleted,
+        )
