@@ -1,0 +1,97 @@
+name: TPM 96 Result Receipt Audit (NO CRYPTO CLAIM)
+
+on:
+  pull_request:
+    paths:
+      - "src/tpm_lab/multiscale_audit.py"
+      - "tests/test_tpm_multiscale_audit.py"
+      - "scripts/audit_tpm_multiscale_report.py"
+      - "research/TPM_MULTISCALE_REPORT_AUDIT_PROTOCOL.md"
+      - ".github/workflows/tpm-multiscale-receipt-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+# No repeat scientific experiments here; deterministic fake-fixture tests only.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  report-validator:
+    name: Synthetic corruption-controls on Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10","3.11","3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test suite
+        run: python -m pip install -e ".[dev]"
+      - name: Verify independent row reconstruction and tampering detectors
+        run: python -m pytest -q tests/test_tpm_multiscale_audit.py
+      - name: State validation scope explicitly
+        run: echo "Synthetic fixture only; no held-out trial has been inspected or run in this workflow."
+
+  frozen-source-artifact-audit:
+    name: Audit original frozen #150 artifact without re-running attackers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install source report audit module
+        run: python -m pip install -e ".[dev]"
+      - name: Retrieve previously verified source-run artifact, no new seeds
+        run: |
+          curl -fLsS \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -o original_pr150_artifact.zip \
+            "https://api.github.com/repos/Chatnoir01/ml/actions/artifacts/12510291806/zip"
+          echo "b2349d818188f61924edf878044837f422cd5bb5c99b8dd7e08da9869ee5f4bc  original_pr150_artifact.zip" | sha256sum -c -
+          unzip -p original_pr150_artifact.zip tpm_multiscale_96_report.json > tpm_multiscale_96_report.json
+          test -s tpm_multiscale_96_report.json
+      - name: Independently audit all 96 actual original source rows
+        run: |
+          python scripts/audit_tpm_multiscale_report.py tpm_multiscale_96_report.json > tpm_multiscale_96_independent_audit.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("tpm_multiscale_96_report.json").read_text())
+          audit=json.loads(Path("tpm_multiscale_96_independent_audit.json").read_text())
+          assert audit["audited_new_trial_count"] == 96
+          assert audit["all_three_predeclared_contrasts_checked"]
+          assert audit["no_cryptographic_security_guarantee"]
+          assert audit["plan_sha256"] == report["plan_sha256"]
+          assert {name:(row["cooperative_success"],row["geometric_success"]) for name,row in audit["scales"].items()} == {
+              "small_N8_L2": (21, 28),
+              "medium_N16_L3": (10, 25),
+              "large_N32_L4": (9, 25),
+          }
+          print("Independent output-only source receipt audit PASS.")
+          print("New 96-trial results verified:",{
+              name:{"cooperative":row["cooperative_success"],
+                    "geometric":row["geometric_success"],
+                    "adjusted_p":row["recomputed_holm_p"]}
+              for name,row in audit["scales"].items()
+          })
+          PY
+      - name: Preserve independent source receipt audit, not keys
+        uses: actions/upload-artifact@v4
+        with:
+          name: tpm-frozen-96-independent-audit
+          path: tpm_multiscale_96_independent_audit.json
+          if-no-files-found: error
+          retention-days: 60
