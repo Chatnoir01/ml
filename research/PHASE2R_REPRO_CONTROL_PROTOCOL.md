@@ -31,6 +31,33 @@ to a pass. Only checkpoint 0; no GA evolution or held-out evaluation.
 
 This is an exact-byte reproducibility test, not a cryptographic security test.
 
+## Pinned synthetic curriculum delivered
+
+The diagnostic-only file `research/fixtures/phase2r-synthetic-curriculum-v1.json`
+now provides the **actual 20 × 256 candidate bytes**, not only an RNG seed.
+The recorded fixture is independent of historic 2G populations and does
+**not** support retrospective regeneration of original model states.
+
+- Fixture identity: `phase2r-synthetic-v1`.
+- Generator disclosure: xorshift32/Fisher–Yates seeded by `0x26102023`,
+  with the generated candidate **bytes themselves committed**.
+- Canonical content SHA-256:
+  `ca6eea1f554b1004ad69d0da828ae2fac5cdb5a4d1f5f6ab80e5787ce5c9a106`.
+- Canonical Phase-2G-compatible curriculum SHA-256 (sorted SHA3-256
+  fingerprints joined by LF):
+  `09e94da031992240d857a139768445c042cb712abf866f15084300a4a267e8a2`.
+
+The non-executing fixture reader validates both digests, exactly 20
+distinct bijective S-Boxes and exact byte arrays. Phase-2R receipt validator
+binds this curriculum digest and fixture ID into its protocol SHA;
+alternative curricula cannot silently pass the same control.
+
+This input fixture is **not a demonstration of cryptographic strength**.
+Its sole role is to provide fixed, comparable bytes for future
+reproducibility measurements. Real experiment authorisation, pinned
+model-initialisation bytes/serializer, runtime provenance and dependency
+locking remain outstanding.
+
 ## What must be frozen *before* any real training
 
 1. An **independent 20-S-Box synthetic input fixture**: actual canonical candidate
