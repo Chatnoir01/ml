@@ -18,14 +18,17 @@ CRYPTO_BASELINE = (
     "tests/test_provenance.py",
 )
 SELECTOR_TEST = "tests/test_fast_feedback_selector.py"
-SECURE_CORE_GATES = (
+SECURE_CORE_REQUIRED_GATES = (
     "tests/secure_core_mobile/test_cose_encrypt0.py",
     "tests/secure_core_mobile/test_secretkeeper_packet.py",
     "tests/secure_core_mobile/test_sk_session.py",
-    "tests/secure_core_mobile/test_secretkeeper_sequence_hardening.py",
-    "tests/secure_core_mobile/test_sk_session_invariants.py",
     "tests/secure_core_mobile/test_authgraph_identity_provenance.py",
 )
+SECURE_CORE_OPTIONAL_GATES = (
+    "tests/secure_core_mobile/test_secretkeeper_sequence_hardening.py",
+    "tests/secure_core_mobile/test_sk_session_invariants.py",
+)
+SECURE_CORE_GATES = SECURE_CORE_REQUIRED_GATES + SECURE_CORE_OPTIONAL_GATES
 PHASE2R_GATES = (
     "tests/test_phase2r_repro.py",
     "tests/test_phase2r_serialization.py",
@@ -80,14 +83,15 @@ def choose_fast_tests(
             require(name)
 
     if secure:
-        for name in SECURE_CORE_GATES:
-            # Older Secure Core branches may lack the newest tests.
-            # The existing general/secure CI is still required; flag missing
-            # test files explicitly rather than fabricating a green run.
-            if exists(name):
+        # These core trust-boundary tests already exist in all Secure Core
+        # branches; deleting one must fail the fast gate immediately.
+        for name in SECURE_CORE_REQUIRED_GATES:
+            require(name)
+        # New tests are unavailable on older historical branches but must
+        # never be silently ignored when they are added, edited, or deleted.
+        for name in SECURE_CORE_OPTIONAL_GATES:
+            if exists(name) or name in changed:
                 require(name)
-        if not any(name in chosen for name in SECURE_CORE_GATES):
-            raise ValueError("Secure Core code changed without existing smoke tests")
 
     if phase2r:
         for name in PHASE2R_GATES:
