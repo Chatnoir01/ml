@@ -9,6 +9,7 @@ on:
       - "research/fixtures/phase2r-synthetic-curriculum-v1.json"
       - "tests/test_phase2r_repro.py"
       - "tests/test_phase2r_serialization.py"
+      - "tests/test_phase2r_fixture.py"
       - "research/PHASE2R_REPRO_CONTROL_PROTOCOL.md"
       - ".github/workflows/phase2r-repro-contract.yml"
   workflow_dispatch:
