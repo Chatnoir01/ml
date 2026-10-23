@@ -6,6 +6,11 @@ import hashlib
 
 import pytest
 
+# CryptoWall is an explicitly optional research extra; the legacy Phase 0
+# matrix has zero crypto dependencies. Only the dedicated CryptoWall workflow
+# installs [crypto] and MUST execute these tests (not skip them).
+pytest.importorskip("cryptography")
+
 from cryptowall import (
     EnvelopeError,
     generate_recipient,
