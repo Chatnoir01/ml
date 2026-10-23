@@ -27,6 +27,19 @@ EXPECTED_ROW_KEYS = {
     "cooperative_attempted_weight_writes",
     "geometric_attempted_weight_writes",
 }
+EXPECTED_TOP_LEVEL_KEYS = {
+    "schema_version", "kind", "plan", "plan_sha256",
+    "prespecified_scales", "registered_family", "scales",
+    "new_seed_cohorts_disjoint_from_pilot_and_holdout",
+    "attacker_candidate_counts_matched",
+    "attacker_forward_evaluations_matched_per_trial",
+    "CPU_runtime_memory_not_equalized",
+    "posthoc_scales_or_trial_exclusions_not_permitted",
+    "all_attackers_observe_public_transcript_only",
+    "not_a_secure_key_exchange_or_cryptographic_proof",
+    "no_private_keys_or_weights_exported",
+    "execution_level", "security_verdict",
+}
 EXPECTED_AGGREGATE_KEYS = {
     "n", "l", "master_seed", "protocol_sha256", "synchronized_trials",
     "censored_trials", "median_steps_conditional", "cooperative9_exact_matches",
@@ -96,6 +109,7 @@ def audit_multiscale_receipt(report: dict[str, Any]) -> dict[str, Any]:
     Accepts ONLY the registered full 96-session plan, not smoke data.
     """
     _require(isinstance(report, dict), "report must be an object")
+    _require(set(report) == EXPECTED_TOP_LEVEL_KEYS, "unexpected top-level fields (possible secret export)")
     _require(report.get("schema_version") == 1, "schema mismatch")
     _require(report.get("kind") == "prospective_multiscale_neural_tpm_attack_comparison", "report kind mismatch")
     _require(report.get("plan") == {"candidates": 9, "max_steps": 12000, "trials_per_scale": 32}, "plan changed")
@@ -129,7 +143,15 @@ def audit_multiscale_receipt(report: dict[str, Any]) -> dict[str, Any]:
         item = scales[name]
         _require(isinstance(item, dict) and set(item) == EXPECTED_AGGREGATE_KEYS, f"{name}: unexpected metric fields")
         _require((item["n"], item["l"], item["master_seed"]) == (n, l, seed), f"{name}: scale parameters changed")
-        _require(isinstance(item["protocol_sha256"], str) and len(item["protocol_sha256"]) == 64, f"{name}: protocol SHA malformed")
+        protocol_spec = {
+            "hidden_units": 3, "inputs_per_unit": n, "synaptic_depth": l,
+            "max_steps": 12000, "trials": 32, "master_seed": seed,
+            "learning_rule": "hebbian",
+        }
+        expected_protocol_sha = hashlib.sha256(
+            json.dumps(protocol_spec, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        _require(item["protocol_sha256"] == expected_protocol_sha, f"{name}: protocol SHA mismatch")
         _require(item["forward_evaluations_balanced_per_trial"] is True, f"{name}: forward count assertion missing")
         rows = item["trials"]
         _require(isinstance(rows, list) and len(rows) == 32, f"{name}: missing trials")
