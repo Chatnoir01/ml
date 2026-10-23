@@ -7,6 +7,14 @@ on:
       - "tests/test_tpm_lab.py"
       - "tests/test_tpm_ensemble.py"
       - "tests/test_tpm_genetic.py"
+      - "tests/test_tpm_comparison.py"
+      - "tests/test_tpm_paired_stats.py"
+      - "src/tpm_lab/paired_stats.py"
+      - "scripts/audit_tpm_paired_report.py"
+      - "src/tpm_lab/comparison.py"
+      - "scripts/run_tpm_comparison.py"
+      - "research/TPM_COMPARISON_PROTOCOL.md"
+      - "research/TPM_COMPARISON_PILOT_32_RESULTS.md"
       - "src/tpm_lab/genetic.py"
       - "research/TPM_GENETIC_ATTACK_PROTOCOL.md"
       - "src/tpm_lab/ensemble.py"
@@ -40,6 +48,77 @@ jobs:
       - name: Install test tools (no ML/crypto dependency needed)
         run: python -m pip install -e ".[dev]"
       - name: Deterministic synchronization and passive-attacker tests
-        run: python -m pytest -q tests/test_tpm_lab.py tests/test_tpm_ensemble.py tests/test_tpm_genetic.py
+        run: python -m pytest -q tests/test_tpm_lab.py tests/test_tpm_ensemble.py tests/test_tpm_genetic.py tests/test_tpm_comparison.py tests/test_tpm_paired_stats.py
       - name: Short lab smoke (non-security research only)
         run: python scripts/run_tpm_lab.py --smoke
+      - name: Paired five-arm comparison smoke
+        run: python scripts/run_tpm_comparison.py --smoke
+
+  paired-full-pilot:
+    # Fixed 32-trial pilot is small and deterministic; save exact report.
+    # This is a research receipt, NOT any evidence of a secure cipher.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test tools
+        run: python -m pip install -e ".[dev]"
+      - name: Run exact preregistered paired 32-trial comparison
+        run: |
+          python scripts/run_tpm_comparison.py --trials 32 > tpm_32_trial_report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from tpm_lab.comparison import ComparisonPlan
+          report = json.loads(Path("tpm_32_trial_report.json").read_text())
+          assert report["plan_sha256"] == ComparisonPlan().sha256()
+          # Frozen local reference digests; mismatch requires explicit review.
+          assert report["plan_sha256"] == "f008b0327a1ef0b97c8b1c56815aa004e706bdb4af5553a33de3eadeda345280"
+          assert report["protocol_sha256"] == "862bb61917b8848f60f3ff21f688c44980d0afdb838d497f33be55412f1b77b0"
+          assert report["synchronized_trials"] + report["censored_trials"] == 32
+          assert len(report["trial_records"]) == 32
+          assert set(report["attack_results"]) == {
+              "naive", "geometric", "random_flip", "ensemble", "genetic"
+          }
+          assert report["no_private_weights_or_keys_exported"]
+          assert report["not_proof_of_security"]
+          print("32-trial preregistered receipt integrity OK")
+          PY
+      - name: Independently audit raw rows and exploratory paired contrasts
+        run: |
+          python scripts/audit_tpm_paired_report.py tpm_32_trial_report.json > tpm_paired_audit.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("tpm_32_trial_report.json").read_text())
+          audit = json.loads(Path("tpm_paired_audit.json").read_text())
+          assert audit["posthoc_contrasts_not_preregistered"]
+          assert audit["attacker_compute_budgets_not_equal"]
+          assert audit["not_cryptographic_security_evidence"]
+          assert audit["report_plan_sha256"] == report["plan_sha256"]
+          # Recorded 2026-10-23 pilot is a *reproduction reference*, not a
+          # success/approval criterion for any cryptographic construction.
+          expected_counts = {
+              "naive": 2, "geometric": 15, "random_flip": 7,
+              "ensemble": 18, "genetic": 2,
+          }
+          assert report["synchronized_trials"] == 32
+          assert {k: v["exact_match_trials"] for k,v in report["attack_results"].items()} == expected_counts
+          assert audit["comparisons"]["ensemble_vs_geometric"]["first_only"] == 8
+          assert audit["comparisons"]["ensemble_vs_geometric"]["second_only"] == 5
+          print("32-trial source reproduction matches local reference")
+          PY
+      - name: Upload research report (not a security certificate)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tpm-paired-32-trials-python311
+          path: |
+            tpm_32_trial_report.json
+            tpm_paired_audit.json
+          if-no-files-found: error
+          retention-days: 30
