@@ -13,6 +13,7 @@ import re
 from typing import Any
 
 from .phase2g import TRAINING_DATASET_BASE_SEEDS, TRAINING_MODEL_BASE_SEEDS
+from .phase2r_fixture import CURRICULUM_SHA256, FIXTURE_ID
 
 # Only the pre-adaptation checkpoint-0 geometry is eligible for the control.
 MODEL_GRID = tuple((d, r) for d in (1, 256) for r in range(8))
@@ -27,6 +28,8 @@ PROTOCOL = {
     "schema_version": 1,
     "purpose": "post_2g_independent_checkpoint0_reproducibility_control",
     "checkpoint": 0,
+    "fixture_id": FIXTURE_ID,
+    "curriculum_digest_sha256": CURRICULUM_SHA256,
     "run_grid": [list(run) for run in RUN_GRID],
     "pair_grid": [[list(a), list(b), label] for a, b, label in PAIR_GRID],
     "model_grid": [list(cell) for cell in MODEL_GRID],
@@ -135,6 +138,8 @@ def audit_prospective_receipts(bundle: Mapping[str, Any]) -> dict[str, Any]:
         if key not in RUN_GRID or key in indexed:
             raise ValueError("duplicate or unexpected run identity")
         curriculum = _digest(raw.get("curriculum_sha256"), "fixture curriculum")
+        if curriculum != CURRICULUM_SHA256:
+            raise ValueError("run curriculum differs from pinned Phase-2R fixture")
         indexed[key] = {
             "runtime": _metadata(raw.get("runtime")),
             "curriculum_sha256": curriculum,
