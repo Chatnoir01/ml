@@ -95,9 +95,10 @@ def test_empty_external_aad_does_not_authenticate_sequence_metadata() -> None:
 def test_invalid_tag_does_not_consume_sequence_number() -> None:
     window = SequenceWindow()
     original = _authenticated()
-    altered = Encrypt0Packet(original.binding, original.ciphertext[:-1] + b"\x00")
-    # Guard against accidental test collision (the original final tag byte is not zero).
-    assert altered.ciphertext != original.ciphertext
+    altered = Encrypt0Packet(
+        original.binding,
+        original.ciphertext[:-1] + bytes((original.ciphertext[-1] ^ 1,)),
+    )
     with pytest.raises(InvalidTag):
         decrypt_and_consume(
             key=_KEY, packet=altered, expected_session_id=_SESSION, window=window,
