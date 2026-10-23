@@ -35,5 +35,7 @@ jobs:
           cache-dependency-path: pyproject.toml
       - name: Install research package plus isolated crypto wall dependencies
         run: python -m pip install -e ".[dev,crypto]"
+      - name: Assert actual cryptography backend is installed (no silent skips)
+        run: python -c "import cryptography; from cryptography.hazmat.primitives.ciphers.aead import AESGCM; print('cryptography', cryptography.__version__)"
       - name: Byte-for-byte envelope regression and negative tests
         run: python -m pytest -q tests/test_crypto_wall.py
