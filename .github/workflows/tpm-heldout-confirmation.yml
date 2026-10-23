@@ -1,0 +1,88 @@
+name: TPM Held-out 64 New Seeds (NO KEY SECURITY CLAIM)
+
+on:
+  pull_request:
+    paths:
+      - "src/tpm_lab/heldout.py"
+      - "tests/test_tpm_heldout.py"
+      - "scripts/run_tpm_holdout.py"
+      - "research/TPM_HELDOUT_64_PROTOCOL.md"
+      - ".github/workflows/tpm-heldout-confirmation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Confirmation is a scientific run; do not cancel a started experiment
+# when a newer commit appears. Track the exact head SHA of each receipt.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  heldout-confirmation:
+    name: New 64 seeds / 9-vs-9 and 16-vs-16 candidate trials
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test tools
+        run: python -m pip install -e ".[dev]"
+      - name: Validate frozen holdout protocol and adversary controls
+        run: python -m pytest -q tests/test_tpm_heldout.py
+      - name: Produce 64-trial independent confirmation report
+        run: python scripts/run_tpm_holdout.py --confirm > tpm_heldout_64_report.json
+      - name: Verify exact preregistered protocol, no trial exclusions or secret output
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from tpm_lab.heldout import HoldoutPlan, COMPARISONS
+          report = json.loads(Path("tpm_heldout_64_report.json").read_text())
+          plan = HoldoutPlan()
+          assert report["plan_sha256"] == plan.sha256()
+          assert report["plan_sha256"] == "0872aa224297a9a9630cd7f58448b5254ff12064f651fcfd787424be5bb2ba06"
+          assert report["protocol_sha256"] == "dfb640df5159f38db9cc05706e0d2583273ffdb49d608f324c05d233891e9452"
+          assert report["registered_contrasts"] == [list(pair) for pair in COMPARISONS]
+          assert len(report["trial_records"]) == 64
+          assert [r["trial_index"] for r in report["trial_records"]] == list(range(64))
+          assert report["synchronized_trials"] + report["censored_trials"] == 64
+          assert set(report["arms"]) == {"ensemble9","geometric9","genetic16","geometric16"}
+          assert report["no_cryptographic_security_proven"]
+          assert report["no_private_weights_or_key_exported"]
+          assert report["runtime_and_optimizer_operations_not_equated"]
+          assert report["security_verdict"] == "NOT_ESTABLISHED"
+          expected_keys = {
+              "trial_index","synchronized","steps_to_sync",
+              "ensemble9","geometric9","genetic16","geometric16",
+          }
+          for row in report["trial_records"]:
+              assert set(row) == expected_keys, "unexpected exported field (possible secret)"
+              assert all(not isinstance(value, (dict,list,tuple)) for value in row.values())
+          if report["synchronized_trials"]:
+              for arm in report["arms"].values():
+                  assert arm["denominator"] == report["synchronized_trials"]
+                  assert 0 <= arm["exact_match_trials"] <= arm["denominator"]
+              for comp in report["paired_contrasts"].values():
+                  assert sum(comp[k] for k in ("first_only","second_only","both","neither")) == report["synchronized_trials"]
+          else:
+              assert all(v["conditional_rate"] is None for v in report["arms"].values())
+          print("Validated frozen 64-trial report with no secret-key output.")
+          print("Synchronized:",report["synchronized_trials"],"Censored:",report["censored_trials"])
+          print("Attacker exact-match counts:", {
+              k:v["exact_match_trials"] for k,v in report["arms"].items()
+          })
+          print("Prespecified paired comparisons:",json.dumps(report["paired_contrasts"],sort_keys=True))
+          PY
+      - name: Preserve exact independent confirmation receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: tpm-heldout-64-python311
+          path: tpm_heldout_64_report.json
+          if-no-files-found: error
+          retention-days: 60
