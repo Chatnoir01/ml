@@ -1,0 +1,101 @@
+name: TPM Retrospective Same-Runner Timing (NO CRYPTO SECURITY)
+
+on:
+  pull_request:
+    paths:
+      - "src/tpm_lab/runtime_audit.py"
+      - "tests/test_tpm_runtime_audit.py"
+      - "scripts/run_tpm_runtime_audit.py"
+      - "research/TPM_SAME_RUNNER_TIMING_PROTOCOL.md"
+      - ".github/workflows/tpm-runtime-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Preserve long-running retrospective measurements across commits.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  timing-engineering-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10","3.11","3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e ".[dev]"
+      - name: Test paired results unchanged and elapsed time positive
+        run: python -m pytest -q tests/test_tpm_runtime_audit.py
+      - name: Smoke on two already-observed seeds
+        run: python scripts/run_tpm_runtime_audit.py --smoke > tpm_runtime_smoke.json
+
+  timing-64-retrospective:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tools
+        run: python -m pip install -e ".[dev]"
+      - name: Run single-runner randomized-order 64-trial wall-time audit
+        run: python scripts/run_tpm_runtime_audit.py --full > tpm_64_wall_time.json
+      - name: Confirm original attack success outcomes remain exactly unchanged
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from tpm_lab.heldout import HoldoutPlan
+          report = json.loads(Path("tpm_64_wall_time.json").read_text())
+          assert report["holdout_plan_sha256"] == HoldoutPlan().sha256()
+          assert report["execution_level"] == "retrospective_wall_time_audit"
+          assert report["cohort_already_observed_not_new_confirmation"]
+          assert report["no_claim_of_equalized_cpu_gpu_or_security"]
+          assert report["no_secret_key_or_private_weights_exported"]
+          assert report["security_verdict"] == "NOT_ESTABLISHED"
+          assert report["timing_protocol"]["first_trials"] == 64
+          assert report["timing_protocol"]["repeats"] == 2
+          assert len(report["measurements"]) == 64
+          expected={"ensemble9":30, "geometric9":53, "genetic16":2, "geometric16":58}
+          observed={
+              name: item["exact_match_trials"]
+              for name,item in report["summary"].items()
+          }
+          assert observed == expected, "timing code changed scientific outcomes"
+          expected_arms=set(expected)
+          for index, row in enumerate(report["measurements"]):
+              assert set(row)=={"trial_index","steps_to_sync","synchronized","arms"}
+              assert row["trial_index"] == index
+              assert set(row["arms"]) == expected_arms
+              for name,arm in row["arms"].items():
+                  assert set(arm) == {"success","elapsed_ns"}
+                  assert len(arm["elapsed_ns"]) == 2
+                  assert all(type(elapsed) is int and elapsed > 0 for elapsed in arm["elapsed_ns"])
+          print("Same-runner retrospective wall timing receipt passed")
+          print("Unchanged exact matches:", observed)
+          print("Median arm times (ns):", {
+              name: v["median_per_trial_elapsed_ns"] for name, v in report["summary"].items()
+          })
+          print("Median paired-time ratios:", {
+              name: v["median_of_paired_wall_time_ratios"]
+              for name,v in report["paired_runtime_ratios"].items()
+          })
+          PY
+      - name: Upload exact timing observation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tpm-64-retrospective-wall-time
+          path: tpm_64_wall_time.json
+          if-no-files-found: error
+          retention-days: 60
