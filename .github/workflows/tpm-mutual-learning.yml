@@ -49,3 +49,43 @@ jobs:
         run: python scripts/run_tpm_lab.py --smoke
       - name: Paired five-arm comparison smoke
         run: python scripts/run_tpm_comparison.py --smoke
+
+  paired-full-pilot:
+    # Fixed 32-trial pilot is small and deterministic; save exact report.
+    # This is a research receipt, NOT any evidence of a secure cipher.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test tools
+        run: python -m pip install -e ".[dev]"
+      - name: Run exact preregistered paired 32-trial comparison
+        run: |
+          python scripts/run_tpm_comparison.py --trials 32 > tpm_32_trial_report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from tpm_lab.comparison import ComparisonPlan
+          report = json.loads(Path("tpm_32_trial_report.json").read_text())
+          assert report["plan_sha256"] == ComparisonPlan().sha256()
+          assert report["synchronized_trials"] + report["censored_trials"] == 32
+          assert len(report["trial_records"]) == 32
+          assert set(report["attack_results"]) == {
+              "naive", "geometric", "random_flip", "ensemble", "genetic"
+          }
+          assert report["no_private_weights_or_keys_exported"]
+          assert report["not_proof_of_security"]
+          print("32-trial preregistered receipt integrity OK")
+          PY
+      - name: Upload research report (not a security certificate)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tpm-paired-32-trials-python311
+          path: tpm_32_trial_report.json
+          if-no-files-found: error
+          retention-days: 30
