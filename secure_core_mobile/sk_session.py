@@ -25,7 +25,7 @@ class SecretkeeperTransport(Protocol):
     def transact(self, request: Encrypt0Packet) -> Encrypt0Packet: ...
 
 
-@dataclass
+@dataclass(repr=False, eq=False)
 class SecretkeeperSessionCore:
     encryption_key: bytes
     decryption_key: bytes
