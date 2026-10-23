@@ -33,6 +33,33 @@ wall-clock reduction obtained from any optimisation.
 No test was removed, no Python version was dropped, and no permission was
 expanded. The specialised Secure Core, 2H and 2R workflows are unchanged.
 
+## Fast-feedback lane implemented in stacked PR
+
+`.github/workflows/fast-feedback.yml` now runs one **Python 3.12**
+low-budget smoke job for PRs that modify source, tests, security code,
+the frozen diagnostic fixture or the selector itself.
+
+- Uses the actual first parent of the PR synthetic merge commit to find
+  changed paths. No external third-party path-filter action or write token.
+- A deterministic Python selector chooses AES/S-Box reference tests,
+  Secretkeeper/COSE replay negatives, and/or Phase-2R synthetic
+  receipt/fixture/serialization checks when those paths change.
+- A missing required Phase-2R guard is a **failure**, never an automatic
+  PASS. Older Secure Core branches run the existing security guards they
+  actually contain, while the existing complete Secure Core CI remains
+  mandatory.
+- The selector itself is unit-tested against changed-path ordering,
+  absent security tests and research evidence fixture omissions.
+- This lane has a bounded timeout, cancels only superseded PR smoke jobs,
+  uses cached downloads and **never trains models or calls Android hardware**.
+- A fast lane success is **developer feedback**, NOT a claim that the
+  mandatory complete matrix is green, Phase-2G can be rerun, or that
+  any hardware security invariant has passed.
+
+The dedicated Secure Core and Phase 2R workflows are unchanged. A release
+still requires full 3-version CI plus the appropriate, separately authorized
+cryptographic and hardware validation gates.
+
 ## Target test lanes (follow-up implementation, not in this PR)
 
 | Lane | Trigger | Required evidence | Release authority |
