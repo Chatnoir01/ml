@@ -40,6 +40,14 @@ def test_detects_manipulated_aggregate_and_hidden_nested_content():
     bad["protocol_sha256"] = "0" * 64
     with pytest.raises(ValueError, match="digest mismatch"):
         audit_paired_report(bad)
+    bad = copy.deepcopy(report)
+    bad["median_sync_steps_conditional"] = -10
+    with pytest.raises(ValueError, match="median synchronization"):
+        audit_paired_report(bad)
+    bad = copy.deepcopy(report)
+    bad["attack_results"]["naive"]["wilson_95pct_descriptive"] = (0.0, 1.0)
+    with pytest.raises(ValueError, match="interval disagrees"):
+        audit_paired_report(bad)
 
 
 def test_censored_records_never_enter_attack_denominator():
