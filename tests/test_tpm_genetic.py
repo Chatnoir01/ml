@@ -13,7 +13,18 @@ def test_private_state_not_exported():
     r=genetic_study(TPMProtocol(trials=2,max_steps=1000),population=8)
     assert r["not_secure_key_exchange"]
     assert r["attacker_denominator"]==r["legitimate_sync_count"]
-    assert all("weights" not in str(t) for t in r["trials"])
+    # Inspect exported field names, not their stringified values.
+    # "no_private_weights_exported" is an explicit boolean safety receipt.
+    expected_keys = {
+        "trial_index", "population", "synchronized", "steps_to_sync",
+        "exact_candidates_at_sync", "at_least_one_exact_match",
+        "no_private_weights_exported", "not_a_cryptographic_security_claim",
+    }
+    for record in r["trials"]:
+        assert set(record) == expected_keys
+        assert record["no_private_weights_exported"] is True
+        assert record["not_a_cryptographic_security_claim"] is True
+        assert not any(isinstance(value, (list, tuple, dict)) for value in record.values())
 
 
 def test_censored_trials_do_not_count_as_failed_attacks():
