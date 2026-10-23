@@ -1,0 +1,132 @@
+name: TPM Prospective 96 Sessions Across Three Scales (NO CRYPTO SECURITY)
+
+on:
+  pull_request:
+    paths:
+      - "src/tpm_lab/multiscale.py"
+      - "tests/test_tpm_multiscale.py"
+      - "scripts/run_tpm_multiscale.py"
+      - "research/TPM_MULTISCALE_96_PROTOCOL.md"
+      - ".github/workflows/tpm-multiscale-96.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Preserve started preregistered experiments if a new commit appears;
+# never let supersession silently erase the original source receipt.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  multiscale-engineering:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install tests
+        run: python -m pip install -e ".[dev]"
+      - name: Validate fixed scales and paired attack control
+        run: python -m pytest -q tests/test_tpm_multiscale.py
+      - name: Execute short smoke per scale with hard resource guards
+        run: python scripts/run_tpm_multiscale.py --smoke > tpm_multiscale_smoke.json
+
+  multiscale-96-prospective:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install fixed research environment
+        run: python -m pip install -e ".[dev]"
+      - name: Execute all frozen 96 new trials without early stopping
+        run: python scripts/run_tpm_multiscale.py --confirm > tpm_multiscale_96_report.json
+      - name: Verify frozen plan and fail on changed counts or leaked private state
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from tpm_lab.multiscale import ScalePlan, SCALES
+          output=Path("tpm_multiscale_96_report.json")
+          r=json.loads(output.read_text())
+          assert r["execution_level"] == "predeclared_96_trial_confirmation"
+          assert r["security_verdict"] == "NOT_ESTABLISHED"
+          assert r["plan_sha256"] == ScalePlan().sha256()
+          assert r["plan_sha256"] == "6d282d9130f03e41204607af690c50501afec816d5820639c2eeba2178d69569"
+          assert r["prespecified_scales"] == [
+              {"name":s.name,"n":s.n,"l":s.l,"seed":s.seed} for s in SCALES
+          ]
+          assert r["attacker_candidate_counts_matched"]
+          assert r["attacker_forward_evaluations_matched_per_trial"]
+          assert r["CPU_runtime_memory_not_equalized"]
+          assert r["new_seed_cohorts_disjoint_from_pilot_and_holdout"]
+          assert r["no_private_keys_or_weights_exported"]
+          assert r["not_a_secure_key_exchange_or_cryptographic_proof"]
+          assert set(r["scales"]) == {s.name for s in SCALES}
+          expected_row_keys = {
+              "trial_index","synchronized","steps_to_sync",
+              "cooperative_success","geometric_success",
+              "cooperative_attacker_forward_evaluations",
+              "geometric_attacker_forward_evaluations",
+              "cooperative_attacker_updates","geometric_attacker_updates",
+              "cooperative_attempted_weight_writes",
+              "geometric_attempted_weight_writes",
+          }
+          for name,item in r["scales"].items():
+              assert len(item["trials"]) == 32
+              assert item["synchronized_trials"]+item["censored_trials"] == 32
+              assert item["forward_evaluations_balanced_per_trial"]
+              assert [row["trial_index"] for row in item["trials"]] == list(range(32))
+              assert (item["cooperative9_exact_matches"] <= item["synchronized_trials"])
+              assert (item["geometric9_exact_matches"] <= item["synchronized_trials"])
+              total_first=total_second=total_both=0
+              for row in item["trials"]:
+                  assert set(row) == expected_row_keys, "unexpected secret-export field"
+                  assert all(not isinstance(value,(list,tuple,dict)) for value in row.values())
+                  assert type(row["synchronized"]) is bool
+                  assert row["cooperative_attacker_forward_evaluations"] == row["geometric_attacker_forward_evaluations"]
+                  if row["synchronized"]:
+                      assert type(row["cooperative_success"]) is bool
+                      assert type(row["geometric_success"]) is bool
+                      assert isinstance(row["steps_to_sync"],int) and row["steps_to_sync"] > 0
+                      total_first += row["cooperative_success"]
+                      total_second += row["geometric_success"]
+                      total_both += row["cooperative_success"] and row["geometric_success"]
+                  else:
+                      assert row["cooperative_success"] is None
+                      assert row["geometric_success"] is None
+                      assert row["steps_to_sync"] is None
+              assert total_first == item["cooperative9_exact_matches"]
+              assert total_second == item["geometric9_exact_matches"]
+              assert total_both == item["both"]
+              assert item["first_only"] + item["second_only"] + item["both"] + item["neither"] == item["synchronized_trials"]
+          print("Frozen 96-trial three-scale research receipt validated.")
+          print("Observed outcome summary:", {
+              name:{
+                  "sync":value["synchronized_trials"],
+                  "censored":value["censored_trials"],
+                  "cooperative9":value["cooperative9_exact_matches"],
+                  "geometric9":value["geometric9_exact_matches"],
+                  "holm":value["adjusted_holm_p"],
+              } for name,value in r["scales"].items()
+          })
+          PY
+      - name: Upload source-generated frozen 96-trial report
+        uses: actions/upload-artifact@v4
+        with:
+          name: tpm-multiscale-96-new-seeds
+          path: tpm_multiscale_96_report.json
+          if-no-files-found: error
+          retention-days: 60
