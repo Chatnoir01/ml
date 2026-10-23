@@ -33,7 +33,7 @@ This is an exact-byte reproducibility test, not a cryptographic security test.
 
 ## What must be frozen *before* any real training
 
-1. A new **independent 20-S-Box input fixture**: actual canonical candidate
+1. An **independent 20-S-Box synthetic input fixture**: actual canonical candidate
    bytes, fingerprints and SHA-256, recorded in a separately committed/pinned
    fixture. A SHA-256 digest alone is insufficient to reconstruct the inputs.
    If reproducing a *historical* frozen checkpoint-0 pool, prove the original
