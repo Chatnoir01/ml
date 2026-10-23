@@ -8,6 +8,7 @@ import hashlib
 import pytest
 
 from adversarial_sbox.phase2g import TRAINING_DATASET_BASE_SEEDS, TRAINING_MODEL_BASE_SEEDS
+from adversarial_sbox.phase2r_fixture import CURRICULUM_SHA256
 from adversarial_sbox.phase2r_repro import (
     MODEL_GRID, PROTOCOL_SHA256, audit_prospective_receipts,
 )
@@ -38,7 +39,7 @@ def _runtime() -> dict:
 
 
 def _fixture() -> dict:
-    curriculum_hash = _hash("preregistered synthetic candidate fixture")
+    curriculum_hash = CURRICULUM_SHA256
     runs = []
     for arm, repeat in (("A", 1), ("A", 2), ("F", 1), ("F", 2)):
         models = []
@@ -112,8 +113,8 @@ def test_runtime_or_curriculum_mismatch_is_incomparable() -> None:
     bundle["runs"][0]["curriculum_sha256"] = _hash("alternate candidate pool")
     for model in bundle["runs"][0]["models"]:
         model["curriculum_sha256"] = bundle["runs"][0]["curriculum_sha256"]
-    result = audit_prospective_receipts(bundle)
-    assert result["paired_comparisons"][0]["status"] == "INCOMPARABLE_DIFFERENT_RUNTIME_OR_CURRICULUM"
+    with pytest.raises(ValueError, match="differs from pinned"):
+        audit_prospective_receipts(bundle)
 
 
 def test_run_reordering_does_not_change_result_bytes() -> None:
