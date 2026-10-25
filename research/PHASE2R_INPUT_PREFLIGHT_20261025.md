@@ -26,7 +26,7 @@ The existing Phase 2R contract (PR #131) already pins a new 20-S-Box synthetic c
 ```bash
 python -m pip install -e ".[dev]"
 python -m pytest -q tests/test_phase2r_input_preflight.py
-python scripts/probe_phase2r_inputs.py --difference 1 --replicate 0
+python -c 'from adversarial_sbox.phase2r_input_preflight import preflight_phase2r_input_cell as probe; print(probe(difference=1, replicate=0))'
 ```
 
 The script runs a single registered input cell (three equivalent generations). It does **not** run 16 neural training cells, Phase 2G evolution, Phase 2H causal tests, Phase 2R's prospective training experiment or held-out validation.
