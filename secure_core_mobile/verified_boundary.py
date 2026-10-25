@@ -4,9 +4,7 @@ Only a fully verified cryptographic result may assert host isolation.
 """
 
 from __future__ import annotations
-import hashlib
-
-from .hostile_boundary import BoundaryEvidence, BoundaryKind
+from .hostile_boundary import BoundaryEvidence
 from .pvm_attestation import PvmAttestationStatement
 from .pvm_verifier import PvmVerificationResult
 
@@ -23,11 +21,10 @@ def boundary_from_verified_attestation(
         raise ValueError("monotonic state not owned by protected boundary")
     if not evidence_bytes:
         raise ValueError("missing attestation evidence bytes")
-    return BoundaryEvidence(
-        kind=BoundaryKind.ANDROID_PVM,
-        boundary_id=statement.boundary_id,
-        isolated_from_host=True,
-        owns_authorization_state=True,
-        owns_monotonic_state=True,
-        evidence_sha256=hashlib.sha256(evidence_bytes).hexdigest(),
-    )
+    # PvmVerificationResult is a public, freely constructible dataclass.
+    # Neither its booleans nor evidence_bytes establish authoritative Android
+    # AVF/RKP provenance or execution inside a protected pVM.  In particular,
+    # an arbitrary caller can construct all four True flags without executing
+    # PvmAttestationVerifier.  Until a real protected, independently verified
+    # issuer is integrated, do not manufacture qualifying BoundaryEvidence.
+    raise ValueError("authoritative Android pVM boundary attestation not provisioned")
