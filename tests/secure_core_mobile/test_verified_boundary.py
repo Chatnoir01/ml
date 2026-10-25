@@ -25,13 +25,13 @@ def test_unverified_result_cannot_assert_isolation():
         )
 
 
-def test_fully_verified_result_can_create_qualifying_boundary():
+def test_forged_fully_verified_result_cannot_create_qualifying_boundary():
+    # Anyone can instantiate these four True flags without a native verifier.
     result = PvmVerificationResult(True, True, True, True, "verified")
-    boundary = boundary_from_verified_attestation(
-        statement=_statement(), result=result, evidence_bytes=b"evidence"
-    )
-    assert boundary.isolated_from_host is True
-    assert boundary.qualifies_for_hostile_host_experiment is True
+    with pytest.raises(ValueError, match="authoritative Android pVM"):
+        boundary_from_verified_attestation(
+            statement=_statement(), result=result, evidence_bytes=b"evidence"
+        )
 
 
 @pytest.mark.parametrize("auth,monotonic", [(False, True), (True, False)])
