@@ -25,18 +25,15 @@ class BoundaryEvidence:
 
     @property
     def qualifies_for_hostile_host_experiment(self) -> bool:
-        try:
-            bytes.fromhex(self.evidence_sha256)
-            digest_valid = len(self.evidence_sha256) == 64
-        except ValueError:
-            digest_valid = False
-        return (
-            self.kind is BoundaryKind.ANDROID_PVM
-            and self.isolated_from_host
-            and self.owns_authorization_state
-            and self.owns_monotonic_state
-            and digest_valid
-        )
+        """No self-asserted Python record can authorize a hardware security claim.
+
+        This dataclass is freely constructible by an untrusted caller. Its
+        booleans and evidence digest are unverified descriptive fields, not
+        native Android/AVF provenance. Until a separate protected verifier
+        issues an authenticated capability, refuse all qualification.
+        Do not turn this into a boolean or user-provided-token override.
+        """
+        return False
 
 
 def development_boundary() -> BoundaryEvidence:

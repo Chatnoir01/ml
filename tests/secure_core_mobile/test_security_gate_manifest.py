@@ -20,10 +20,13 @@ def test_development_capability_cannot_pass_hostile_host_gate():
         require_hostile_host_ready(cap)
 
 
-def test_all_independent_conditions_are_required():
+def test_self_asserted_pvm_and_all_true_flags_cannot_grant_hardware_ready():
+    # Fabricated boundary dataclasses do not carry verifier-issued authority.
     cap = SecurityCapability(_boundary(), True, True, True, True)
-    assert cap.hostile_host_ready is True
-    require_hostile_host_ready(cap)
+    assert cap.boundary.qualifies_for_hostile_host_experiment is False
+    assert cap.hostile_host_ready is False
+    with pytest.raises(RuntimeError, match="not established"):
+        require_hostile_host_ready(cap)
 
 
 def test_manifest_is_deterministic_and_validated():
