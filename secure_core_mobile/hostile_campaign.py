@@ -47,9 +47,29 @@ class HostileCampaign:
         return hashlib.sha256(body).hexdigest()
 
     def evaluate(self, results: tuple[ScenarioResult, ...]) -> bool:
-        if not self.frozen or self.protocol_version != 1:
+        """Fail closed on ambiguous, missing or forged development observations.
+
+        A duplicate scenario must never overwrite a previous failed observation.
+        In particular, Python's truthiness of 1/0 is *not* boolean evidence.
+        This only validates software observations; it never proves pVM isolation.
+        """
+        if type(self.protocol_version) is not int or self.protocol_version != 1:
             return False
-        by_name = {r.scenario: r for r in results}
-        if set(by_name) != set(REQUIRED_SCENARIOS):
+        if self.frozen is not True:
             return False
-        return all(r.denied and not r.provider_reached for r in by_name.values())
+        if not isinstance(results, tuple) or len(results) != len(REQUIRED_SCENARIOS):
+            return False
+
+        seen: set[HostileScenario] = set()
+        required = set(REQUIRED_SCENARIOS)
+        for result in results:
+            if type(result) is not ScenarioResult:
+                return False
+            if type(result.scenario) is not HostileScenario or result.scenario not in required:
+                return False
+            if result.scenario in seen:
+                return False
+            seen.add(result.scenario)
+            if result.denied is not True or result.provider_reached is not False:
+                return False
+        return seen == required
