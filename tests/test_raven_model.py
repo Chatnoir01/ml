@@ -3,7 +3,7 @@ import copy
 import itertools
 import pytest
 
-from raven_model import Model, Policy, State, Transition, TransitionRejected, TrustedAnchor
+from research.raven_model import Model, Policy, State, Transition, TransitionRejected, TrustedAnchor
 
 
 def setup():
