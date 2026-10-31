@@ -17,6 +17,7 @@ crypto = ["cryptography>=43.0"]
 [tool.pytest.ini_options]
 addopts = "-q --strict-markers --disable-warnings"
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.setuptools.packages.find]
 where = ["src"]
