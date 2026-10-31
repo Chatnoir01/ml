@@ -26,5 +26,5 @@ jobs:
           python-version: "3.11"
       - name: Install required test dependencies
         run: python -m pip install "pytest>=8,<10" "cryptography>=43,<50"
-      - name: Run RAVEN-002 and RAVEN-003 tests
-        run: python -m pytest -q tests/test_raven_model.py tests/test_raven_signed_model.py
+      - name: Run RAVEN-002/003/004 state-machine tests
+        run: python -m pytest -q tests/test_raven_model.py tests/test_raven_signed_model.py tests/test_raven_recovery_model.py
