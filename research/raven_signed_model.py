@@ -146,30 +146,35 @@ class InMemoryAnchor:
         self._records[state.key] = (state.epoch + 1, new_commitment, new_policy.digest())
 
 
+def verify_transition(state: State, change: SignedTransition, public_key: Ed25519PublicKey) -> None:
+    """Pure transition validation. Does NOT check live anchor or persist anything."""
+    if (change.namespace, change.compartment) != state.key:
+        raise Rejected("wrong target")
+    if change.from_epoch != state.epoch or change.to_epoch != state.epoch + 1:
+        raise Rejected("epoch mismatch")
+    if change.prev_commitment != state.commitment:
+        raise Rejected("previous commitment mismatch")
+    if change.old_policy_digest != state.policy.digest():
+        raise Rejected("policy mismatch")
+    if not change.event_id or change.selected_suite not in change.next_policy.suites:
+        raise Rejected("invalid event or suite")
+    if change.next_policy.floor < state.policy.floor:
+        raise Rejected("policy floor rollback")
+    if SUITE_TIER[change.selected_suite] < max(state.policy.floor, change.next_policy.floor):
+        raise Rejected("suite below floor")
+    try:
+        public_key.verify(change.signature, change.message())
+    except (InvalidSignature, ValueError, TypeError) as exc:
+        raise Rejected("invalid authority signature") from exc
+
+
 class SignedModel:
     def __init__(self, anchor: InMemoryAnchor, public_key: Ed25519PublicKey):
         self.anchor, self.public_key = anchor, public_key
 
     def apply(self, state: State, change: SignedTransition) -> None:
         self.anchor.checkpoint(state)
-        if (change.namespace, change.compartment) != state.key:
-            raise Rejected("wrong target")
-        if change.from_epoch != state.epoch or change.to_epoch != state.epoch + 1:
-            raise Rejected("epoch mismatch")
-        if change.prev_commitment != state.commitment:
-            raise Rejected("previous commitment mismatch")
-        if change.old_policy_digest != state.policy.digest():
-            raise Rejected("policy mismatch")
-        if not change.event_id or change.selected_suite not in change.next_policy.suites:
-            raise Rejected("invalid event or suite")
-        if change.next_policy.floor < state.policy.floor:
-            raise Rejected("policy floor rollback")
-        if SUITE_TIER[change.selected_suite] < max(state.policy.floor, change.next_policy.floor):
-            raise Rejected("suite below floor")
-        try:
-            self.public_key.verify(change.signature, change.message())
-        except (InvalidSignature, ValueError, TypeError) as exc:
-            raise Rejected("invalid authority signature") from exc
+        verify_transition(state, change, self.public_key)
         commitment = next_commitment(change)
         self.anchor.advance(state, commitment, change.next_policy)
         state.epoch = change.to_epoch
