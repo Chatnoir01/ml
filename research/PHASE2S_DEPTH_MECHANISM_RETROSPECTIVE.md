@@ -81,3 +81,12 @@ python -m adversarial_sbox.phase2s_retro > phase2s_diagnostic.json
 The report emits only candidate identifiers/fingerprints, scores already published in the frozen document and derived classical row statistics. It must not export private neural model state, raw samples, user data or cryptographic keys.
 
 **No new crypto primitive, no AES weakness, no actual key recovery, no new neural security guarantee, no S-Box deployment claim, no automatic publication of a scientific paper.**
+
+
+## F. Independent literature check (known work, not a novelty claim)
+
+- **Aron Gohr (CRYPTO 2019)**, *Improving Attacks on Round-Reduced Speck32/64 Using Deep Learning*, DOI 10.1007/978-3-030-26951-7_6, https://eprint.iacr.org/2019/037. This prior art already demonstrates neural differential distinguishers and discusses learned features not captured by purely differential statistics.
+- **Zhang, Wang and Lu (2024)**, *Differential-Neural Cryptanalysis on AES*, https://doi.org/10.1587/transinf.2024EDL8044. The authors examine distinguishers on reduced-round AES and explain potential learned data-format characteristics. Their findings do not validate or refute our ToySPN mechanism.
+- **New Neural Distinguisher Considering Features Derived From Multiple Ciphertext Pairs** (The Computer Journal, DOI 10.1093/comjnl/bxac019), https://doi.org/10.1093/comjnl/bxac019. Input representation and number of pairs already matter in published neural cryptanalysis.
+
+**Novelty gate:** depth-dependent neural distinguishability, handpicked differences and architecture-sensitive signals are not discoveries of this project as general concepts. Any original claim must identify a previously unreported, independently replicated structural mechanism for matched-metric S-Boxes, and include comparisons to these references and classical differential baselines.
