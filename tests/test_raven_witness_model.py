@@ -219,3 +219,34 @@ def test_untrusted_origin_namespace_not_shared():
                 issuer_key=sk.public_key())
     with pytest.raises(WitnessRejected):
         a.send_to(w)
+
+
+@pytest.mark.parametrize("count", [4, 8, 16])
+def test_bidirectional_ring_eventually_propagates_signed_fork(count):
+    labels = tuple(f"w{i}" for i in range(count))
+    sk, witnesses = rig(labels)
+    witnesses[0].observe(sign_receipt(sk, event="left"))
+    witnesses[count // 2].observe(sign_receipt(sk, event="right"))
+    net = Network(witnesses)
+    ring = [(labels[i], labels[(i + 1) % count]) for i in range(count)]
+    ring += [(labels[(i + 1) % count], labels[i]) for i in range(count)]
+    for _ in range(count + 2):
+        net.step(ring)
+    assert all(len(w.evidence) == 1 for w in witnesses)
+    assert len(net.first_evidence_round) == count
+    assert net.bytes_sent > 0
+
+
+def test_asymmetric_partition_witness_cannot_invent_fork():
+    sk, (a, b, c) = rig()
+    a.observe(sign_receipt(sk, event="left"))
+    b.observe(sign_receipt(sk, event="right"))
+    net = Network((a, b, c))
+    net.blocked.add(("bob", "carol"))
+    for i in range(15):
+        net.step([("alice", "carol"), ("bob", "carol")])
+    assert c.receipt_count == 1 and c.evidence == ()
+    assert net.deliveries == 1
+    net.blocked.clear()
+    net.step([("bob", "carol")])
+    assert len(c.evidence) == 1
