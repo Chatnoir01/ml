@@ -39,9 +39,27 @@ def _fake_panel():
         attempts.append({
             "seed":seed, "status":"accepted", "evaluations":340,
             "fingerprint":fingerprint_sbox(box), "sbox":box,
+            "source_payload_sha256":sha256(f"fake_source_{seed}".encode()).hexdigest(),
+            "initial_population_sha256":sha256(f"fake_initial_{seed}".encode()).hexdigest(),
+            "proposal_audit_sha256":sha256(f"fake_audit_{seed}".encode()).hexdigest(),
+            "exact_metric_hits_in_ledger":1,
         })
-    return {"design":DESIGN,"generator":GENERATING_ALGORITHM,
-            "attempts":attempts,"status":"SYNTHETIC_TEST_ONLY"}
+    panel={
+        "design":DESIGN,"generator":GENERATING_ALGORITHM,
+        "attempts":attempts,"status":"PANEL_COMPLETE_CLASSICAL_ONLY",
+        "selected_count":12,"neural_trainings":0,
+        "source":"phase2t_generate_v1_exact_340_evals_per_seed",
+        "test_fixture_warning":"SYNTHETIC_AFFINE_COPIES_NOT_INDEPENDENT",
+    }
+    panel["source_panel_receipt_sha256"]=digest(panel)
+    return panel
+
+
+def _reseal_panel(panel):
+    unsigned=dict(panel)
+    unsigned.pop("source_panel_receipt_sha256",None)
+    panel["source_panel_receipt_sha256"]=digest(unsigned)
+    return panel
 
 
 def _fake_feature(sbox, difference):
@@ -101,10 +119,12 @@ def test_synthetic_affine_clones_rejected_by_real_admission():
 def test_panel_seed_order_and_fixed_count_enforced():
     p=_fake_panel()
     p["attempts"][1]["seed"]=50000
+    _reseal_panel(p)
     with pytest.raises(PredictionRejected, match="seed order"):
         admit_panel(p)
     p=_fake_panel()
     p["attempts"].pop()
+    _reseal_panel(p)
     with pytest.raises(PredictionRejected, match="panel incomplete"):
         admit_panel(p)
 
@@ -114,6 +134,7 @@ def test_duplicate_old_candidate_rejected():
     box=CANDIDATES[0]["sbox"]
     p["attempts"][0]["fingerprint"]=fingerprint_sbox(box)
     p["attempts"][0]["sbox"]=list(box)
+    _reseal_panel(p)
     with pytest.raises(PredictionRejected, match="historical"):
         admit_panel(p)
 
@@ -122,7 +143,8 @@ def test_gate_checks_real_classical_metrics_independent_of_claimed_metadata():
     p=_fake_panel()
     p["attempts"][0]["sbox"][0]=p["attempts"][0]["sbox"][1]
     p["attempts"][0]["fingerprint"]=fingerprint_sbox(p["attempts"][0]["sbox"])
-    with pytest.raises(PredictionRejected):
+    _reseal_panel(p)
+    with pytest.raises(PredictionRejected, match="invalid 8x8"):
         with patch("adversarial_sbox.phase2t_predict._known_simple_copy",
                    return_value=False):
             admit_panel(p)
@@ -261,3 +283,18 @@ def test_aggregate_partial_prefix_is_not_a_complete_panel():
     reversed_ledger=list(reversed(runs))
     with pytest.raises(ValueError,match="reordered"):
         aggregate_attempts(reversed_ledger)
+
+
+def test_unsealed_tampered_generator_panel_rejected_before_classical_scoring():
+    panel=_fake_panel()
+    panel["attempts"][0]["source_payload_sha256"]="0"*64
+    with pytest.raises(PredictionRejected,match="receipt"):
+        admit_panel(panel)
+
+
+def test_source_receipt_and_status_fail_closed():
+    panel=_fake_panel()
+    panel["status"]="PARTIAL_SEED_LEDGER_DO_NOT_RUN_NEURAL"
+    _reseal_panel(panel)
+    with pytest.raises(PredictionRejected,match="incomplete"):
+        admit_panel(panel)
