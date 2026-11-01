@@ -9,6 +9,7 @@ on:
       - "tests/test_phase2s_retro.py"
       - "src/adversarial_sbox/phase2s_singlebit.py"
       - "tests/test_phase2s_singlebit.py"
+      - "scripts/phase2s_independent_probe.cjs"
       - "research/PHASE2S_SINGLEBIT_BASELINE_PROTOCOL.md"
       - "research/PHASE2S_DEPTH_MECHANISM_RETROSPECTIVE.md"
       - ".github/workflows/phase2s-retro.yml"
@@ -65,6 +66,34 @@ jobs:
           assert r["interpretation"].startswith("POSTHOC_")
           print("108-cell exploration finished; 0 neural trainings; no security claim")
           PY
+      - name: Install Node.js for independent implementation
+        if: matrix.python-version == '3.11'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run independent cross-language structural control
+        if: matrix.python-version == '3.11'
+        run: |
+          node scripts/phase2s_independent_probe.cjs --smoke > phase2s_js_smoke.json
+          node scripts/phase2s_independent_probe.cjs > phase2s_js_independent.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path('phase2s_js_independent.json').read_text())
+          assert r["actual_neural_training"] == 0
+          assert r["findings_are_confirmatory"] is False
+          assert r["sbox_count"] == 6
+          assert len(r["results"]) == 108
+          assert len(r["summary"]) == 18
+          print("Standalone Node ToySPN probe finished: 108 exploratory cells")
+          PY
+      - name: Archive independent Node baseline
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2s-independent-node-control-no-neural-training
+          path: phase2s_js_independent.json
+          retention-days: 30
       - name: Archive full classical baseline
         if: matrix.python-version == '3.11'
         uses: actions/upload-artifact@v4
