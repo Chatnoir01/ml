@@ -103,7 +103,7 @@ def admit_panel(panel: dict[str, Any]) -> list[dict[str, Any]]:
         if status == "ineligible":
             if "sbox" in entry or "fingerprint" in entry:
                 raise PredictionRejected("ineligible attempts must not conceal candidates")
-            if entry.get("reason") not in ("no_exact_metric_terminal", "budget_exhausted"):
+            if entry.get("reason") not in ("no_exact_metric_evaluated", "budget_exhausted"):
                 raise PredictionRejected("unregistered ineligibility reason")
             if type(entry.get("evaluations")) is not int or entry["evaluations"] != 340:
                 raise PredictionRejected("missing fixed classical evaluation budget")
