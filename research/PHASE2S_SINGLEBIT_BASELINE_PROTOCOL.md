@@ -33,6 +33,7 @@ From each pair, compute \`d = E_k(p0) XOR E_k(p1)\`.
 - For a binary score this is the signed \`2*(AUC-0.5)\` with orientation selected on training; negative evaluation scores are permitted and are **not** made positive after looking at evaluation results.
 - Shuffle evaluation class labels deterministically for a corresponding negative control; output its signed score and compare descriptively.
 - Summarize mean signed holdout score, between-candidate score range and absolute shuffled-label-control score by depth, difference and key schedule.
+- For each of 18 condition groups (3 schedules × 3 depths × 2 differences), report **descriptive Pearson correlation across n=6 candidate scores with the frozen Phase 2A-T neural scores at the same depth**. This is post-hoc, not a pre-registered hypothesis test; if variance is zero return null instead of fabricating a correlation.
 - Receipt includes SHA-256 of the canonical JSON measurements, not a proof of source integrity or a substitute for archived code SHA.
 
 **A classical one-bit selector may detect signals absent from a coarse DU/NL scalar. This does not mean the neural model is redundant; it tests a deliberately limited rival hypothesis.**
