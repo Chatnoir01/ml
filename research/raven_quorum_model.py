@@ -236,6 +236,8 @@ def prove_witness_double_vote(
         b.parent_epoch, b.parent_commitment, b.child_epoch
     ):
         raise Rejected("different transition origins")
-    if a.receipt_hash == b.receipt_hash:
-        raise Rejected("not conflicting endorsements")
+    if (a_receipt.child_commitment, a_receipt.child_policy_digest) == (
+        b_receipt.child_commitment, b_receipt.child_policy_digest
+    ):
+        raise Rejected("not conflicting child states")
     return a, b
