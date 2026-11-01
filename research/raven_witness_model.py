@@ -149,18 +149,14 @@ class Witness:
     def receipt_count(self) -> int:
         return len(self._records)
 
-    def send_to(self, other: Witness, *, limit: int | None = None) -> Delivery:
-        """Deterministically send missing signed claims; no actual network.
-
-        A signed receipt alone is not an endorsement by the sending witness.
-        Receivers always verify the checkpoint issuer key themselves.
-        """
+    def _deliver(self, other: Witness, records: tuple[tuple[str, CheckpointReceipt], ...],
+                 *, limit: int | None = None) -> Delivery:
         if not self.compatible(other):
             raise WitnessRejected("different pinned trust roots or domains")
         if limit is not None and (type(limit) is not int or limit < 0):
             raise ValueError("invalid transmission limit")
         count, size = 0, 0
-        for identity, receipt in sorted(self._records.items()):
+        for identity, receipt in records:
             if limit is not None and count >= limit:
                 break
             if identity in other._records:
@@ -170,6 +166,9 @@ class Witness:
             size += len(receipt.message()) + len(receipt.signature)
         return Delivery(count, size)
 
+    def send_to(self, other: Witness, *, limit: int | None = None) -> Delivery:
+        """Send missing signed claims; receivers reverify checkpoint issuer key."""
+        return self._deliver(other, tuple(sorted(self._records.items())), limit=limit)
 
 class Network:
     """Directed simulation of network partitions and gossip rounds.
@@ -190,6 +189,11 @@ class Network:
         self.first_evidence_round: dict[str, int] = {}
 
     def step(self, edges: Iterable[tuple[str, str]]) -> tuple[Delivery, ...]:
+        # Snapshot every source at the START of this logical round. Otherwise
+        # edge iteration would enable arbitrary multi-hop propagation in one
+        # round and make the detection-round metric order-dependent.
+        snapshots = {name: tuple(sorted(w._records.items()))
+                     for name, w in self.witnesses.items()}
         self.round += 1
         results = []
         for source_name, target_name in edges:
@@ -199,7 +203,7 @@ class Network:
             if (source_name, target_name) in self.blocked:
                 results.append(Delivery(0, 0, blocked=True))
                 continue
-            delivered = source.send_to(target)
+            delivered = source._deliver(target, snapshots[source_name])
             results.append(delivered)
             self.deliveries += delivered.sent
             self.bytes_sent += delivered.bytes_sent
