@@ -244,7 +244,7 @@ def test_aggregate_partial_prefix_is_not_a_complete_panel():
     runs=[]
     for seed in PROSPECTIVE_SEEDS[:2]:
         result={
-            "seed":seed,"status":"ineligible","reason":"no_exact_metric_terminal",
+            "seed":seed,"status":"ineligible","reason":"no_exact_metric_evaluated",
             "evaluations":340, "initial_population_sha256":"1"*64,
             "proposal_audit_sha256":"2"*64,
             "exact_metric_hits_in_ledger":0,
