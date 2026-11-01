@@ -8,6 +8,8 @@ No learned model, key recovery, cipher recommendation or security claim.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Collection
+from functools import lru_cache
 import hashlib
 import json
 import math
@@ -54,6 +56,7 @@ def schedule(name: str) -> tuple[int, ...]:
 
 def plaintext_pairs(
     *, difference: int, per_label: int, seed: int,
+    excluded_blocks: Collection[int] = (),
 ) -> tuple[tuple[tuple[int, int], ...], tuple[tuple[int, int], ...]]:
     """Matched independent train/test plaintext sources with block-disjointness.
 
@@ -67,7 +70,7 @@ def plaintext_pairs(
     if type(seed) is not int or not 0 <= seed < (1 << 64):
         raise ValueError("invalid non-cryptographic random seed")
     rnd = random.Random(seed ^ difference)
-    used: set[int] = set()
+    used: set[int] = set(excluded_blocks)
     positive: list[tuple[int, int]] = []
     negative: list[tuple[int, int]] = []
     while len(positive) < per_label:
@@ -85,6 +88,21 @@ def plaintext_pairs(
         used.update((x, y))
         negative.append((x, y))
     return tuple(positive), tuple(negative)
+
+
+@lru_cache(maxsize=16)
+def matched_pairs(difference: int, train_per_label: int, test_per_label: int):
+    """Identical training/test pairs for all candidates and all key schedules.
+
+    The two pseudorandom streams are distinct and the test stream excludes
+    EVERY block previously used in training, preventing accidental overlap.
+    """
+    tp, tn = plaintext_pairs(difference=difference, per_label=train_per_label,
+                             seed=TRAIN_PAIR_SEED)
+    excluded = frozenset(x for pair in (*tp, *tn) for x in pair)
+    hp, hn = plaintext_pairs(difference=difference, per_label=test_per_label,
+                             seed=TEST_PAIR_SEED, excluded_blocks=excluded)
+    return tp, tn, hp, hn
 
 
 def ciphertext_differences(
@@ -156,10 +174,7 @@ def run_cell(
     cipher = ToySPN(CANDIDATES[candidate_index]["sbox"], round_keys)
     # The training and test random streams have different pinned seeds, and
     # both sides are independent of S-Box identity and key-schedule label.
-    tp, tn = plaintext_pairs(difference=difference, per_label=train_per_label,
-                             seed=TRAIN_PAIR_SEED)
-    hp, hn = plaintext_pairs(difference=difference, per_label=test_per_label,
-                             seed=TEST_PAIR_SEED)
+    tp, tn, hp, hn = matched_pairs(difference, train_per_label, test_per_label)
     trp, trn = ciphertext_differences(cipher, tp), ciphertext_differences(cipher, tn)
     tsp, tsn = ciphertext_differences(cipher, hp), ciphertext_differences(cipher, hn)
     choice = learn_one_bit(trp, trn)
