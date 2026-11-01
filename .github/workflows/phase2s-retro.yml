@@ -1,0 +1,136 @@
+name: Phase 2S frozen-artifact depth mechanism diagnostic (NO TRAINING)
+
+on:
+  push:
+    branches:
+      - "research/phase2s-*"
+    paths:
+      - "src/adversarial_sbox/phase2s_retro.py"
+      - "tests/test_phase2s_retro.py"
+      - "src/adversarial_sbox/phase2s_singlebit.py"
+      - "tests/test_phase2s_singlebit.py"
+      - "scripts/phase2s_independent_probe.cjs"
+      - "src/adversarial_sbox/phase2s_rotation.py"
+      - "tests/test_phase2s_rotation.py"
+      - "research/PHASE2S_ROTATION_ABLATION_PROTOCOL.md"
+      - "research/PHASE2S_SINGLEBIT_BASELINE_PROTOCOL.md"
+      - "research/PHASE2S_DEPTH_MECHANISM_RETROSPECTIVE.md"
+      - ".github/workflows/phase2s-retro.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frozen-retro:
+    name: Research-only Python matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install research test dependencies only
+        run: python -m pip install -e ".[dev]"
+      - name: Execute artifact-only, zero-training regression tests
+        run: python -m pytest -q tests/test_phase2s_retro.py tests/test_phase2s_singlebit.py tests/test_phase2s_rotation.py
+      - name: Export deterministic posthoc diagnostic (no neural training)
+        if: matrix.python-version == '3.11'
+        run: |
+          python -m adversarial_sbox.phase2s_retro > phase2s_diagnostic.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('phase2s_diagnostic.json').read_text())
+          assert data["new_training_count"] == 0
+          assert data["frozen_verdict_changed"] is False
+          assert data["candidate_count"] == 6
+          assert data["inference"] == "DESCRIPTIVE_ONLY_N6_NO_CAUSAL_OR_SECURITY_CLAIM"
+          print("AUDIT_ONLY; n=6; 0 new neural trainings")
+          PY
+      - name: Execute full 108-cell classical control (NO NEURAL TRAINING)
+        if: matrix.python-version == '3.11'
+        run: |
+          python -m adversarial_sbox.phase2s_singlebit > phase2s_singlebit.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path("phase2s_singlebit.json").read_text())
+          assert r["cells"] == 108
+          assert r["trained_neural_networks"] == 0
+          assert r["train_per_label"] == 2048
+          assert r["test_per_label"] == 4096
+          assert len(r["summary"]) == 18
+          assert r["interpretation"].startswith("POSTHOC_")
+          print("108-cell exploration finished; 0 neural trainings; no security claim")
+          PY
+      - name: Install Node.js for independent implementation
+        if: matrix.python-version == '3.11'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run independent cross-language structural control
+        if: matrix.python-version == '3.11'
+        run: |
+          node scripts/phase2s_independent_probe.cjs --smoke > phase2s_js_smoke.json
+          node scripts/phase2s_independent_probe.cjs > phase2s_js_independent.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path('phase2s_js_independent.json').read_text())
+          assert r["actual_neural_training"] == 0
+          assert r["findings_are_confirmatory"] is False
+          assert r["sbox_count"] == 6
+          assert len(r["results"]) == 108
+          assert len(r["summary"]) == 18
+          print("Standalone Node ToySPN probe finished: 108 exploratory cells")
+          PY
+      - name: Archive independent Node baseline
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2s-independent-node-control-no-neural-training
+          path: phase2s_js_independent.json
+          retention-days: 30
+      - name: Execute full 108-cell rotation-geometry ablation
+        if: matrix.python-version == '3.11'
+        run: |
+          python -m adversarial_sbox.phase2s_rotation > phase2s_rotation.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path('phase2s_rotation.json').read_text())
+          assert r["cell_count"] == 108
+          assert r["new_neural_trainings"] == 0
+          assert r["rotations"] == [7, 11, 13]
+          assert r["train_per_label"] == 2048
+          assert r["test_per_label"] == 4096
+          assert len(r["summary"]) == 18
+          print("Toy rotation ablation complete; posthoc, not neural causality")
+          PY
+      - name: Archive rotation-geometry ablation
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2s-rotation-ablation-no-neural-training
+          path: phase2s_rotation.json
+          retention-days: 30
+      - name: Archive full classical baseline
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2s-singlebit-baseline-no-neural-training
+          path: phase2s_singlebit.json
+          retention-days: 30
+      - name: Archive transparent descriptive receipt
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2s-retrospective-no-training
+          path: phase2s_diagnostic.json
+          retention-days: 30
