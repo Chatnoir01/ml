@@ -250,3 +250,14 @@ def test_asymmetric_partition_witness_cannot_invent_fork():
     net.blocked.clear()
     net.step([("bob", "carol")])
     assert len(c.evidence) == 1
+
+
+def test_one_network_round_does_not_forward_newly_received_receipts():
+    sk, (a, b, c) = rig()
+    a.observe(sign_receipt(sk, event="left"))
+    net = Network((a, b, c))
+    net.step([("alice", "bob"), ("bob", "carol")])
+    assert b.receipt_count == 1
+    assert c.receipt_count == 0  # no same-round cascading relay
+    net.step([("bob", "carol")])
+    assert c.receipt_count == 1
