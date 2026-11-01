@@ -7,6 +7,9 @@ on:
     paths:
       - "src/adversarial_sbox/phase2s_retro.py"
       - "tests/test_phase2s_retro.py"
+      - "src/adversarial_sbox/phase2s_singlebit.py"
+      - "tests/test_phase2s_singlebit.py"
+      - "research/PHASE2S_SINGLEBIT_BASELINE_PROTOCOL.md"
       - "research/PHASE2S_DEPTH_MECHANISM_RETROSPECTIVE.md"
       - ".github/workflows/phase2s-retro.yml"
   workflow_dispatch:
@@ -18,7 +21,7 @@ jobs:
   frozen-retro:
     name: Research-only Python matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -31,7 +34,7 @@ jobs:
       - name: Install research test dependencies only
         run: python -m pip install -e ".[dev]"
       - name: Execute artifact-only, zero-training regression tests
-        run: python -m pytest -q tests/test_phase2s_retro.py
+        run: python -m pytest -q tests/test_phase2s_retro.py tests/test_phase2s_singlebit.py
       - name: Export deterministic posthoc diagnostic (no neural training)
         if: matrix.python-version == '3.11'
         run: |
@@ -46,6 +49,29 @@ jobs:
           assert data["inference"] == "DESCRIPTIVE_ONLY_N6_NO_CAUSAL_OR_SECURITY_CLAIM"
           print("AUDIT_ONLY; n=6; 0 new neural trainings")
           PY
+      - name: Execute full 108-cell classical control (NO NEURAL TRAINING)
+        if: matrix.python-version == '3.11'
+        run: |
+          python -m adversarial_sbox.phase2s_singlebit > phase2s_singlebit.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path("phase2s_singlebit.json").read_text())
+          assert r["cells"] == 108
+          assert r["trained_neural_networks"] == 0
+          assert r["train_per_label"] == 2048
+          assert r["test_per_label"] == 4096
+          assert len(r["summary"]) == 18
+          assert r["interpretation"].startswith("POSTHOC_")
+          print("108-cell exploration finished; 0 neural trainings; no security claim")
+          PY
+      - name: Archive full classical baseline
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2s-singlebit-baseline-no-neural-training
+          path: phase2s_singlebit.json
+          retention-days: 30
       - name: Archive transparent descriptive receipt
         if: matrix.python-version == '3.11'
         uses: actions/upload-artifact@v4
