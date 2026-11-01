@@ -74,14 +74,11 @@ def test_holdout_sign_can_reverse_without_selection_leakage():
     assert signed_test_advantage(decision, (0, 0), (1, 1)) == -1.0
 
 
-def test_shuffled_label_control_near_zero_on_perfectly_balanced_pool():
-    pos = (1, 0, 1, 0) * 10
-    neg = (1, 0, 1, 0) * 10
+def test_shuffled_label_control_zero_on_a_constant_bit():
+    pos = (0,) * 100
+    neg = (0,) * 100
     choice = BitDecision(0, 1, 0.)
-    # Identical distributions make a label-null control unbiased in expectation,
-    # but deterministic permutations need not produce exactly zero every time.
-    result = _control_shuffled_test(choice, pos, neg, seed=123)
-    assert abs(result) <= 1.0
+    assert _control_shuffled_test(choice, pos, neg, seed=123) == 0.0
 
 
 def test_explicitly_no_neural_training_in_a_single_smoke_cell():
