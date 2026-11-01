@@ -98,7 +98,7 @@ def run_seed(seed: int) -> dict[str, Any]:
         "neural_training_count":0,
     }
     if not hits:
-        output = {**common,"status":"ineligible","reason":"no_exact_metric_terminal"}
+        output = {**common,"status":"ineligible","reason":"no_exact_metric_evaluated"}
     else:
         sbox, metrics = hits[0]
         output = {
@@ -163,7 +163,7 @@ def aggregate_attempts(runs: list[dict[str, Any]]) -> dict[str, Any]:
             })
             successful+=1
         else:
-            selected["reason"]="no_exact_metric_terminal"
+            selected["reason"]="no_exact_metric_evaluated"
         attempts.append(selected)
     if successful == TARGET_CANDIDATES:
         status = "PANEL_COMPLETE_CLASSICAL_ONLY"
