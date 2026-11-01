@@ -10,27 +10,27 @@ An important simpler explanation is that their fixed-key ToySPN ciphertext XOR d
 
 ## Frozen design and inputs
 
-- Source: exact six-candidate Phase 2A-T panel, digest \`35898535a0df0cfe64431e5f0b6142115d40e3dbeed4a973faa9ba70b1028a30\`. This is a pinned historical digest, not a new measurement.
-- Differences: \`0x00000001\` and \`0x00000100\`.
+- Source: exact six-candidate Phase 2A-T panel, digest `35898535a0df0cfe64431e5f0b6142115d40e3dbeed4a973faa9ba70b1028a30`. This is a pinned historical digest, not a new measurement.
+- Differences: `0x00000001` and `0x00000100`.
 - Depths: 3, 4, 5 rounds of the existing 32-bit, four-byte ToySPN with fixed bit rotation 11.
-- Key schedules: original public round keys; two deterministic perturbations (\`xor_perturbed\` and \`rotated_perturbed\`), defined by pure functions in \`phase2s_singlebit.py\`. These are **not secret key generations** or meaningful real-world key-security tests.
+- Key schedules: original public round keys; two deterministic perturbations (`xor_perturbed` and `rotated_perturbed`), defined by pure functions in `phase2s_singlebit.py`. These are **not secret key generations** or meaningful real-world key-security tests.
 - Candidate, depth, difference and schedule grid: **6 × 3 × 2 × 3 = 108 cells**.
 - Each cell: **2,048 positive and 2,048 negative training pairs**, then **4,096 positive and 4,096 negative separate evaluation pairs** (12,288 pairs/cell).
 - Paired controls: plaintext-pair sources are generated independently of S-Box and schedule labels, then reused unchanged across those configurations for comparisons.
-- All train and evaluation plaintext blocks are distinct; deterministic \`random.Random\` seeds are \`0x52010471\` (training) and \`0x520104A5\` (evaluation), with explicit overlap rejection. Python \`random.Random\` is **not a CSPRNG**, appropriate here only to a toy experiment.
-- Label-shuffled diagnostic seed: \`0x520104E9\`, XORed with condition identifiers. This is a check for label association, not a calibrated hypothesis test.
-- No extra evolution, training of \`byte_tanh_mlp\`, re-run of Phase 2A-T, or access to hidden model states.
+- All train and evaluation plaintext blocks are distinct; deterministic `random.Random` seeds are `0x52010471` (training) and `0x520104A5` (evaluation), with explicit overlap rejection. Python `random.Random` is **not a CSPRNG**, appropriate here only to a toy experiment.
+- Label-shuffled diagnostic seed: `0x520104E9`, XORed with condition identifiers. This is a check for label association, not a calibrated hypothesis test.
+- No extra evolution, training of `byte_tanh_mlp`, re-run of Phase 2A-T, or access to hidden model states.
 
 ## Exact one-bit baseline
 
-From each pair, compute \`d = E_k(p0) XOR E_k(p1)\`.
+From each pair, compute `d = E_k(p0) XOR E_k(p1)`.
 
-- Positive class: \`p0 XOR p1 = delta\`.
-- Negative class: two otherwise independent plaintext blocks; reject equal blocks and \`delta\` relations.
-- On **training only**, measure \`g_b = Pr[d_b=1 | positive] - Pr[d_b=1 | negative]\` for each output bit \`b in 0..31\`.
-- Select \`b* = argmax |g_b|\` with lowest-index tie breaking; freeze \`sign(g_b*)\` from training.
-- On **evaluation only**, report **signed** \`A = sign(g_b*) * (Pr_test[d_b*=1 | positive] - Pr_test[d_b*=1 | negative])\`.
-- For a binary score this is the signed \`2*(AUC-0.5)\` with orientation selected on training; negative evaluation scores are permitted and are **not** made positive after looking at evaluation results.
+- Positive class: `p0 XOR p1 = delta`.
+- Negative class: two otherwise independent plaintext blocks; reject equal blocks and `delta` relations.
+- On **training only**, measure `g_b = Pr[d_b=1 | positive] - Pr[d_b=1 | negative]` for each output bit `b in 0..31`.
+- Select `b* = argmax |g_b|` with lowest-index tie breaking; freeze `sign(g_b*)` from training.
+- On **evaluation only**, report **signed** `A = sign(g_b*) * (Pr_test[d_b*=1 | positive] - Pr_test[d_b*=1 | negative])`.
+- For a binary score this is the signed `2*(AUC-0.5)` with orientation selected on training; negative evaluation scores are permitted and are **not** made positive after looking at evaluation results.
 - Shuffle evaluation class labels deterministically for a corresponding negative control; output its signed score and compare descriptively.
 - Summarize mean signed holdout score, between-candidate score range and absolute shuffled-label-control score by depth, difference and key schedule.
 - For each of 18 condition groups (3 schedules × 3 depths × 2 differences), report **descriptive Pearson correlation across n=6 candidate scores with the frozen Phase 2A-T neural scores at the same depth**. This is post-hoc, not a pre-registered hypothesis test; if variance is zero return null instead of fabricating a correlation.
@@ -62,14 +62,14 @@ A paper-quality new finding would require a **prospective**, independently teste
 
 ## Source and execution
 
-- \`src/adversarial_sbox/phase2s_singlebit.py\` — deterministic generator, train-only bit selection, held-out evaluation and shuffled-label control.
-- \`tests/test_phase2s_singlebit.py\` — geometry, integrity, trust and smoke regression tests.
-- \`.github/workflows/phase2s-retro.yml\` — CI and optional archival artifact.
+- `src/adversarial_sbox/phase2s_singlebit.py` — deterministic generator, train-only bit selection, held-out evaluation and shuffled-label control.
+- `tests/test_phase2s_singlebit.py` — geometry, integrity, trust and smoke regression tests.
+- `.github/workflows/phase2s-retro.yml` — CI and optional archival artifact.
 
-\`\`\`bash
+```bash
 python -m pytest -q tests/test_phase2s_singlebit.py
 python -m adversarial_sbox.phase2s_singlebit --smoke
 python -m adversarial_sbox.phase2s_singlebit > phase2s_singlebit.json
-\`\`\`
+```
 
 **Do not label this result confirmed or CI-green until GitHub Actions completes its exact-head run.** No AES/deployed-cipher weakness, novel cryptographic primitive, proof of resistance, secure key exchange, or new physical side-channel result is claimed.
