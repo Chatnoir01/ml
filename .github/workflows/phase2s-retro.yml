@@ -10,6 +10,9 @@ on:
       - "src/adversarial_sbox/phase2s_singlebit.py"
       - "tests/test_phase2s_singlebit.py"
       - "scripts/phase2s_independent_probe.cjs"
+      - "src/adversarial_sbox/phase2s_rotation.py"
+      - "tests/test_phase2s_rotation.py"
+      - "research/PHASE2S_ROTATION_ABLATION_PROTOCOL.md"
       - "research/PHASE2S_SINGLEBIT_BASELINE_PROTOCOL.md"
       - "research/PHASE2S_DEPTH_MECHANISM_RETROSPECTIVE.md"
       - ".github/workflows/phase2s-retro.yml"
@@ -35,7 +38,7 @@ jobs:
       - name: Install research test dependencies only
         run: python -m pip install -e ".[dev]"
       - name: Execute artifact-only, zero-training regression tests
-        run: python -m pytest -q tests/test_phase2s_retro.py tests/test_phase2s_singlebit.py
+        run: python -m pytest -q tests/test_phase2s_retro.py tests/test_phase2s_singlebit.py tests/test_phase2s_rotation.py
       - name: Export deterministic posthoc diagnostic (no neural training)
         if: matrix.python-version == '3.11'
         run: |
@@ -93,6 +96,29 @@ jobs:
         with:
           name: phase2s-independent-node-control-no-neural-training
           path: phase2s_js_independent.json
+          retention-days: 30
+      - name: Execute full 108-cell rotation-geometry ablation
+        if: matrix.python-version == '3.11'
+        run: |
+          python -m adversarial_sbox.phase2s_rotation > phase2s_rotation.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path('phase2s_rotation.json').read_text())
+          assert r["cell_count"] == 108
+          assert r["new_neural_trainings"] == 0
+          assert r["rotations"] == [7, 11, 13]
+          assert r["train_per_label"] == 2048
+          assert r["test_per_label"] == 4096
+          assert len(r["summary"]) == 18
+          print("Toy rotation ablation complete; posthoc, not neural causality")
+          PY
+      - name: Archive rotation-geometry ablation
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2s-rotation-ablation-no-neural-training
+          path: phase2s_rotation.json
           retention-days: 30
       - name: Archive full classical baseline
         if: matrix.python-version == '3.11'
