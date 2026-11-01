@@ -133,6 +133,10 @@ class Witness:
             and self.issuer_key.public_bytes_raw() == peer.issuer_key.public_bytes_raw()
         )
 
+    def is_rooted(self, receipt: CheckpointReceipt) -> bool:
+        """True only if this exact signed receipt connects to pinned genesis."""
+        return _digest(receipt) in self._connected
+
     @property
     def evidence(self) -> tuple[tuple[CheckpointReceipt, CheckpointReceipt], ...]:
         return self._evidence
