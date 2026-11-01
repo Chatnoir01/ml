@@ -13,6 +13,7 @@ from functools import lru_cache
 import hashlib
 import json
 import math
+from pathlib import Path
 import random
 import statistics
 from typing import Sequence
@@ -21,6 +22,7 @@ from .phase2a_candidates import CANDIDATES, PANEL_DIGEST_SHA256
 from .phase2at import PANEL_DIGEST_SHA256 as PHASE2AT_PANEL
 from .neural_heterogeneity import ROUND_KEYS
 from .spn import MASK32, ToySPN
+from .phase2s_retro import DiagnosticRejected, load_score_arrays, pearson
 
 DIFFERENCES = (0x00000001, 0x00000100)
 DEPTHS = (3, 4, 5)
@@ -207,6 +209,8 @@ def run_experiment(
         )) != (8, 100, 56, 7):
             raise RuntimeError("frozen classical-metric panel changed")
 
+    frozen_path = Path(__file__).resolve().parents[2] / "research" / "PHASE2AT_RESULT.md"
+    frozen_neural_scores = load_score_arrays(frozen_path.read_text(encoding="utf-8"))
     results = [
         run_cell(
             candidate_index=i, depth=d, difference=diff,
@@ -227,9 +231,14 @@ def run_experiment(
                 ]
                 values = [row["test_signed_advantage"] for row in rows]
                 controls = [row["test_label_shuffle_control"] for row in rows]
+                try:
+                    descriptive_r = pearson(values, frozen_neural_scores[d])
+                except DiagnosticRejected:
+                    descriptive_r = None  # small smoke cells may have tied scores
                 summary.append({
                     "key_schedule": scheme, "depth": d, "difference": diff,
                     "mean_signed_test_advantage": statistics.fmean(values),
+                    "r_vs_frozen_neural_candidate_scores": descriptive_r,
                     "candidate_signed_advantage_range": max(values) - min(values),
                     "mean_abs_label_shuffle_control":
                         statistics.fmean(abs(x) for x in controls),
@@ -238,6 +247,7 @@ def run_experiment(
         "schema_version": 1,
         "experiment": "phase2s_posthoc_single_bit_baseline",
         "frozen_panel_sha256": PANEL_DIGEST_SHA256,
+        "frozen_neural_scores_are_posthoc_reference": True,
         "trained_neural_networks": 0,
         "new_neural_seed_count": 0,
         "candidate_count": len(CANDIDATES),
