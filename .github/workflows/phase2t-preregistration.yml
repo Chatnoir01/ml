@@ -1,0 +1,55 @@
+name: Phase 2T preregistration and code-integrity checks (NO SCIENTIFIC EXECUTION)
+
+on:
+  push:
+    branches:
+      - "research/phase2t-*"
+    paths:
+      - "src/adversarial_sbox/phase2t_*.py"
+      - "tests/test_phase2t_prediction.py"
+      - "research/PHASE2T_PROSPECTIVE_PREDICTION_PROTOCOL.md"
+      - ".github/workflows/phase2t-preregistration.yml"
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2t_*.py"
+      - "tests/test_phase2t_prediction.py"
+      - "research/PHASE2T_PROSPECTIVE_PREDICTION_PROTOCOL.md"
+      - ".github/workflows/phase2t-preregistration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preregistration:
+    name: No new candidate generation / no new neural training
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install research test-only dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Compile Phase 2T code
+        run: |
+          python -m py_compile src/adversarial_sbox/phase2t_generate.py src/adversarial_sbox/phase2t_predict.py src/adversarial_sbox/phase2t_evaluate.py tests/test_phase2t_prediction.py
+      - name: Run synthetic integrity and scientific fail-closed tests only
+        run: python -m pytest -q tests/test_phase2t_prediction.py
+      - name: Confirm no candidate panel or neural-run result was checked in
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          candidate_outputs = (
+              "research/PHASE2T_NEW_PANEL.json",
+              "research/PHASE2T_FROZEN_PREDICTIONS.json",
+              "research/PHASE2T_NEURAL_OUTCOMES.json",
+          )
+          assert all(not Path(path).exists() for path in candidate_outputs)
+          print("Protocol and code only; no scientific outcome or unblinding")
+          PY
