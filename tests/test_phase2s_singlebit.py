@@ -101,6 +101,10 @@ def test_full_grid_smoke_receipts_and_immutability():
     assert data["candidate_count"] == 6
     assert len(data["results"]) == 108
     assert len(data["summary"]) == 18
+    assert data["frozen_neural_scores_are_posthoc_reference"] is True
+    assert all(row["r_vs_frozen_neural_candidate_scores"] is None
+               or -1.0 <= row["r_vs_frozen_neural_candidate_scores"] <= 1.0
+               for row in data["summary"])
     assert set(data["schedules"]) == set(SCHEDULES)
     assert set(data["depths"]) == set(DEPTHS)
     assert set(data["differences"]) == set(DIFFERENCES)
