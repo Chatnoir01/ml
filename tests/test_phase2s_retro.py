@@ -127,3 +127,32 @@ def test_report_serializes_without_nan_or_training_outputs():
     serialized = json.dumps(output, sort_keys=True, allow_nan=False)
     assert len(serialized) > 100
     assert "model_state" not in serialized and "private_weights" not in serialized
+
+
+@pytest.mark.parametrize("depth", [3, 4, 5])
+def test_frozen_cipher_experiment_uses_one_fixed_public_key_schedule(depth):
+    from adversarial_sbox.neural_heterogeneity import ROUND_KEYS
+    from adversarial_sbox.spn import ToySPN
+
+    assert ROUND_KEYS == (
+        0x243F6A88, 0x85A308D3, 0x13198A2E, 0x03707344,
+        0xA4093822, 0x299F31D0,
+    )
+    for candidate in CANDIDATES:
+        cipher = ToySPN(candidate["sbox"], ROUND_KEYS[:depth + 1])
+        assert cipher.rounds == depth
+        assert cipher.round_keys == ROUND_KEYS[:depth + 1]
+
+
+def test_fixed_key_versus_new_key_schedule_is_real_uncontrolled_factor():
+    from adversarial_sbox.neural_heterogeneity import ROUND_KEYS
+    from adversarial_sbox.spn import ToySPN
+
+    original = ToySPN(CANDIDATES[0]["sbox"], ROUND_KEYS[:5])
+    altered_keys = tuple(key ^ 0x01020408 for key in ROUND_KEYS[:5])
+    challenger = ToySPN(CANDIDATES[0]["sbox"], altered_keys)
+    plaintexts = (0x00000000, 0x00000001, 0x10203040, 0xA1B2C3D4)
+    assert any(original.encrypt_block(p) != challenger.encrypt_block(p)
+               for p in plaintexts)
+    # Changing only ciphertexts is NOT evidence that neural scores or
+    # their rank order would change. That requires new blinded training.
