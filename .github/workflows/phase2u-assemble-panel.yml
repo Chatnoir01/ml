@@ -1,0 +1,78 @@
+name: Phase 2U final source-panel admission (NO NEURAL)
+
+on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - "research/PHASE2U_PANEL_ASSEMBLY_TRIGGER.txt"
+      - ".github/workflows/phase2u-assemble-panel.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  admission:
+    name: Rehydrate original receipts, validate exactly 12 candidate S-Boxes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Require exact one-time source-panel freeze authorization
+        id: gate
+        shell: bash
+        run: |
+          subject="$(git log -1 --pretty=%s)"
+          if [ "$subject" = "audit: assemble Phase 2U frozen source panel" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Source panel admission skipped for unrelated PR update"
+          fi
+      - name: Install classical-only source package
+        if: steps.gate.outputs.run == 'true'
+        run: python -m pip install -e ".[dev]"
+      - name: Download original six source batch artifacts, no regeneration
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for run in 41380370307 41435231175 41435563912 41442954695 41443720643 41459706812; do
+            mkdir -p "original-source/$run"
+            gh run download "$run" --repo "Chatnoir01/ml" --dir "original-source/$run"
+          done
+          test "$(find original-source -type f -name 'seed-*.json' | wc -l)" -eq 19
+      - name: Admit complete 19-seed prefix and rebuild 12-candidate source receipt
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python scripts/phase2u_assemble_source_panel.py \
+            --input-root original-source --output phase2u-source-panel-19.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from adversarial_sbox.phase2u_generate import digest
+          r = json.loads(Path('phase2u-source-panel-19.json').read_text())
+          sha = r.pop('panel_receipt_sha256')
+          assert digest(r) == sha
+          assert r['selected_count'] == 12
+          assert r['examined_seed_count'] == 19
+          assert r['new_neural_trainings'] == 0
+          assert r['status'] == 'PANEL_COMPLETE_NO_NEURAL_OUTCOMES'
+          print('PHASE2U_COMPLETE_PANEL_ADMISSION=PASS')
+          print('PHASE2U_SOURCE_PANEL_SHA256=' + sha)
+          PY
+      - name: Archive final classical source panel, not neural predictions
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2u-admitted-12-candidate-source-panel-19-seeds
+          path: phase2u-source-panel-19.json
+          if-no-files-found: error
+          retention-days: 90
