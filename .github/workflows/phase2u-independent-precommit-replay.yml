@@ -1,0 +1,83 @@
+name: Phase 2U independent classical prediction replay (NO NEURAL)
+
+on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - "research/PHASE2U_INDEPENDENT_REPLAY_TRIGGER.txt"
+      - ".github/workflows/phase2u-independent-precommit-replay.yml"
+      - "scripts/phase2u_independent_precommit_replay.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  classical-replay:
+    name: Recompute all 12 ToySPN scores from raw frozen JSON
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: One-time original-prediction independent audit gate
+        id: gate
+        shell: bash
+        run: |
+          subject="$(git log -1 --pretty=%s)"
+          if [ "$subject" = "audit: independently replay Phase 2U classical frozen ranking" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No independent score replay on ordinary research changes"
+          fi
+      - name: Retrieve original post-source pre-neural prediction artifact
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41539098859 --repo Chatnoir01/ml --dir frozen-original
+          test -s frozen-original/phase2u-source-panel.json
+          test -s frozen-original/phase2u-classical-predictions-precommit.json
+      - name: Verify all original scores using zero external package imports
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python scripts/phase2u_independent_precommit_replay.py \
+            --source-panel frozen-original/phase2u-source-panel.json \
+            --predictions frozen-original/phase2u-classical-predictions-precommit.json \
+            --output phase2u-independent-score-audit.json
+      - name: Deliberate modified-ranking negative control must be refused
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, subprocess, sys
+          p=Path("frozen-original/phase2u-classical-predictions-precommit.json")
+          obj=json.loads(p.read_text())
+          obj["predictions"][0]["classical_feature_score"]+=0.01
+          bad=Path("tampered-freeze.json")
+          bad.write_text(json.dumps(obj))
+          cmd=[
+            sys.executable,"scripts/phase2u_independent_precommit_replay.py",
+            "--source-panel","frozen-original/phase2u-source-panel.json",
+            "--predictions",str(bad),
+            "--output","must-not-exist.json",
+          ]
+          result=subprocess.run(cmd,capture_output=True,text=True)
+          assert result.returncode!=0
+          assert not Path("must-not-exist.json").exists()
+          print("TAMPERED_PRECOMMIT_REFUSED=PASS")
+          PY
+      - name: Archive separate real-output classical replication
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2u-independent-replay-all-12-classical-scores
+          path: phase2u-independent-score-audit.json
+          retention-days: 90
+          if-no-files-found: error
