@@ -1,0 +1,6 @@
+Phase 2U source v1 — explicit first-seed pilot trigger.
+Seed: 41003.
+Registered before generating any Phase 2U source outcomes.
+No neural training.
+Version: phase2u_source_v1.
+Old Phase 2T source receipts must not be reused or blended.
