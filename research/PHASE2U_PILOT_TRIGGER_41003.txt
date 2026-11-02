@@ -10,3 +10,5 @@ Reason: no Phase 2U source pilot run was listed for the original marker commit.
 No change to source seeds, generator, selection, or metrics.
 
 Explicit one-time pilot: 41003; no neural training; source version unchanged.
+
+Run pilot after correcting PR-head checkout to avoid gating on merge commit.
