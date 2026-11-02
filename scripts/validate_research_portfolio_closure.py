@@ -31,7 +31,7 @@ VALID_STAGES = frozenset((
     "blocked_reproducibility",
     "exploratory_prospective_open",
     "valid_blocked_protocol_retained",
-    "source_complete_prediction_not_frozen",
+    "prediction_frozen_neural_unrun",
     "experimental_result_audit_open",
     "model_validated_hardware_and_persistence_open",
     "ci_failed_security_gate",
@@ -150,11 +150,11 @@ def validate_manifest(raw: dict[str, Any]) -> dict[str, Any]:
 
     # Detect the most dangerous scientific-status promotions.
     u=ids.get("phase2u_prospective")
-    _require(u is not None and u["stage"]=="source_complete_prediction_not_frozen",
+    _require(u is not None and u["stage"]=="prediction_frozen_neural_unrun",
              "Phase 2U promoted to unproven neural confirmation")
     _require("no" in u["not_yet"].lower() or "freeze" in " ".join(u["next"]).lower()
              or "prediction" in u["not_yet"].lower(),
-             "Phase 2U missing actual prediction-gate wording")
+             "Phase 2U missing outstanding neural validation gate")
     _require(ids["phase2t_original_blocked"]["stage"]=="valid_blocked_protocol_retained",
              "original v1 failure must stay separate from new Phase 2U")
     _require(ids["secure_core"]["stage"]=="ci_failed_security_gate",
