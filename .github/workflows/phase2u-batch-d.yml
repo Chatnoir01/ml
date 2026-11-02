@@ -1,0 +1,78 @@
+name: Phase 2U classical source batch D 41071-41089 (NO NEURAL)
+
+on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - "research/PHASE2U_BATCH_D_TRIGGER.txt"
+      - ".github/workflows/phase2u-batch-d.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  classical-source:
+    name: source seed ${{ matrix.seed }} - classical-only 340 evaluations
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [41071, 41077, 41081, 41089]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Gate batch to exact one-time commit
+        id: gate
+        shell: bash
+        run: |
+          actual="$(git log -1 --pretty=%s)"
+          if [ "$actual" = "ci: run Phase 2U frozen classical batch D" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Unrelated update: expensive source evaluation skipped"
+          fi
+      - name: Install classical evaluator
+        if: steps.gate.outputs.run == 'true'
+        run: python -m pip install -e ".[dev]"
+      - name: Validate Phase 2U source gates
+        if: steps.gate.outputs.run == 'true'
+        run: python -m pytest -q tests/test_phase2u_generate.py tests/test_phase2u_panel.py tests/test_phase2u_predict.py
+      - name: Generate new registered seed, classically only
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python -m adversarial_sbox.phase2u_generate --seed ${{ matrix.seed }} --output seed-${{ matrix.seed }}.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from adversarial_sbox.phase2u_generate import PUBLIC_SEEDS, DESIGN, SOURCE_VERSION, digest
+          seed=${{ matrix.seed }}
+          r=json.loads(Path(f"seed-{seed}.json").read_text())
+          unsigned=dict(r)
+          sha=unsigned.pop("source_payload_sha256")
+          assert sha==digest(unsigned)
+          assert seed in PUBLIC_SEEDS and r["seed"]==seed
+          assert r["source_version"]==SOURCE_VERSION and r["design"]==DESIGN
+          assert r["classical_evaluations"]==340
+          assert r["proposal_count"]==320
+          assert r["guided_proposal_count"]+r["random_swap_fallback_count"]==320
+          assert r["new_neural_training_count"]==0
+          assert r["status"] in ("accepted","ineligible")
+          print(f"PHASE2U_SEED_{seed}_STATUS={r['status']}")
+          print(f"PHASE2U_SEED_{seed}_SHA256={sha}")
+          print(f"PHASE2U_SEED_{seed}_FALLBACK_COUNT={r['random_swap_fallback_count']}")
+          PY
+      - name: Archive unaltered source receipt
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2u-source-v1-seed-${{ matrix.seed }}
+          path: seed-${{ matrix.seed }}.json
+          retention-days: 60
+          if-no-files-found: error
