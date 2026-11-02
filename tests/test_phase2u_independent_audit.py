@@ -7,10 +7,22 @@ from zipfile import ZipFile
 
 import pytest
 
-from scripts.phase2u_independent_audit import (
-    AuditRejected, REGISTERED_SEEDS,
-    audit_files, audit_receipt, classical_metrics, xor_clone,
-)
+# This auditor is intentionally a standalone stdlib-only script outside
+# the installed src/ package. Import it by its real checked-out path rather
+# than silently adding the entire repository root to Python's module path.
+import importlib.util
+
+AUDITOR_PATH = Path(__file__).resolve().parents[1] / "scripts" / "phase2u_independent_audit.py"
+spec = importlib.util.spec_from_file_location("phase2u_independent_audit", AUDITOR_PATH)
+assert spec is not None and spec.loader is not None
+auditor = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(auditor)
+AuditRejected = auditor.AuditRejected
+REGISTERED_SEEDS = auditor.REGISTERED_SEEDS
+audit_files = auditor.audit_files
+audit_receipt = auditor.audit_receipt
+classical_metrics = auditor.classical_metrics
+xor_clone = auditor.xor_clone
 from adversarial_sbox.phase2a_candidates import CANDIDATES
 
 
