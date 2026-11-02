@@ -305,19 +305,20 @@
       ],
       "evidence": [
         "research/RAVEN_006_INDEPENDENT_WITNESS_QUORUMS.md (PR #155)",
-        "PR #155 Phase 0 CI success"
+        "GitHub Actions 41483812755: RAVEN specialized Python 3.11 success on head 462676c80e5ced1cbf8a2c53bd1c99b6c9f46226",
+        "GitHub Actions 41483812585: Phase 0 successful all Python 3.10/3.11/3.12 at same head"
       ],
-      "verified": "Signed single-transition state/fork/witness model with conditional n>=3f+1, q=n-f; no real persistent fault-tolerant distributed deployment.",
-      "not_yet": "Specialized RAVEN workflow result absent from checked PR-head runs, persist vote before signature, crash/restart and recovery, multi-epoch reconfiguration, Byzantine network and sybil/fault roster assumptions.",
+      "verified": "RAVEN-002 through RAVEN-006 specialized tests passed on exact PR #155 head 462676c80e5ced1cbf8a2c53bd1c99b6c9f46226, GitHub run 41483812755; Phase 0 passed on Python 3.10/3.11/3.12, run 41483812585. Research remains a single-transition, RAM-held quorum model without crash-durable or multi-epoch safety.",
+      "not_yet": "Crash-durable anti-double-sign persistence, restart fault injection, multi-epoch witness/key/roster reconfiguration, Byzantine partitions, sybil conditions, liveness and independent network-model verification are NOT tested. Specialized model CI passing does not authorize production consensus.",
       "next": [
-        "Run specialized RAVEN invariant suite on same commit and retain logs.",
-        "Build stable anti-double-sign state with crash-injection tests.",
-        "Model multiple epochs, key/roster rotations, network partitions and proof availability."
+        "Preserve frozen specialized RAVEN successful test run and original commit SHA.",
+        "Design crash-durable vote write-before-sign transition with fault injection and power-loss tests.",
+        "Preregister multi-epoch key/roster changes, partition scenarios and quorum safety/liveness tests."
       ],
       "exit": [
-        "Specialized tests and crash recovery pass",
-        "Quorum safety/liveness assumptions explicit across epochs",
-        "No claims of production consensus or BFT"
+        "Specialized RAVEN tests passed on exact 2026-11-02 commit (YES)",
+        "Crash-durable anti-double-sign state and actual restart safety demonstrated",
+        "Multi-epoch safety/liveness caveats documented; no production consensus claim"
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/155"
