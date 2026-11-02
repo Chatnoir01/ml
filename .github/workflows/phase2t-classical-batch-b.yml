@@ -1,9 +1,6 @@
 name: Phase 2T classical seed batch B (NO NEURAL TRAINING)
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/phase2t-classical-batch-b.yml"
   workflow_dispatch:
 
 permissions:
