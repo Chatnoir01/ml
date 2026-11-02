@@ -14,14 +14,14 @@
     "blocked_reproducibility": "Interpretation blocked on a reproducibility or provenance anomaly",
     "exploratory_prospective_open": "Hypothesis-generating work with independent confirmatory experiment still undone",
     "valid_blocked_protocol_retained": "Original prospective protocol no longer executable as registered; preserve incident",
-    "source_complete_prediction_not_frozen": "Prospective classical source generation complete; no sealed neural prediction",
     "experimental_result_audit_open": "Genuine study result exists but output-only independently verified report and/or extension remains open",
     "model_validated_hardware_and_persistence_open": "Model/synthetic claims bounded; durable real-world guarantees open",
     "ci_failed_security_gate": "Latest checked exact branch CI failing on security-sensitive checks",
     "prototype_ci_green_security_open": "Tests pass; full protocol security review and adversarial validation missing",
     "demonstrator_scope_complete": "Original research demonstrator can be closed at its explicitly narrow scope",
     "smoke_only_full_experiment_open": "Short smoke test passed; original scientific budget not executed",
-    "governance_reconciliation_open": "Inventory/archival/merge discipline not yet reconciled"
+    "governance_reconciliation_open": "Inventory/archival/merge discipline not yet reconciled",
+    "prediction_frozen_neural_unrun": "Prospective classical predictor archived and SHA-bound before any neural outcomes; separate neural validation not yet run"
   },
   "review_rules": {
     "no_merge_from_registry": true,
@@ -217,27 +217,31 @@
       "id": "phase2u_prospective",
       "title": "Phase 2U 12-S-Box prospective blind prediction",
       "priority": "P0",
-      "stage": "source_complete_prediction_not_frozen",
+      "stage": "prediction_frozen_neural_unrun",
       "prs": [
         158
       ],
       "evidence": [
         "research/PHASE2U_SOURCE_RESULTS_FINAL_19_SEEDS_20261102.md (PR #158)",
-        "GitHub Actions 41460802079 official source admission success",
-        "GitHub Actions 41460158043 seed 41003 source replay success"
+        "GitHub run 41460802079 official source admission success, receipt 512dd21d01617944047fd4e6f6ec2ae09daa68bc76d808837527a384148914ef",
+        "GitHub run 41460158043 seed 41003 replay passed",
+        "GitHub run 41539098859: original-source classical prediction freeze success, artifact 13185193738, receipt cd4bfbc9736ced13bdcf95c06f156d4244fbbdde65b05c51fb4e7958a21a30f4",
+        "research/PHASE2U_CLASSICAL_PREDICTION_FROZEN_20261102.md (PR #158)"
       ],
-      "verified": "19 consecutive source seeds, 12 selected permutations, 6460 classical evaluations, exact metrics and 20 distinct global DDT spectra when including eight older sources; 2U original source admission and one full replay passed.",
-      "not_yet": "Freeze source-bound classical prediction SHA in durable reviewed commit, validate provenance on more than one seed, preregister independent 2U neural evaluation, run outcome model and independent statistical audit.",
+      "verified": "Phase 2U 19 registered source seeds/12 selected S-Boxes officially admitted, 6,460 classical evaluations and one independent source seed replay. Original 19-source classical ranking completed 2026-11-02 in GitHub run 41539098859 (SUCCESS); canonical prediction receipt SHA256 cd4bfbc9736ced13bdcf95c06f156d4244fbbdde65b05c51fb4e7958a21a30f4; source panel SHA256 512dd21d01617944047fd4e6f6ec2ae09daa68bc76d808837527a384148914ef. No Phase 2U neural labels were observed or produced.",
+      "not_yet": "Independent replication of frozen classical prediction values/ranking from original artifacts; full model-state Phase 2R input/initialization provenance; preregistered neural heldout experiment with chosen endpoint, sample size, seeds, architecture and multiplicity control; full actual neural outcomes and statistical audit; optimizer generation lineage only seed 41003 independently replayed.",
       "next": [
-        "Freeze exact final source panel artifact and its SHA; protect original ZIP receipts from expiry.",
-        "Run phase2u_predict.py only on complete raw 19-seed prefix and archive immutable prediction receipt BEFORE any neural labels.",
-        "Independently verify no new neural label has been observed; choose one predeclared 2U evaluation design with sufficient power and actual input/model initialization hashes.",
-        "Run neural comparison separately with an evaluation that can fail without retuning."
+        "Preserve original JSON prediction and source ZIP, SHA and GitHub timestamp before artifact expiry; never retune frozen rank.",
+        "Independently recompute full one-bit scores and ordering from pinned source codes/samples in a separate test runner.",
+        "Resolve Phase 2R actual A/F checkpoint-zero model-state reproducibility fault before any new neural training.",
+        "Preregister new neural heldout protocol (architecture, N, test block independence, 12 matched candidates, effect threshold, null, analysis) and run without feature reselection.",
+        "Freeze positive or negative neural outcome with original artifacts; don't substitute other predictors after seeing labels."
       ],
       "exit": [
-        "Published source and prediction digests with temporal ordering",
-        "Independent holdout neural runs have actual provenance and fixed statistical decision",
-        "Positive OR negative final result frozen, no training reselect"
+        "Exact source panel and classical prediction SHA sealed BEFORE neural (YES, run 41539098859)",
+        "Independent classical prediction replay and initial neural model/data-state provenance verified",
+        "Prespecified heldout neural study completed; actual result and uncertainty frozen",
+        "No production cipher resistance claim from ToySPN"
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/158"
