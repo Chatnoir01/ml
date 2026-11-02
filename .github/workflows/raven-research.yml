@@ -1,0 +1,36 @@
+name: RAVEN research invariant tests
+
+on:
+  push:
+    branches:
+      - "research/raven-*"
+    paths:
+      - "research/raven_*.py"
+      - "tests/test_raven*.py"
+      - "pyproject.toml"
+      - ".github/workflows/raven-research.yml"
+  pull_request:
+    paths:
+      - "research/raven_*.py"
+      - "tests/test_raven*.py"
+      - "pyproject.toml"
+      - ".github/workflows/raven-research.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  models:
+    name: Python 3.11 / RAVEN state models
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install required test dependencies
+        run: python -m pip install "pytest>=8,<10" "cryptography>=43,<50"
+      - name: Run RAVEN-002 through RAVEN-006 research tests
+        run: python -m pytest -q tests/test_raven_model.py tests/test_raven_signed_model.py tests/test_raven_recovery_model.py tests/test_raven_fork_evidence.py tests/test_raven_witness_model.py tests/test_raven_quorum_model.py
