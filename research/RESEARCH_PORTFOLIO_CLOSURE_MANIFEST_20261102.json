@@ -62,7 +62,9 @@
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/25",
         "https://github.com/Chatnoir01/ml/pull/26"
-      ]
+      ],
+      "depends_on": [],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "phase2_replication",
@@ -90,7 +92,11 @@
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/81"
-      ]
+      ],
+      "depends_on": [
+        "phase1_sbox_search"
+      ],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "phase2_adaptive_repro",
@@ -137,7 +143,11 @@
         "https://github.com/Chatnoir01/ml/pull/129",
         "https://github.com/Chatnoir01/ml/pull/131",
         "https://github.com/Chatnoir01/ml/pull/152"
-      ]
+      ],
+      "depends_on": [
+        "phase2_replication"
+      ],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "phase2s_mechanisms",
@@ -165,7 +175,11 @@
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/156"
-      ]
+      ],
+      "depends_on": [
+        "phase2_replication"
+      ],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "phase2t_original_blocked",
@@ -193,7 +207,11 @@
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/157"
-      ]
+      ],
+      "depends_on": [
+        "phase2s_mechanisms"
+      ],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "phase2u_prospective",
@@ -223,7 +241,12 @@
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/158"
-      ]
+      ],
+      "depends_on": [
+        "phase2s_mechanisms",
+        "phase2_adaptive_repro"
+      ],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "tpm_security_attack",
@@ -268,7 +291,9 @@
         "https://github.com/Chatnoir01/ml/pull/149",
         "https://github.com/Chatnoir01/ml/pull/150",
         "https://github.com/Chatnoir01/ml/pull/151"
-      ]
+      ],
+      "depends_on": [],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "raven_continuity",
@@ -296,7 +321,11 @@
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/155"
-      ]
+      ],
+      "depends_on": [
+        "cryptowall_envelope"
+      ],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "secure_core",
@@ -332,7 +361,9 @@
         "https://github.com/Chatnoir01/ml/pull/133",
         "https://github.com/Chatnoir01/ml/pull/153",
         "https://github.com/Chatnoir01/ml/pull/154"
-      ]
+      ],
+      "depends_on": [],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "cryptowall_envelope",
@@ -359,7 +390,9 @@
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/136"
-      ]
+      ],
+      "depends_on": [],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "cryptowall_hybrid",
@@ -386,7 +419,11 @@
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/139"
-      ]
+      ],
+      "depends_on": [
+        "cryptowall_envelope"
+      ],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "fhe_bfv",
@@ -412,7 +449,9 @@
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/140"
-      ]
+      ],
+      "depends_on": [],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "bb84_simulation",
@@ -437,7 +476,9 @@
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/141"
-      ]
+      ],
+      "depends_on": [],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "neural_crypto_lab",
@@ -465,7 +506,9 @@
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/138"
-      ]
+      ],
+      "depends_on": [],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     },
     {
       "id": "ci_infrastructure",
@@ -495,7 +538,9 @@
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/134",
         "https://github.com/Chatnoir01/ml/pull/135"
-      ]
+      ],
+      "depends_on": [],
+      "dependency_meaning": "Scientific or integration prerequisite, not automatic inclusion or permission to merge"
     }
   ],
   "pr_coverage_checksum_description": "Exact sorted PR numbers, not a cryptographic checksum",
@@ -538,5 +583,14 @@
     156,
     157,
     158
+  ],
+  "cross_cutting_critical_path": [
+    "Preserve immutable raw artifacts and baseline snapshots",
+    "Fix model-init reproducibility Phase 2R before new neural outcome execution",
+    "Review Phase 2U source panel and freeze classical ranking with SHA BEFORE generating neural labels",
+    "Run independently specified Phase 2U neural confirmatory experiment and publish positive OR negative findings",
+    "Independently audit original TPM 96 session data, not only synthetic tamper fixtures",
+    "Repair Secure Core pVM security-test failures without weakening fail-closed boundary",
+    "Validate RAVEN durable quorum memory and multiple epochs before any integration"
   ]
 }
