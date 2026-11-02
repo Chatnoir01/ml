@@ -7,12 +7,14 @@ on:
     paths:
       - "src/adversarial_sbox/phase2t_*.py"
       - "tests/test_phase2t_prediction.py"
+      - "tests/test_phase2t_provenance.py"
       - "research/PHASE2T_PROSPECTIVE_PREDICTION_PROTOCOL.md"
       - ".github/workflows/phase2t-preregistration.yml"
   pull_request:
     paths:
       - "src/adversarial_sbox/phase2t_*.py"
       - "tests/test_phase2t_prediction.py"
+      - "tests/test_phase2t_provenance.py"
       - "research/PHASE2T_PROSPECTIVE_PREDICTION_PROTOCOL.md"
       - ".github/workflows/phase2t-preregistration.yml"
   workflow_dispatch:
@@ -35,12 +37,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install research test-only dependencies
-        run: python -m pip install -e ".[dev]"
+        run: python -m pip install -e ".[dev,neural]"
       - name: Compile Phase 2T code
         run: |
           python -m py_compile src/adversarial_sbox/phase2t_generate.py src/adversarial_sbox/phase2t_predict.py src/adversarial_sbox/phase2t_evaluate.py tests/test_phase2t_prediction.py
       - name: Run synthetic integrity and scientific fail-closed tests only
-        run: python -m pytest -q tests/test_phase2t_prediction.py
+        run: python -m pytest -q tests/test_phase2t_prediction.py tests/test_phase2t_provenance.py
       - name: Confirm no candidate panel or neural-run result was checked in
         run: |
           python - <<'PY'
