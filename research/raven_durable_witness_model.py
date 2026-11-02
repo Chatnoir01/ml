@@ -90,14 +90,34 @@ class FileVoteJournal:
         if crash_at == phase:
             raise SimulatedCrash(phase)
 
-    def _read_existing(self, path: Path, identity: dict, receipt_hash: str) -> None:
-        if path.is_symlink() or not path.is_file():
-            raise Rejected("journal vote record missing/invalid file type")
-        if path.stat().st_size > MAX_RECORD_BYTES:
-            raise Rejected("journal vote record is oversized")
+    def _fsync_directory(self) -> None:
+        dirfd=None
         try:
-            raw = path.read_bytes()
-            entry = json.loads(raw)
+            dirfd=os.open(self.root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+            os.fsync(dirfd)
+        except OSError as exc:
+            raise Rejected("unable to fsync journal directory") from exc
+        finally:
+            if dirfd is not None:
+                os.close(dirfd)
+
+    def _read_existing(self, path: Path, identity: dict, receipt_hash: str) -> None:
+        # A second process can observe the path *while* the first process
+        # is writing it. Never sign based on a merely readable file:
+        # independently fsync its inode and directory after verifying bytes.
+        try:
+            fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+            try:
+                mode=os.fstat(fd).st_mode
+                if not stat.S_ISREG(mode) or os.fstat(fd).st_size>MAX_RECORD_BYTES:
+                    raise Rejected("invalid journal vote record file")
+                raw=os.read(fd,MAX_RECORD_BYTES+1)
+                if len(raw)>MAX_RECORD_BYTES:
+                    raise Rejected("journal vote record is oversized")
+                entry=json.loads(raw)
+                os.fsync(fd)
+            finally:
+                os.close(fd)
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise Rejected("journal vote record damaged; fail closed") from exc
         if type(entry) is not dict or set(entry) != {"identity","receipt_hash","sha256"}:
@@ -107,6 +127,7 @@ class FileVoteJournal:
                 or entry.get("receipt_hash") != receipt_hash
                 or entry.get("sha256") != sha256(canonical(plain)).hexdigest()):
             raise Rejected("journal double vote or corrupted vote; fail closed")
+        self._fsync_directory()
         # The same receipt may be signed again after an ACK loss. Ed25519
         # signing of the same bytes is deterministic, but safety relies only on
         # the persisted same-receipt hash, not deterministic signature bytes.
@@ -147,15 +168,7 @@ class FileVoteJournal:
             self._crash("after_record_fsync",crash_at)
         finally:
             os.close(fd)
-        dirfd=None
-        try:
-            dirfd=os.open(self.root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
-            os.fsync(dirfd)
-        except OSError as exc:
-            raise Rejected("unable to fsync journal directory") from exc
-        finally:
-            if dirfd is not None:
-                os.close(dirfd)
+        self._fsync_directory()
         self._crash("after_directory_fsync",crash_at)
         return chosen_hash
 
