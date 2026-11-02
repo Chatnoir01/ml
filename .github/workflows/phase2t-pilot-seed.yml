@@ -1,0 +1,48 @@
+name: Phase 2T pilot classical seed 31001 (NO NEURAL TRAINING)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pilot:
+    name: Single 340-evaluation classical-only pilot (seed 31001)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install research dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Verify exact Phase 2T preregistration contracts
+        run: python -m pytest -q tests/test_phase2t_prediction.py
+      - name: Execute exactly ONE registered prospective seed, classically only
+        run: |
+          python -m adversarial_sbox.phase2t_generate seed --seed 31001 --output seed-31001.json
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          from adversarial_sbox.phase2t_predict import digest
+          r=json.loads(Path("seed-31001.json").read_text())
+          seal=r.pop("source_payload_sha256")
+          assert seal==digest(r), "source receipt changed"
+          assert r["seed"]==31001 and r["evaluations"]==340
+          assert r["neural_training_count"]==0
+          assert r["status"] in ("accepted","ineligible")
+          assert len(r["initial_population_sha256"])==64
+          assert len(r["proposal_audit_sha256"])==64
+          print("PHASE2T_PILOT_STATUS="+r["status"])
+          print("PHASE2T_PILOT_SOURCE_SHA256="+seal)
+          print("NO NEURAL TRAINING OR SCIENTIFIC CLAIM")
+          PY
+      - name: Preserve auditable unmodified seed receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2t-classical-seed-31001
+          path: seed-31001.json
+          if-no-files-found: error
+          retention-days: 60
