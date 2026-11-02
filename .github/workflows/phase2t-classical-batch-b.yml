@@ -1,0 +1,53 @@
+name: Phase 2T classical seed batch B (NO NEURAL TRAINING)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/phase2t-classical-batch-b.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  classical:
+    name: Classical-only registered source seed ${{ matrix.seed }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [31013, 31019, 31033, 31039]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install source evaluator and tests
+        run: python -m pip install -e ".[dev]"
+      - name: Execute exactly 340 classical evaluations; never train a model
+        run: |
+          python -m adversarial_sbox.phase2t_generate seed --seed ${{ matrix.seed }} --output seed-${{ matrix.seed }}.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from adversarial_sbox.phase2t_predict import digest,PROSPECTIVE_SEEDS
+          seed=${{ matrix.seed }}
+          d=json.loads(Path(f"seed-{seed}.json").read_text())
+          original=dict(d)
+          sha=original.pop("source_payload_sha256")
+          assert seed in PROSPECTIVE_SEEDS and sha==digest(original)
+          assert d["seed"]==seed and d["evaluations"]==340
+          assert d["neural_training_count"]==0
+          assert d["status"] in ("accepted","ineligible")
+          print(f"SEED_{seed}_CLASSICAL_STATUS={d['status']}")
+          print(f"SEED_{seed}_SOURCE_SHA256={sha}")
+          print("NO NEURAL TRAINING; NO PROSPECTIVE CLAIM")
+          PY
+      - name: Archive complete source receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2t-classical-seed-${{ matrix.seed }}
+          path: seed-${{ matrix.seed }}.json
+          if-no-files-found: error
+          retention-days: 60
