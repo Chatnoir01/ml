@@ -185,7 +185,10 @@ def aggregate(receipts: list[dict[str, Any]]) -> dict[str, Any]:
             if result["fingerprint"] in observed:
                 status = "SOURCE_FAMILY_DUPLICATE_BLOCKED"
                 break
-            if simple_xor_clone(box, references):
+            # Prevent within-panel XOR-equivalent copies as well as
+            # clones of the eight earlier observed S-Boxes.
+            new_panel_origins = tuple(tuple(item["sbox"]) for item in selected)
+            if simple_xor_clone(box, references + new_panel_origins):
                 status = "SOURCE_FAMILY_CLONE_BLOCKED"
                 break
             observed.add(result["fingerprint"])
