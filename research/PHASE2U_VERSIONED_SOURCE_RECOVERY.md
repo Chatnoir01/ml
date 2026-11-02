@@ -110,3 +110,23 @@ The pilot may be a legitimate negative result. Source study failure or
 generator exhaustion must be reported unchanged. **No novel cryptographic
 primitive, AES weakness, production readiness or neural-generalization
 claim is made.**
+
+
+## Versioned source-panel admission and pre-neural prediction seal
+
+Source-status software is now deliberately separated into three components:
+
+- \`phase2u_generate.py\`: generate ONLY classical candidate-source receipts with fixed new seeds and audited fallback.
+- \`phase2u_panel.py\`: independently re-evaluate each accepted S-Box; validate the exact SHA-256 source receipt, fixed 340-evaluation count, 320 unique proposals per complete seed, fixed version, seed ordering, and full 12-candidate admission. The input must be an uninterrupted registered seed prefix. It records partial/failed cases without upgrading them to a panel.
+- \`phase2u_predict.py\`: **only accepts the complete raw seed-receipt list**; internally rebuilds and rechecks the source panel before computing the unchanged Phase 2T classical predictor. It refuses manually supplied candidate lists, partial ledgers, and all neural outcome data. The result is a receipt-bound **prediction**, not a conclusion.
+
+To protect independence, the admission checker includes the original six historical 8-bit S-Boxes plus two independently audited Phase 2T-v1 accepted arrays in \`PHASE2U_EXCLUDE_V1_CANDIDATES.json\`. It rejects exact matches and all obvious input-XOR/output-XOR shifted copies against both earlier sources **and** within the fresh Phase 2U panel. This does NOT exclude general affine equivalence under arbitrary invertible linear maps, or prove distinct evolutionary ancestry; those remain separate research gates.
+
+**Exact pre-neural predictor rule, reused with no prospective retuning:**
+4-round original 11-bit-rotation ToySPN and original public round keys; two fixed plaintext differences 1 and 256. For each input difference, choose a single ciphertext-XOR bit and its sign from 2,048 paired train samples **per class**, and evaluate signed holdout discrimination on 4,096 independent samples **per class**. The feature for a S-Box is the arithmetic mean of the two signed holdout scores. Candidate ranking is descending by this score, breaking ties by SHA3 fingerprint. This is precisely the Phase 2S/2T research hypothesis, not an additional outcome-tuned feature.
+
+**Do not execute any Phase 2U neural evaluation yet.** Before producing any neural data, review the complete admitted source panel, verify its published raw receipts and the prediction SHA-256 in a separate commit, then freeze a new version-specific prospective evaluation design with explicit outcome count, model/data seeds, CI provenance, power and decision rule. The original Phase 2T 96-run evaluator does NOT automatically authorize a Phase 2U neural experiment.
+
+Tests in \`tests/test_phase2u_panel.py\` and \`tests/test_phase2u_predict.py\` exercise source tampering, previous-family exclusion, within-panel clone rejection, frozen feature arithmetic and rankings using **synthetic fixtures**. Their success would establish software contract coverage, NOT candidate eligibility or predictive scientific validity.
+
+The one-time Phase 2U pilot was re-triggered through a PR-head-specific commit gate after GitHub's default PR merge checkout caused the initial successful-looking pilot job to **skip** source execution. Always verify its actual archived raw JSON; a green job **without the seed-41003 artifact** is not a completed 340-evaluation source experiment.
