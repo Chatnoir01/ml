@@ -22,7 +22,7 @@ The machine-readable source of truth is [the frozen PR manifest](RESEARCH_PORTFO
 | `phase2_adaptive_repro` | P0 | Blocked on reproducibility | [#120](https://github.com/Chatnoir01/ml/pull/120), [#121](https://github.com/Chatnoir01/ml/pull/121), [#123](https://github.com/Chatnoir01/ml/pull/123), [#124](https://github.com/Chatnoir01/ml/pull/124), [#125](https://github.com/Chatnoir01/ml/pull/125), [#126](https://github.com/Chatnoir01/ml/pull/126), [#127](https://github.com/Chatnoir01/ml/pull/127), [#129](https://github.com/Chatnoir01/ml/pull/129), [#131](https://github.com/Chatnoir01/ml/pull/131), [#152](https://github.com/Chatnoir01/ml/pull/152) |
 | `phase2s_mechanisms` | P1 | Exploratory; prospective confirmation open | [#156](https://github.com/Chatnoir01/ml/pull/156) |
 | `phase2t_original_blocked` | P2 | Frozen blocked source protocol | [#157](https://github.com/Chatnoir01/ml/pull/157) |
-| `phase2u_prospective` | P0 | Source panel complete; predictions not frozen | [#158](https://github.com/Chatnoir01/ml/pull/158) |
+| `phase2u_prospective` | P0 | Classical ranking frozen; neural confirmation pending | [#158](https://github.com/Chatnoir01/ml/pull/158) |
 | `tpm_security_attack` | P1 | Experiment done; independent real artifact audit open | [#143](https://github.com/Chatnoir01/ml/pull/143), [#144](https://github.com/Chatnoir01/ml/pull/144), [#145](https://github.com/Chatnoir01/ml/pull/145), [#146](https://github.com/Chatnoir01/ml/pull/146), [#147](https://github.com/Chatnoir01/ml/pull/147), [#148](https://github.com/Chatnoir01/ml/pull/148), [#149](https://github.com/Chatnoir01/ml/pull/149), [#150](https://github.com/Chatnoir01/ml/pull/150), [#151](https://github.com/Chatnoir01/ml/pull/151) |
 | `raven_continuity` | P1 | Model-level results; durable protocol open | [#155](https://github.com/Chatnoir01/ml/pull/155) |
 | `secure_core` | P0 | Security CI failed | [#122](https://github.com/Chatnoir01/ml/pull/122), [#132](https://github.com/Chatnoir01/ml/pull/132), [#133](https://github.com/Chatnoir01/ml/pull/133), [#153](https://github.com/Chatnoir01/ml/pull/153), [#154](https://github.com/Chatnoir01/ml/pull/154) |
@@ -33,7 +33,7 @@ The machine-readable source of truth is [the frozen PR manifest](RESEARCH_PORTFO
 | `neural_crypto_lab` | P1 | Smoke only; full experiment open | [#138](https://github.com/Chatnoir01/ml/pull/138) |
 | `ci_infrastructure` | P1 | Research CI / evidence archiving pending | [#134](https://github.com/Chatnoir01/ml/pull/134), [#135](https://github.com/Chatnoir01/ml/pull/135) |
 
-**Blocking research priority P0**: (1) independent neural provenance diagnosis Phase 2H/2R; (2) Phase 2U's source-bound classical prediction receipt followed by a *separate* blinded prospective neural study; (3) the five failed Secure Core hardware-boundary CI tests. These are not interchangeable. The Phase 2G adaptive failure is valid and frozen even while its mechanistic explanation remains open.
+**Blocking research priority P0**: (1) independent neural provenance diagnosis Phase 2H/2R; (2) Phase 2U's already-frozen classical prediction followed by a *separate* blinded prospective neural study; (3) the five failed Secure Core hardware-boundary CI tests. These are not interchangeable. The Phase 2G adaptive failure is valid and frozen even while its mechanistic explanation remains open.
 
 **Secondary P1**: Phase 2S causal controls; TPM original 96-run receipt audit; RAVEN durable witness memory/epoch safety; CryptoWall protocol review and hybrid interop; full Alice/Bob/Eve run; evidence/CI hygiene.
 
@@ -144,24 +144,29 @@ The machine-readable source of truth is [the frozen PR manifest](RESEARCH_PORTFO
 
 ### Phase 2U 12-S-Box prospective blind prediction — P0
 
-**Verified:** 19 consecutive source seeds, 12 selected permutations, 6460 classical evaluations, exact metrics and 20 distinct global DDT spectra when including eight older sources; 2U original source admission and one full replay passed.
+**Verified:** 19 registered source seeds, 12 exact-metric S-Box selections, 6460 classical evaluations and independent source admission; one full generator seed 41003 replay success. A new **classical-only precommitted ranking** was successfully generated from original 19-seed GitHub Actions ZIPs at [run 41539098859](https://github.com/Chatnoir01/ml/actions/runs/41539098859), **before any Phase 2U neural outcome**, archived as artifact `13185193738`.
 
-**Still unproven:** Freeze source-bound classical prediction SHA in durable reviewed commit, validate provenance on more than one seed, preregister independent 2U neural evaluation, run outcome model and independent statistical audit.
+- Original source panel SHA-256: `512dd21d01617944047fd4e6f6ec2ae09daa68bc76d808837527a384148914ef`.
+- Frozen classical prediction SHA-256: `cd4bfbc9736ced13bdcf95c06f156d4244fbbdde65b05c51fb4e7958a21a30f4`.
+- Original prediction ZIP SHA-256 (separately downloaded and CRC/canonical-receipt checked): `5084090f27fd225af5ae763055f022c4a83582a951fff1c73a4bb9d042551cd1`.
+- Immutable ranking record: `research/PHASE2U_CLASSICAL_PREDICTION_FROZEN_20261102.md` on PR #158.
 
-**Evidence anchors:** research/PHASE2U_SOURCE_RESULTS_FINAL_19_SEEDS_20261102.md (PR #158); GitHub Actions 41460802079 official source admission success; GitHub Actions 41460158043 seed 41003 source replay success.
+**Still unproven:** Blind neural prediction generalization, Phase 2R A/F initial-state model and dataset reproducibility, independent per-bit scoring replay outside original runner, consistent holdout neural evaluation on all twelve candidates and uncertainty controls. SHA receipt does not authenticate all historical sample origins or prove cipher security.
 
-**Next experiments / actions:**
-- [ ] Freeze exact final source panel artifact and its SHA; protect original ZIP receipts from expiry.
-- [ ] Run phase2u_predict.py only on complete raw 19-seed prefix and archive immutable prediction receipt BEFORE any neural labels.
-- [ ] Independently verify no new neural label has been observed; choose one predeclared 2U evaluation design with sufficient power and actual input/model initialization hashes.
-- [ ] Run neural comparison separately with an evaluation that can fail without retuning.
+**Next actions:**
+- [x] Source-bound classical prediction committed by recorded GitHub workflow BEFORE neural labels.
+- [ ] Independently replicate exact classical scores and ranking on another runner without changing any hyperparameter.
+- [ ] Fix/check actual model/data initial-state provenance Phase 2R.
+- [ ] Preregister neural architecture, independent data/block seeds, primary rank-correlation endpoint, null and failure criterion.
+- [ ] Execute fresh neuronal study only after those gates, freeze even negative results.
 
 **Exit criteria:**
-- [ ] Published source and prediction digests with temporal ordering
-- [ ] Independent holdout neural runs have actual provenance and fixed statistical decision
-- [ ] Positive OR negative final result frozen, no training reselect
+- [x] Original source and prediction SHA preserved with ordering.
+- [ ] Independent classical scoring and model initialization audits pass.
+- [ ] Predeclared prospective neural result audited and published, positive OR negative.
+- [ ] No general real-world cipher security claim.
 
-**Prerequisites:** `phase2s_mechanisms`, `phase2_adaptive_repro`.
+**Prerequisites:** `phase2s_mechanisms`, `phase2_adaptive_repro` for neural testing (not needed for the already completed classical freeze).
 
 ### TPM mutual learning and passive adversarial attacks — P1
 
@@ -343,7 +348,7 @@ The machine-readable source of truth is [the frozen PR manifest](RESEARCH_PORTFO
 ## 4. Hard preservation and scientific stop conditions
 
 1. **Do not rewrite frozen outcomes.** The Phase 2G negative and the Phase 2T-v1 source failure are permanent historical results of their exact registered protocols.
-2. **No exploratory-to-confirmatory laundering.** Phase 2S was post-hoc on six older S-Boxes. Phase 2U candidates are mathematically selected, but the predicted neural ranking has NOT been timestamped/frozen. All new neural scores must remain unobserved until that rank is sealed and an independently approved neural protocol exists.
+2. **No exploratory-to-confirmatory laundering.** Phase 2S was post-hoc on six older S-Boxes. Phase 2U source candidates and their classical ranking are now cryptographically hashed and archived before any new neural outcome; genuine blind neural confirmation is still absent. All new neural scores must remain unobserved until that rank is sealed and an independently approved neural protocol exists.
 3. **No synthetic-to-real evidence laundering.** Phase 2R, TPM receipt auditor, RAVEN and Secure Core may include synthetic fixtures; each must separately meet the actual original artifact/hardware test gate.
 4. **No security boundary regression.** The 2026-10-25 PR #154 Secure Core job showed five trust-boundary test failures. Repairs may modify obsolete test expectations only with explicit proof that synthetic pVM evidence still cannot qualify as real hardware attestation.
 5. **No cross-product merge.** Do not install Neural Crypto / ToySPN / TPM / RAVEN research constructions inside CryptoWall or production encryption on the basis of research CI alone. Keep libraries and tests isolated.
