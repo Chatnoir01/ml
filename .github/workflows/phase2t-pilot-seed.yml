@@ -1,9 +1,6 @@
 name: Phase 2T pilot classical seed 31001 (NO NEURAL TRAINING)
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/phase2t-pilot-seed.yml"
   workflow_dispatch:
 
 permissions:
