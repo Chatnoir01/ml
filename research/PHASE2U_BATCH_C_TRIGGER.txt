@@ -1,0 +1,4 @@
+Phase 2U classical-only source batch C, exact frozen seeds: 41047 41051 41057 41063.
+Source version: phase2u_source_v1. Exactly 340 classical evaluations per seed.
+No neural training, no relaxed metrics, no earlier-source reuse.
+Execute once after source batch B was triggered, never on routine PR updates.
