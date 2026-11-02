@@ -4,3 +4,5 @@ Original classical prediction SHA256 cd4bfbc9736ced13bdcf95c06f156d4244fbbdde65b
 Exact original GitHub freeze artifact in run 41539098859, created before all Phase 2U neural outcomes.
 Independent implementation must reproduce all 12 scores and selected one-bit features, and refuse altered source/prediction receipts.
 No new candidate generation, neural training, retrospective feature selection or cryptographic production claim.
+
+Repeat explicitly after fixing named-artifact extraction, with identical frozen SHA and feature rule.
