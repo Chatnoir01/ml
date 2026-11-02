@@ -33,3 +33,12 @@ This log records **real actions performed**, not future work promises. It is par
 6. Close remaining protocol demonstrations and negative result drafts administratively; only then plan a dependency-respecting integration.
 
 **No unrelated research PRs were merged, closed, deleted or rebased by this log.**
+
+## Addendum — later actions on 2026-11-02 (after the 38-PR baseline snapshot)
+
+8. **RAVEN-002–006 specialized CI confirmed:** run [41483812755](https://github.com/Chatnoir01/ml/actions/runs/41483812755) completed SUCCESS on PR #155 head `462676c80e5ced1cbf8a2c53bd1c99b6c9f46226`; Phase 0 [41483812585](https://github.com/Chatnoir01/ml/actions/runs/41483812585) passed across Python 3.10/3.11/3.12. This validates the current single-transition model only; durability and epochs remain unproven.
+9. **Phase 2U classical prediction precommit completed:** run [41539098859](https://github.com/Chatnoir01/ml/actions/runs/41539098859) SUCCESS; source panel SHA `512dd21d01617944047fd4e6f6ec2ae09daa68bc76d808837527a384148914ef`, classical prediction SHA `cd4bfbc9736ced13bdcf95c06f156d4244fbbdde65b05c51fb4e7958a21a30f4`, artifact #13185193738 ZIP SHA `5084090f27fd225af5ae763055f022c4a83582a951fff1c73a4bb9d042551cd1`. Original JSON canonical digest and ranking independently checked from downloaded bytes. ZERO neural outcomes; research report committed on PR #158.
+10. **RAVEN-007 new post-snapshot draft [PR #160](https://github.com/Chatnoir01/ml/pull/160):** separate crash-only fsync-before-sign journal with injected crash/restart tests and an explicit malicious snapshot rollback negative control. Initial RAVEN-007 CI queued at log creation; **NOT YET VALIDATED**. This new draft is not part of the original fixed 38-PR snapshot and must be included in the next dated inventory version.
+11. Registry PR #159's manifest and human-readable guide updated to mark the Phase 2U precommit complete without falsely claiming neural generalization. The 38-PR historical baseline count remains immutable; new PRs #159/#160 need future dated snapshot.
+
+**No Phase 2U neural training occurred during these actions. No research PR was merged into main.**
