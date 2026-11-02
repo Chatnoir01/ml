@@ -9,6 +9,12 @@ on:
       - "tests/test_raven*.py"
       - "pyproject.toml"
       - ".github/workflows/raven-research.yml"
+  pull_request:
+    paths:
+      - "research/raven_*.py"
+      - "tests/test_raven*.py"
+      - "pyproject.toml"
+      - ".github/workflows/raven-research.yml"
   workflow_dispatch:
 
 permissions:
