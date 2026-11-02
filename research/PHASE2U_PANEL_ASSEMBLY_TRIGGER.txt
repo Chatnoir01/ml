@@ -1,0 +1,7 @@
+Phase 2U final classical-only source panel admission authorization.
+Source: immutable original GitHub Actions artifacts from source runs:
+41380370307, 41435231175, 41435563912, 41442954695, 41443720643, 41459706812.
+Exact 19 first registered seed receipts, 12 accepted source candidates, 0 neural training.
+No source regeneration, no feature selection and no new source seeds.
+The repo's admission gate must independently verify all metrics, old-family exclusion, and pairwise XOR clones.
+Only the final source-panel artifact may be emitted, NOT neural prediction scores.
