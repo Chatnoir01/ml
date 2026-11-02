@@ -41,7 +41,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 41539098859 --repo Chatnoir01/ml --dir frozen-original
+          gh run download 41539098859 --name "phase2u-classical-predictions-frozen-before-neural" --repo Chatnoir01/ml --dir frozen-original
           test -s frozen-original/phase2u-source-panel.json
           test -s frozen-original/phase2u-classical-predictions-precommit.json
       - name: Verify all original scores using zero external package imports
