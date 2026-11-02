@@ -1,0 +1,67 @@
+name: Phase 2U deterministic source replay audit (NO NEURAL)
+
+on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - "research/PHASE2U_REPLAY_TRIGGER_41003.txt"
+      - ".github/workflows/phase2u-replay-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    name: Independently repeat registered source seed 41003
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Gate one explicit deterministic provenance replay
+        id: gate
+        shell: bash
+        run: |
+          subject="$(git log -1 --pretty=%s)"
+          if [ "$subject" = "audit: independently replay Phase 2U source seed 41003" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No source replay for unrelated research commits"
+          fi
+      - name: Install classical-only research source
+        if: steps.gate.outputs.run == 'true'
+        run: python -m pip install -e ".[dev]"
+      - name: Repeat entire 340-evaluation classical seed search
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python -m adversarial_sbox.phase2u_generate --seed 41003 --output replay-seed-41003.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from adversarial_sbox.phase2u_generate import digest
+          p=Path('replay-seed-41003.json')
+          r=json.loads(p.read_text())
+          unsealed=dict(r); sha=unsealed.pop('source_payload_sha256')
+          assert sha==digest(unsealed)
+          assert sha=='cf2860df0ee275f1570c7c394253ab48907ec3d8e1c723523b0181bab3f56bc1'
+          assert r['original_population_sha256']=='580e4f47acb08b5cc5130b5f010626bb6b29c2ee710e2df1a1e132c3164c8320'
+          assert r['proposal_transcript_sha256']=='32c919cd5a0da0f29ce56335759f9fe0305c57ddb01f2382368b929551a779b9'
+          assert r['seed']==41003 and r['classical_evaluations']==340
+          assert r['status']=='accepted' and r['new_neural_training_count']==0
+          print('INDEPENDENT_SEED_41003_FULL_SOURCE_REPLAY=PASS')
+          print('SOURCE_SHA256='+sha)
+          PY
+      - name: Preserve independently regenerated source receipt
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2u-independent-source-replay-seed-41003
+          path: replay-seed-41003.json
+          retention-days: 60
+          if-no-files-found: error
