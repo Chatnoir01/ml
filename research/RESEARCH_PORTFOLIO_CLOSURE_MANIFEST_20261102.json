@@ -252,7 +252,7 @@
       "id": "tpm_security_attack",
       "title": "TPM mutual learning and passive adversarial attacks",
       "priority": "P1",
-      "stage": "experimental_result_audit_open",
+      "stage": "frozen_result_pr_disposition_open",
       "prs": [
         143,
         144,
@@ -265,21 +265,21 @@
         151
       ],
       "evidence": [
-        "PR #147 held-out 64 sessions",
-        "GitHub Actions 39971905846 96 prospective paired sessions success",
-        "PR #151 synthetic receipt-auditor CI success"
+        "PR #147 held-out 64-session frozen results",
+        "GitHub Actions 39971905846 original 96-session experiment success; original artifact 12510291806",
+        "GitHub Actions 39973978046 actual frozen 96-report independent output-only audit PASS; audit artifact 12510173703; original ZIP SHA256 b2349d818188f61924edf878044837f422cd5bb5c99b8dd7e08da9869ee5f4bc"
       ],
-      "verified": "64-session and 96-session experiments ran; geometric attacker more successful than specified cooperative baseline on tested toy TPM configurations.",
-      "not_yet": "Run PR #151 independent receipt auditor on ACTUAL 96-run JSON, preserve raw artifacts, verify statistical correction, equal compute, broader attack families and sizes.",
+      "verified": "Both genuine 64-session and new 96-session TPM attacker experiments completed; output-only auditor on REAL 96-run archived JSON PASSED with SHA-checked original ZIP and independently verified 3 predeclared scale contrasts. N8: 21 vs 28 adjusted p .0390625; N16: 10 vs 25 adjusted p .0001220703125; N32: 9 vs 25 adjusted p .000091552734375. No real secure key-exchange claim.",
+      "not_yet": "Long-term independent preservation beyond GitHub artifact expiry (2026-12-22); clear dispositions for stacked TPM PRs; distinct preregistration required before exploring different TPM algorithms, hardware budgets, attacks or scale regimes.",
       "next": [
-        "Retrieve raw 96-run artifact and preserve exact SHA, then execute the independent output-only verifier against that file.",
-        "Freeze corrected effect sizes and multiple comparison procedure with per-scale confidence intervals.",
-        "If expanding, preregister new seeds, attacks, same-runner resource budget and stop conditions."
+        "Preserve original 96-session artifact 12510291806 and audited report artifact 12510173703 with original ZIP SHA and CI log evidence before 2026-12-22 expiry.",
+        "Mark original 96-session study SCIENTIFIC CLOSED (not production safe), preserve exact fixed negative/positive contrasts.",
+        "If exploring new attack families, open a new study with fresh seeds, matched compute budgets, censoring and multiple-comparison handling; never change the frozen 96 results."
       ],
       "exit": [
-        "Real 96-result artifact independently audited",
-        "Cost and censoring caveats preserved",
-        "Toy model explicitly not a secure key-exchange product"
+        "Actual 96-result artifact independently audited (PASS 2026-10-23)",
+        "Raw original and independent-audit artifacts retained beyond GitHub expiry",
+        "Stacked TPM PR disposition recorded without conflating toy attacks with key-exchange security"
       ],
       "pr_links": [
         "https://github.com/Chatnoir01/ml/pull/143",
