@@ -1,0 +1,5 @@
+Phase 2U source batch F: explicit one-time classical seed-generation authorization.
+Next two registered source seeds in strict order: 41141, 41143.
+After 17 verified source seeds, precisely 10 selected candidates had been admitted by independent metric and source-receipt recalculation.
+These two runs can yield at most 12 successes, respecting the frozen stop condition.
+Source version phase2u_source_v1, fixed 340 evaluations/seed, no neural training and no retrospective feature selection.
