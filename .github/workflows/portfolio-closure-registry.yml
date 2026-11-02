@@ -1,0 +1,58 @@
+name: Portfolio research closure registry integrity (NO SCIENTIFIC EXECUTION)
+
+on:
+  push:
+    branches:
+      - "research/portfolio-closure-*"
+    paths:
+      - "research/RESEARCH_PORTFOLIO_CLOSURE_MANIFEST_20261102.json"
+      - "research/RESEARCH_PORTFOLIO_CLOSURE_20261102.md"
+      - "scripts/validate_research_portfolio_closure.py"
+      - "tests/test_portfolio_closure_manifest.py"
+      - ".github/workflows/portfolio-closure-registry.yml"
+  pull_request:
+    paths:
+      - "research/RESEARCH_PORTFOLIO_CLOSURE_MANIFEST_20261102.json"
+      - "research/RESEARCH_PORTFOLIO_CLOSURE_20261102.md"
+      - "scripts/validate_research_portfolio_closure.py"
+      - "tests/test_portfolio_closure_manifest.py"
+      - ".github/workflows/portfolio-closure-registry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-audit:
+    name: No PR merges / no neural training / no cryptographic execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile stdlib-only closure validator and tests
+        run: |
+          python -m py_compile scripts/validate_research_portfolio_closure.py tests/test_portfolio_closure_manifest.py
+      - name: Validate all frozen 38 PR identities and dependency DAG
+        run: |
+          python scripts/validate_research_portfolio_closure.py research/RESEARCH_PORTFOLIO_CLOSURE_MANIFEST_20261102.json
+      - name: Run synthetic invalid-input controls
+        run: |
+          python -m unittest discover -s tests -p "test_portfolio_closure_manifest.py" -v
+      - name: Ensure registry contains no generated scientific outcomes
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path("research/RESEARCH_PORTFOLIO_CLOSURE_MANIFEST_20261102.json").read_text())
+          assert m["review_rules"]["no_merge_from_registry"] is True
+          assert m["review_rules"]["no_automatic_close_or_delete"] is True
+          assert len(m["workstreams"])==15
+          print("Governance-only validated; no research scientific jobs were run")
+          PY
