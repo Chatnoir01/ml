@@ -8,3 +8,5 @@ Old Phase 2T source receipts must not be reused or blended.
 Second explicit pilot push attempt after the workflow definition is registered.
 Reason: no Phase 2U source pilot run was listed for the original marker commit.
 No change to source seeds, generator, selection, or metrics.
+
+Explicit one-time pilot: 41003; no neural training; source version unchanged.
