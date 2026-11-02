@@ -1,0 +1,6 @@
+Phase 2U source batch E (single explicit source-run authorization).
+Next four preregistered source seeds in order: 41101, 41113, 41117, 41131.
+The first 13 source seeds 41003–41089 yielded 8 accepted candidates after independent artifact validation.
+At most four more accepted sources here means exactly 12, never exceeding the frozen stop condition.
+All evaluations are classical only: exactly 340 per completed seed; same published version and exact metric targets.
+No neural training, no feature ranking, no protocol changes, no source reselection.
