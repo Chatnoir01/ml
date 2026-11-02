@@ -178,3 +178,15 @@ def test_exhausted_24_seed_prefix_is_not_a_complete_panel():
     assert result["status"]=="PANEL_INCOMPLETE_DO_NOT_PREDICT"
     assert result["selected_count"]==0
     assert result["examined_seed_count"]==24
+
+
+def test_two_new_candidate_xor_equivalents_cannot_count_as_independent():
+    original=tuple(CANDIDATES[0]["sbox"])
+    a=fake_receipt(PUBLIC_SEEDS[0],box=tuple(v ^ 11 for v in original))
+    b=fake_receipt(PUBLIC_SEEDS[1],box=tuple(v ^ 29 for v in original))
+    # Synthetic fixtures are historically related; blank the old-reference
+    # registry ONLY here to isolate the NEW-vs-NEW clone restriction.
+    with patch("adversarial_sbox.phase2u_panel.exclusion_history",return_value=()):
+        result=aggregate([a,b])
+    assert result["status"]=="SOURCE_FAMILY_CLONE_BLOCKED"
+    assert result["selected_count"]==1
