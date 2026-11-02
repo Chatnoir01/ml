@@ -1,0 +1,45 @@
+name: Phase 2U bounded-proposal source integrity (NO NEURAL)
+
+on:
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2u_generate.py"
+      - "tests/test_phase2u_generate.py"
+      - "research/PHASE2U_VERSIONED_SOURCE_RECOVERY.md"
+      - ".github/workflows/phase2u-integrity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-rescue:
+    name: Validate fallback, no source evolution
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install tests only
+        run: python -m pip install -e ".[dev]"
+      - name: Compile and validate deterministic fallback
+        run: |
+          python -m py_compile src/adversarial_sbox/phase2u_generate.py
+          python -m pytest -q tests/test_phase2u_generate.py
+      - name: Prohibit unblinding or committed synthetic scientific outcomes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          forbidden = [
+            "research/PHASE2U_NEURAL_OUTCOMES.json",
+            "research/PHASE2U_FROZEN_PREDICTIONS.json",
+          ]
+          assert not any(Path(x).exists() for x in forbidden)
+          print("SOURCE GENERATOR ONLY; NO PROSPECTIVE NEURAL RESULT")
+          PY
