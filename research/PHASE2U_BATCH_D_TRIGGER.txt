@@ -1,0 +1,5 @@
+Phase 2U source batch D — explicit one-time scheduled seed prefix continuation.
+Registered new source seeds (strict order): 41071, 41077, 41081, 41089.
+Previous 9 source seeds 41003..41063 have completed with exactly 5 accepted source S-Boxes; at most 4 new successes here cannot reach the target of 12.
+Version phase2u_source_v1, 340 classical evaluations per seed, exact-metric selection, no neural training or predictor execution.
+No extra seeds, no historical re-use, no source-protocol amendments.

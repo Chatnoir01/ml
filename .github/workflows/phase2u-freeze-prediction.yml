@@ -1,0 +1,131 @@
+name: Phase 2U source-bound classical ranking freeze (NO NEURAL)
+
+on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - "research/PHASE2U_PREDICTION_FREEZE_TRIGGER.txt"
+      - ".github/workflows/phase2u-freeze-prediction.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  classical-precommit:
+    name: Freeze historical one-bit predictor on original 19 sources (no neural)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Enforce explicit one-time authorized scientific event
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          subject="$(git log -1 --pretty=%s)"
+          if [ "$subject" = "research: freeze Phase 2U classical predictions before neural data" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "PRECOMMIT_AUTHORIZED; neural execution remains prohibited"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Skipped: no explicit Phase 2U classical freeze authorization"
+          fi
+      - name: Install classical-only research dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: python -m pip install -e ".[dev]"
+      - name: Verify source and prediction invariants (synthetic controls)
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python -m pytest -q tests/test_phase2u_generate.py tests/test_phase2u_panel.py tests/test_phase2u_predict.py tests/test_phase2u_affine_invariant.py
+      - name: Restore original six GitHub source-run artifacts without generating anything
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for run in 41380370307 41435231175 41435563912 41442954695 41443720643 41459706812; do
+            mkdir -p "phase2u-original/$run"
+            gh run download "$run" --repo "Chatnoir01/ml" --dir "phase2u-original/$run"
+          done
+          test "$(find phase2u-original -type f -name 'seed-*.json' | wc -l)" -eq 19
+      - name: Rebuild original 12-candidate source panel and PIN official frozen SHA
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python scripts/phase2u_assemble_source_panel.py --input-root phase2u-original --output phase2u-source-panel.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from adversarial_sbox.phase2u_generate import digest
+          x=json.loads(Path("phase2u-source-panel.json").read_text())
+          sha=x.pop("panel_receipt_sha256")
+          assert sha == digest(x)
+          assert sha == "512dd21d01617944047fd4e6f6ec2ae09daa68bc76d808837527a384148914ef"
+          assert x["registered_seed_prefix"][-1] == 41143
+          assert x["selected_count"] == 12 and x["examined_seed_count"] == 19
+          assert x["new_neural_trainings"] == 0
+          print("ORIGINAL_SOURCE_PANEL_REBUILT_AND_PINNED="+sha)
+          PY
+      - name: Prohibit known outcome/unblinding files
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          forbidden=[
+            "research/PHASE2U_NEURAL_OUTCOMES.json",
+            "research/PHASE2U_FROZEN_PREDICTIONS.json",
+            "research/PHASE2U_PROSPECTIVE_NEURAL_RESULTS.md",
+            "phase2u-neural-outcomes.json",
+          ]
+          assert not any(Path(x).exists() for x in forbidden), "unexpected neural outcome material"
+          print("NO_OBSERVED_PHASE2U_NEURAL_DATA")
+          PY
+      - name: Compute exact predeclared classical one-bit prediction on source receipts
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          from adversarial_sbox.phase2u_generate import PUBLIC_SEEDS
+          from adversarial_sbox.phase2u_predict import (
+            freeze_from_raw_seed_receipts, verify_prediction_receipt,
+          )
+          paths=list(Path("phase2u-original").glob("**/seed-*.json"))
+          sources={}
+          for p in paths:
+            doc=json.loads(p.read_text())
+            seed=doc["seed"]
+            assert seed not in sources
+            sources[seed]=doc
+          selected=PUBLIC_SEEDS[:19]
+          assert len(paths)==len(sources)==len(selected)==19
+          receipts=[sources[s] for s in selected]
+          prediction=freeze_from_raw_seed_receipts(receipts)
+          verify_prediction_receipt(prediction)
+          assert prediction["source_panel_receipt_sha256"] == "512dd21d01617944047fd4e6f6ec2ae09daa68bc76d808837527a384148914ef"
+          assert prediction["candidate_count"]==12
+          assert prediction["new_neural_trainings"]==0
+          assert prediction["neural_outcomes_accessed"] is False
+          out=Path("phase2u-classical-predictions-precommit.json")
+          assert not out.exists()
+          out.write_text(json.dumps(prediction,sort_keys=True,indent=2,allow_nan=False)+"\n")
+          print("PHASE2U_PRECOMMITTED_PREDICTION_SHA256="+prediction["prediction_receipt_sha256"])
+          print("PHASE2U_PRECOMMITTED_RANKING="+",".join(prediction["best_first_fingerprints"]))
+          print("NEURAL_TRAININGS_EXECUTED=0")
+          PY
+      - name: Archive source-bound final prediction, but DO NOT train neural models
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2u-classical-predictions-frozen-before-neural
+          path: |
+            phase2u-source-panel.json
+            phase2u-classical-predictions-precommit.json
+          retention-days: 90
+          if-no-files-found: error

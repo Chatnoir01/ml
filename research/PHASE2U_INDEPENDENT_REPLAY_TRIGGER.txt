@@ -1,0 +1,8 @@
+Phase 2U independent source-bound classical score replay authorization.
+Original source-panel SHA256 512dd21d01617944047fd4e6f6ec2ae09daa68bc76d808837527a384148914ef.
+Original classical prediction SHA256 cd4bfbc9736ced13bdcf95c06f156d4244fbbdde65b05c51fb4e7958a21a30f4.
+Exact original GitHub freeze artifact in run 41539098859, created before all Phase 2U neural outcomes.
+Independent implementation must reproduce all 12 scores and selected one-bit features, and refuse altered source/prediction receipts.
+No new candidate generation, neural training, retrospective feature selection or cryptographic production claim.
+
+Repeat explicitly after fixing named-artifact extraction, with identical frozen SHA and feature rule.
