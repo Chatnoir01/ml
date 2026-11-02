@@ -1,0 +1,542 @@
+{
+  "schema_version": 1,
+  "repository": "Chatnoir01/ml",
+  "snapshot_date": "2026-11-02",
+  "snapshot_scope": "38 draft/open PRs returned by GitHub API in current research portfolio (not all independent experiments)",
+  "frozen_baselines": [
+    "Do not modify historical frozen scientific results to obtain positive claims",
+    "Do not merge or deploy research-only cryptography as production security",
+    "A PASS on synthetic test fixtures is not experimental confirmation",
+    "No new neural result for Phase 2U until the independently verifiable predicted ranking is sealed"
+  ],
+  "status_vocabulary": {
+    "frozen_result_pr_disposition_open": "Original study concluded, historical PR documentation/integration disposition not closed",
+    "blocked_reproducibility": "Interpretation blocked on a reproducibility or provenance anomaly",
+    "exploratory_prospective_open": "Hypothesis-generating work with independent confirmatory experiment still undone",
+    "valid_blocked_protocol_retained": "Original prospective protocol no longer executable as registered; preserve incident",
+    "source_complete_prediction_not_frozen": "Prospective classical source generation complete; no sealed neural prediction",
+    "experimental_result_audit_open": "Genuine study result exists but output-only independently verified report and/or extension remains open",
+    "model_validated_hardware_and_persistence_open": "Model/synthetic claims bounded; durable real-world guarantees open",
+    "ci_failed_security_gate": "Latest checked exact branch CI failing on security-sensitive checks",
+    "prototype_ci_green_security_open": "Tests pass; full protocol security review and adversarial validation missing",
+    "demonstrator_scope_complete": "Original research demonstrator can be closed at its explicitly narrow scope",
+    "smoke_only_full_experiment_open": "Short smoke test passed; original scientific budget not executed",
+    "governance_reconciliation_open": "Inventory/archival/merge discipline not yet reconciled"
+  },
+  "review_rules": {
+    "no_merge_from_registry": true,
+    "no_automatic_close_or_delete": true,
+    "gate_policy": "Every workstream's exit checklist requires separately logged evidence and a dated human review; absence of evidence is not PASS",
+    "frozen_negative_is_a_result": true,
+    "safety_boundary": "ToySPN, TPM, RAVEN and research crypto components must not be represented as deployed secure systems",
+    "authenticity_note": "SHA-256 receipts detect alteration but are not authenticated source provenance without independent source/runner review",
+    "secure_core_blocker": "5 failures on 2026-10-25 branch #154 must not be bypassed by weakening pVM attestation trust gate"
+  },
+  "open_pr_count": 38,
+  "workstreams": [
+    {
+      "id": "phase1_sbox_search",
+      "title": "Recherche classique S-Box Phase 1",
+      "priority": "P2",
+      "stage": "frozen_result_pr_disposition_open",
+      "prs": [
+        25,
+        26
+      ],
+      "evidence": [
+        "research/PHASE1O_CONFIRM_RESULT.md (main)",
+        "Phase 1O confirmation held-out, 340 classical evaluations/seed"
+      ],
+      "verified": "Phase 1O classical objective confirmed on reserved seeds; old Phase 1L/1M PRs remain drafts.",
+      "not_yet": "Legacy experimental branch disposition, historical artifact preservation and direct comparison beyond the original target.",
+      "next": [
+        "Inventory Phase 1L and 1M negative/partial findings and attach their frozen result files.",
+        "Classify legacy PRs as superseded research without deleting raw evidence.",
+        "Do not insert evolutionary S-Boxes into any production cipher."
+      ],
+      "exit": [
+        "Frozen reports and exact source refs catalogued",
+        "Legacy draft dispositions recorded",
+        "No production-security claim"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/25",
+        "https://github.com/Chatnoir01/ml/pull/26"
+      ]
+    },
+    {
+      "id": "phase2_replication",
+      "title": "Réplication neuronale Phase 2A et Oracle U2",
+      "priority": "P2",
+      "stage": "frozen_result_pr_disposition_open",
+      "prs": [
+        81
+      ],
+      "evidence": [
+        "research/PHASE2AT_RESULT.md (main)",
+        "research/PHASE2AU2_RESULT.md (main)"
+      ],
+      "verified": "Depth-four S-Box heterogeneity replicated in the frozen ToySPN; U2 qualified one pinned neural oracle, not interchangeable architectures.",
+      "not_yet": "Broader cipher/key/representation generalization and disposition of legacy Phase 2A-U draft.",
+      "next": [
+        "Preserve frozen artifacts and exact null hypotheses.",
+        "Document where model-specific qualification stops and what Phase 2S/2U may reuse.",
+        "Record legacy PR disposition independently of prospective Phase 2U."
+      ],
+      "exit": [
+        "Historical results indexed immutable",
+        "No claim of universal neural oracle",
+        "Open legacy PR disposition chosen"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/81"
+      ]
+    },
+    {
+      "id": "phase2_adaptive_repro",
+      "title": "Adaptive GA↔NN Phase 2G–2R and initialization anomaly",
+      "priority": "P0",
+      "stage": "blocked_reproducibility",
+      "prs": [
+        120,
+        121,
+        123,
+        124,
+        125,
+        126,
+        127,
+        129,
+        131,
+        152
+      ],
+      "evidence": [
+        "research/PHASE2G_RESULT.md on research/phase2g-adaptive-coevolution",
+        "PR #152 preflight CI success"
+      ],
+      "verified": "The adaptive superiority claim FAILED in frozen Phase 2G (2,880 trainings); Phase 2R synthetic input-preflight tests passed.",
+      "not_yet": "Resolve reported 4/9 A/F initial model-state mismatches, independently replay same model/data state on actual runner and train with pinned inputs. H1 forgetting matrix lacks required frozen evidence.",
+      "next": [
+        "Preserve negative Phase 2G result untouched.",
+        "Freeze actual checkpoint-zero state bytes and provenance for matching A/F arms.",
+        "Replay identical dataset/model-seed/initial-state in real runner; compare hashes before new training.",
+        "If provenance cannot be recovered, publish a bounded inconclusive diagnosis and create independent new preregistration."
+      ],
+      "exit": [
+        "Full reproducibility gate on actual runner passes OR explicit unable-to-reproduce verdict",
+        "No retrospective reinterpretation of frozen 2G failure",
+        "H1 missing-data condition documented"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/120",
+        "https://github.com/Chatnoir01/ml/pull/121",
+        "https://github.com/Chatnoir01/ml/pull/123",
+        "https://github.com/Chatnoir01/ml/pull/124",
+        "https://github.com/Chatnoir01/ml/pull/125",
+        "https://github.com/Chatnoir01/ml/pull/126",
+        "https://github.com/Chatnoir01/ml/pull/127",
+        "https://github.com/Chatnoir01/ml/pull/129",
+        "https://github.com/Chatnoir01/ml/pull/131",
+        "https://github.com/Chatnoir01/ml/pull/152"
+      ]
+    },
+    {
+      "id": "phase2s_mechanisms",
+      "title": "Mechanistic one-bit, rotation, keys and features Phase 2S",
+      "priority": "P1",
+      "stage": "exploratory_prospective_open",
+      "prs": [
+        156
+      ],
+      "evidence": [
+        "research/PHASE2S_DEPTH_MECHANISM_RETROSPECTIVE.md (PR #156)",
+        "research/PHASE2S_INDEPENDENT_CONTROL_PRELIMINARY.md (PR #156)"
+      ],
+      "verified": "Retrospective, six-S-Box classical one-bit and rotation/key exploratory signals; PR Phase 0 and Phase 1 CI success.",
+      "not_yet": "Causal mechanism, independently registered rotation test, bit-vs-byte representation and new-key generalization.",
+      "next": [
+        "Prespecify a blinded diffusion/rotation ablation on untouched seeds or cipher configurations.",
+        "Compare single-bit baseline with higher-order/multibit classical distinguishers and null controls.",
+        "Do not choose predictive feature after inspecting Phase 2U neural labels."
+      ],
+      "exit": [
+        "Independent reproduction and uncertainty intervals",
+        "Predeclared causal comparison completed or negative result archived",
+        "No posthoc feature promotion to confirmatory claim"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/156"
+      ]
+    },
+    {
+      "id": "phase2t_original_blocked",
+      "title": "Phase 2T original source design—terminated with blocker",
+      "priority": "P2",
+      "stage": "valid_blocked_protocol_retained",
+      "prs": [
+        157
+      ],
+      "evidence": [
+        "research/PHASE2T_PROSPECTIVE_PREDICTION_PROTOCOL.md (PR #157)",
+        "research/PHASE2T_SOURCE_GENERATION_LEDGER.md (PR #157)"
+      ],
+      "verified": "Seed 31013 source generation crashed before valid 340-evaluation receipt; original contiguous source study cannot be completed as originally registered.",
+      "not_yet": "Administrative closeout as invalid source protocol without treating it as a neural-test failure.",
+      "next": [
+        "Mark v1 source protocol blocked and immutable.",
+        "Preserve both accepted v1 S-Boxes as reference exclusions only.",
+        "Never mix old v1 accepted seeds with versioned 2U panel."
+      ],
+      "exit": [
+        "Blocker incident and original receipts linked",
+        "V1 source failure is not mislabeled as negative neural prediction",
+        "No in-place edits to v1 scientific rules"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/157"
+      ]
+    },
+    {
+      "id": "phase2u_prospective",
+      "title": "Phase 2U 12-S-Box prospective blind prediction",
+      "priority": "P0",
+      "stage": "source_complete_prediction_not_frozen",
+      "prs": [
+        158
+      ],
+      "evidence": [
+        "research/PHASE2U_SOURCE_RESULTS_FINAL_19_SEEDS_20261102.md (PR #158)",
+        "GitHub Actions 41460802079 official source admission success",
+        "GitHub Actions 41460158043 seed 41003 source replay success"
+      ],
+      "verified": "19 consecutive source seeds, 12 selected permutations, 6460 classical evaluations, exact metrics and 20 distinct global DDT spectra when including eight older sources; 2U original source admission and one full replay passed.",
+      "not_yet": "Freeze source-bound classical prediction SHA in durable reviewed commit, validate provenance on more than one seed, preregister independent 2U neural evaluation, run outcome model and independent statistical audit.",
+      "next": [
+        "Freeze exact final source panel artifact and its SHA; protect original ZIP receipts from expiry.",
+        "Run phase2u_predict.py only on complete raw 19-seed prefix and archive immutable prediction receipt BEFORE any neural labels.",
+        "Independently verify no new neural label has been observed; choose one predeclared 2U evaluation design with sufficient power and actual input/model initialization hashes.",
+        "Run neural comparison separately with an evaluation that can fail without retuning."
+      ],
+      "exit": [
+        "Published source and prediction digests with temporal ordering",
+        "Independent holdout neural runs have actual provenance and fixed statistical decision",
+        "Positive OR negative final result frozen, no training reselect"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/158"
+      ]
+    },
+    {
+      "id": "tpm_security_attack",
+      "title": "TPM mutual learning and passive adversarial attacks",
+      "priority": "P1",
+      "stage": "experimental_result_audit_open",
+      "prs": [
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151
+      ],
+      "evidence": [
+        "PR #147 held-out 64 sessions",
+        "GitHub Actions 39971905846 96 prospective paired sessions success",
+        "PR #151 synthetic receipt-auditor CI success"
+      ],
+      "verified": "64-session and 96-session experiments ran; geometric attacker more successful than specified cooperative baseline on tested toy TPM configurations.",
+      "not_yet": "Run PR #151 independent receipt auditor on ACTUAL 96-run JSON, preserve raw artifacts, verify statistical correction, equal compute, broader attack families and sizes.",
+      "next": [
+        "Retrieve raw 96-run artifact and preserve exact SHA, then execute the independent output-only verifier against that file.",
+        "Freeze corrected effect sizes and multiple comparison procedure with per-scale confidence intervals.",
+        "If expanding, preregister new seeds, attacks, same-runner resource budget and stop conditions."
+      ],
+      "exit": [
+        "Real 96-result artifact independently audited",
+        "Cost and censoring caveats preserved",
+        "Toy model explicitly not a secure key-exchange product"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/143",
+        "https://github.com/Chatnoir01/ml/pull/144",
+        "https://github.com/Chatnoir01/ml/pull/145",
+        "https://github.com/Chatnoir01/ml/pull/146",
+        "https://github.com/Chatnoir01/ml/pull/147",
+        "https://github.com/Chatnoir01/ml/pull/148",
+        "https://github.com/Chatnoir01/ml/pull/149",
+        "https://github.com/Chatnoir01/ml/pull/150",
+        "https://github.com/Chatnoir01/ml/pull/151"
+      ]
+    },
+    {
+      "id": "raven_continuity",
+      "title": "RAVEN signed continuity, fork evidence, witness quorums",
+      "priority": "P1",
+      "stage": "model_validated_hardware_and_persistence_open",
+      "prs": [
+        155
+      ],
+      "evidence": [
+        "research/RAVEN_006_INDEPENDENT_WITNESS_QUORUMS.md (PR #155)",
+        "PR #155 Phase 0 CI success"
+      ],
+      "verified": "Signed single-transition state/fork/witness model with conditional n>=3f+1, q=n-f; no real persistent fault-tolerant distributed deployment.",
+      "not_yet": "Specialized RAVEN workflow result absent from checked PR-head runs, persist vote before signature, crash/restart and recovery, multi-epoch reconfiguration, Byzantine network and sybil/fault roster assumptions.",
+      "next": [
+        "Run specialized RAVEN invariant suite on same commit and retain logs.",
+        "Build stable anti-double-sign state with crash-injection tests.",
+        "Model multiple epochs, key/roster rotations, network partitions and proof availability."
+      ],
+      "exit": [
+        "Specialized tests and crash recovery pass",
+        "Quorum safety/liveness assumptions explicit across epochs",
+        "No claims of production consensus or BFT"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/155"
+      ]
+    },
+    {
+      "id": "secure_core",
+      "title": "Secure Core Android AVF/Secretkeeper/hardware trust boundary",
+      "priority": "P0",
+      "stage": "ci_failed_security_gate",
+      "prs": [
+        122,
+        132,
+        133,
+        153,
+        154
+      ],
+      "evidence": [
+        "PR #154 Secure Core CI and Phase 0 failed, 2026-10-25",
+        "5 secure-core test failures in latest checked run; 721 other tests passed"
+      ],
+      "verified": "Latest trust-boundary changes intentionally reject synthetic attestation; regression expectations and/or contract remain inconsistent.",
+      "not_yet": "Fix five failing tests WITHOUT weakening hardware-proof trust gate, verify real signed attestation on compatible hardware and hostile-host scenarios.",
+      "next": [
+        "Reconcile each of the five failing synthetic trusted-boundary tests with the new fail-closed guarantee.",
+        "Re-run Secure Core matrix and full Phase 0 on PR #154 without suppressing tests.",
+        "Separate simulated software trust from hardware-attested states; test Android AVF/Secretkeeper physical device."
+      ],
+      "exit": [
+        "All five regressions fixed with strong trust boundary intact",
+        "Full CI success on exact commit",
+        "Hardware-security claim withheld until genuine evidence"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/122",
+        "https://github.com/Chatnoir01/ml/pull/132",
+        "https://github.com/Chatnoir01/ml/pull/133",
+        "https://github.com/Chatnoir01/ml/pull/153",
+        "https://github.com/Chatnoir01/ml/pull/154"
+      ]
+    },
+    {
+      "id": "cryptowall_envelope",
+      "title": "CryptoWall X25519 / HKDF / AES-GCM envelope",
+      "priority": "P1",
+      "stage": "prototype_ci_green_security_open",
+      "prs": [
+        136
+      ],
+      "evidence": [
+        "PR #136 CryptoWall V1 and Phase 0 CI success"
+      ],
+      "verified": "Isolated authenticated encryption envelope works in software as a research prototype.",
+      "not_yet": "Sender authentication, message replay, key life-cycle, nonce domain safety, protocol misuse resistance and cross-implementation verification.",
+      "next": [
+        "Threat model sender/recipient identities and key compromise.",
+        "Negative-test replay, nonce collision, wrong recipient and downgrade handling.",
+        "Obtain protocol review before production integration."
+      ],
+      "exit": [
+        "Protocol-level authenticated origin and replay decisions documented",
+        "Negative and interop tests complete",
+        "No blanket security claim from primitive correctness"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/136"
+      ]
+    },
+    {
+      "id": "cryptowall_hybrid",
+      "title": "CryptoWall hybrid ML-KEM-768 + X25519 HPKE",
+      "priority": "P1",
+      "stage": "prototype_ci_green_security_open",
+      "prs": [
+        139
+      ],
+      "evidence": [
+        "PR #139 Hybrid HPKE and Phase 0 CI success"
+      ],
+      "verified": "Opt-in hybrid KEM/HPKE prototype exercised through library, not an invented post-quantum primitive.",
+      "not_yet": "Protocol downgrade/version negotiation, key confirmation, KEM failure handling, identity binding and interop/cross-library checks.",
+      "next": [
+        "Document exact dependency versions, hybrid KDF inputs and binding order.",
+        "Test downgrade, cross-protocol replay, wrong key and decryption-failure states.",
+        "Independent protocol review before integration with CryptoWall v1."
+      ],
+      "exit": [
+        "Hybrid interoperability and negative tests complete",
+        "Primitive and library provenance reviewed",
+        "Production security separated from prototype"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/139"
+      ]
+    },
+    {
+      "id": "fhe_bfv",
+      "title": "BFV homomorphic encrypted-sum demonstrator",
+      "priority": "P2",
+      "stage": "demonstrator_scope_complete",
+      "prs": [
+        140
+      ],
+      "evidence": [
+        "PR #140 BFV specialized and Phase 0 CI success"
+      ],
+      "verified": "BFV encrypted addition without giving secret decryption key to evaluator demonstrated.",
+      "not_yet": "Only if expanding beyond original demo: parameter/noise budget analysis, data-privacy threat model, batching and benchmarks.",
+      "next": [
+        "Freeze initial demonstrator and dependency versions.",
+        "Open distinct new study for parameter/noise and throughput work rather than changing original demo."
+      ],
+      "exit": [
+        "Research-only demonstration clearly marked",
+        "Original result and CI preserved",
+        "Any scale-up gets its own preregistered study"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/140"
+      ]
+    },
+    {
+      "id": "bb84_simulation",
+      "title": "BB84 intercept-resend simulator",
+      "priority": "P2",
+      "stage": "demonstrator_scope_complete",
+      "prs": [
+        141
+      ],
+      "evidence": [
+        "PR #141 specialized quantum simulation and Phase 0 CI success"
+      ],
+      "verified": "Idealized BB84 basis sifting, intercept-resend and error rate statistics reproduced in software.",
+      "not_yet": "Only if extending beyond simulator: finite-key statistics, physical loss, noise and classical authenticated channel assumptions.",
+      "next": [
+        "Freeze simulator and original statistical test scope.",
+        "Do not imply physical quantum communication; open separate finite-key simulator study if needed."
+      ],
+      "exit": [
+        "Simulation results reproducible and marked idealized",
+        "Physical security claims explicitly excluded"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/141"
+      ]
+    },
+    {
+      "id": "neural_crypto_lab",
+      "title": "Neural Alice/Bob/Eve educational obfuscation lab",
+      "priority": "P1",
+      "stage": "smoke_only_full_experiment_open",
+      "prs": [
+        138
+      ],
+      "evidence": [
+        "PR #138 neural crypto lab smoke CI and Phase 0 success",
+        "research/NEURAL_CRYPTO_LAB_V1_PROTOCOL.md (PR #138)"
+      ],
+      "verified": "Smoke paths and bounded neural adversarial training code execute.",
+      "not_yet": "Full 200-step preregistered Alice/Bob/Eve experiment, fresh attacker controls, multiple seeds, confidence intervals, hard-coded baseline and key/message leakage checks.",
+      "next": [
+        "Execute original complete protocol with independent fresh Eves and fixed seeds.",
+        "Compare Bob reconstruction and strongest held-out Eve; include plaintext/key linear baseline and controls.",
+        "Record negative result without claiming encryption security."
+      ],
+      "exit": [
+        "Full original protocol result archived",
+        "No test-set tuning or posthoc optimizer changes",
+        "Explicit NOT encryption product"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/138"
+      ]
+    },
+    {
+      "id": "ci_infrastructure",
+      "title": "Research CI execution, retention and PR dependency hygiene",
+      "priority": "P1",
+      "stage": "governance_reconciliation_open",
+      "prs": [
+        134,
+        135
+      ],
+      "evidence": [
+        "38 open draft PRs at 2026-11-02 GitHub snapshot",
+        "RAVEN/TPM/Secure Core branches stacked on other research PRs"
+      ],
+      "verified": "No general consolidation in main; specialized CI success is not a proof of production security.",
+      "not_yet": "Review workflow scopes, PR base dependency edges, artifact expiry, merge ordering and reproducible provenance after rebases.",
+      "next": [
+        "Archive source artifacts and SHA manifests; preserve original run IDs and time ordering.",
+        "Identify stacked branch dependencies and classify superseded PRs without deletion.",
+        "Make research-only CI and proof gates mandatory before merging shared infrastructure."
+      ],
+      "exit": [
+        "All 38 current PRs assigned to owner workstreams",
+        "No duplicate or dropped PR",
+        "Merge plan shows topological order and non-deployment boundary"
+      ],
+      "pr_links": [
+        "https://github.com/Chatnoir01/ml/pull/134",
+        "https://github.com/Chatnoir01/ml/pull/135"
+      ]
+    }
+  ],
+  "pr_coverage_checksum_description": "Exact sorted PR numbers, not a cryptographic checksum",
+  "sorted_open_prs": [
+    25,
+    26,
+    81,
+    120,
+    121,
+    122,
+    123,
+    124,
+    125,
+    126,
+    127,
+    129,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    138,
+    139,
+    140,
+    141,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158
+  ]
+}
