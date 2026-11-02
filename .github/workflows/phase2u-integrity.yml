@@ -5,6 +5,9 @@ on:
     paths:
       - "src/adversarial_sbox/phase2u_generate.py"
       - "tests/test_phase2u_generate.py"
+      - "tests/test_phase2u_panel.py"
+      - "src/adversarial_sbox/phase2u_panel.py"
+      - "research/PHASE2U_EXCLUDE_V1_CANDIDATES.json"
       - "research/PHASE2U_VERSIONED_SOURCE_RECOVERY.md"
       - ".github/workflows/phase2u-integrity.yml"
   workflow_dispatch:
