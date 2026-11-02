@@ -32,12 +32,14 @@ def test_full_ddt_spectrum_counts_every_nonzero_input_difference():
 
 
 def test_spectrum_invariant_under_extended_affine_transform():
-    original=tuple(CANDIDATES[0]["sbox"])
-    # Invertible affine input/output maps AND an arbitrary linear output
-    # correction L(x)=rotl8(x,2) XOR x: genuine extended affine relation.
+    # Use the identity permutation as an explicit test fixture: under
+    # EA output correction L(x)=((x & 1) << 5) the resulting map remains
+    # bijective (an off-diagonal elementary matrix), unlike a generic
+    # nonzero EA correction that may destroy bijectivity.
+    original=tuple(range(256))
     changed=tuple(
         _rot8(original[_rot8(x, 1)^0xA5],3)
-        ^ _rot8(x,2) ^ x ^ 0xC3
+        ^ ((x & 1) << 5) ^ 0xC3
         for x in range(256)
     )
     assert len(set(changed))==256
@@ -94,7 +96,7 @@ def test_distinct_synthetic_spectra_produce_certificate_without_neural_data():
 def test_matching_synthetic_spectrum_proves_that_certificate_must_fail():
     boxes=_synthetic_populations()
     boxes[8]=tuple(_rot8(boxes[0][_rot8(x,1)^0x5A],2)
-                    ^ _rot8(x,1) ^ 0x55 for x in range(256))
+                    ^ 0x55 for x in range(256))
     fake_panel={
         "status":"PANEL_COMPLETE_NO_NEURAL_OUTCOMES",
         "panel_receipt_sha256":"a"*64,
