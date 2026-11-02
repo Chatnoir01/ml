@@ -7,6 +7,7 @@ on:
     paths:
       - "research/RESEARCH_PORTFOLIO_CLOSURE_MANIFEST_20261102.json"
       - "research/RESEARCH_PORTFOLIO_CLOSURE_20261102.md"
+      - "research/RESEARCH_EVIDENCE_RETENTION_20261102.md"
       - "scripts/validate_research_portfolio_closure.py"
       - "tests/test_portfolio_closure_manifest.py"
       - ".github/workflows/portfolio-closure-registry.yml"
@@ -14,6 +15,7 @@ on:
     paths:
       - "research/RESEARCH_PORTFOLIO_CLOSURE_MANIFEST_20261102.json"
       - "research/RESEARCH_PORTFOLIO_CLOSURE_20261102.md"
+      - "research/RESEARCH_EVIDENCE_RETENTION_20261102.md"
       - "scripts/validate_research_portfolio_closure.py"
       - "tests/test_portfolio_closure_manifest.py"
       - ".github/workflows/portfolio-closure-registry.yml"
