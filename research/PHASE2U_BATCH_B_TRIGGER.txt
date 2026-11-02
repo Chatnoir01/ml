@@ -1,0 +1,7 @@
+Phase 2U preregistered classical source batch B — one-time explicit trigger.
+Frozen source version: phase2u_source_v1
+Ordered new seeds: 41011, 41017, 41027, 41039.
+Per seed: exactly 340 classical evaluations; source receipt archived.
+No neural training, no new prediction labels, no manual source selection.
+Already executed prior seed 41003 is never repeated or included in this batch.
+A subsequent unrelated PR update must not automatically rerun the batch.
