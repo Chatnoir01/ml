@@ -1,0 +1,7 @@
+Phase 2U — explicit one-time classical pre-neural freeze authorization, 2026-11-02.
+Source protocol: phase2u_source_v1, first 19 registered source seeds, precisely 12 eligible S-Box selections.
+Authoritative original-source panel SHA256: 512dd21d01617944047fd4e6f6ec2ae09daa68bc76d808837527a384148914ef.
+Prediction formula was locked earlier in the historical Phase 2S/2T software: mean signed one-bit heldout signal, depth four, original public key schedule, differences 1 and 256.
+This action MAY compute a classical score and a source-bound prediction receipt.
+This action MUST NOT launch neural training, inspect neural outcomes, change source candidates, tune predictor parameters or reinterpret Phase 2G/H/R historical results.
+No model prediction confirmation is claimed by the source-only precommit.
