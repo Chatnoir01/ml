@@ -105,6 +105,47 @@ def admit_panel(panel: dict[str, Any]) -> list[dict[str, Any]]:
         raise PredictionRejected("invalid seed attempt ledger")
     if len(HISTORICAL) != 6:
         raise PredictionRejected("historical panel drift")
+
+    # Preflight the COMPLETE ledger before inspecting any S-Box. This is both
+    # a computational guard and a strict integrity precedence invariant:
+    # malformed later seeds cannot be obscured by the contents of earlier
+    # candidates, including synthetic historical clones in tests.
+    success_count = 0
+    for i, entry in enumerate(attempts):
+        if type(entry) is not dict or entry.get("seed") != PROSPECTIVE_SEEDS[i]:
+            raise PredictionRejected("seed order, prefix or type mismatch")
+        if type(entry.get("evaluations")) is not int or entry["evaluations"] != 340:
+            raise PredictionRejected("missing fixed classical evaluation budget")
+        if any(not _strict_hex(entry.get(field)) for field in (
+            "source_payload_sha256", "initial_population_sha256",
+            "proposal_audit_sha256",
+        )):
+            raise PredictionRejected("incomplete source seed receipt provenance")
+        hits = entry.get("exact_metric_hits_in_ledger")
+        if type(hits) is not int or hits < 0:
+            raise PredictionRejected("invalid classical ledger match count")
+        if entry.get("status") == "accepted":
+            if hits < 1:
+                raise PredictionRejected("accepted seed lacks exact-metric ledger hits")
+            success_count += 1
+            if success_count > TARGET_CANDIDATES:
+                raise PredictionRejected("attempts continued after panel reached target")
+            if success_count == TARGET_CANDIDATES and i != len(attempts) - 1:
+                raise PredictionRejected("attempts continued after panel reached target")
+        elif entry.get("status") == "ineligible":
+            if hits:
+                raise PredictionRejected("ineligible seed reports exact matches")
+            if "sbox" in entry or "fingerprint" in entry:
+                raise PredictionRejected("ineligible attempts must not conceal candidates")
+            if entry.get("reason") != "no_exact_metric_evaluated":
+                raise PredictionRejected("unregistered ineligibility reason")
+        else:
+            raise PredictionRejected("unrecognized attempt status")
+    if success_count != TARGET_CANDIDATES:
+        raise PredictionRejected("panel incomplete; fail closed, do not replace seeds")
+    if attempts[-1]["status"] != "accepted":
+        raise PredictionRejected("ledger must stop on twelfth exact-metric match")
+
     successes: list[dict[str, Any]] = []
     observed_fingerprints: set[str] = set()
     for i, entry in enumerate(attempts):
