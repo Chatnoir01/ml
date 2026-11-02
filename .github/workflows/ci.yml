@@ -27,5 +27,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev]'
+      - name: Validate research preservation snapshot, if present
+        run: |
+          if [ -f research/RESEARCH_PORTFOLIO_CLOSURE_MANIFEST_20261102.json ]; then
+            python scripts/validate_research_portfolio_closure.py research/RESEARCH_PORTFOLIO_CLOSURE_MANIFEST_20261102.json
+            python -m unittest discover -s tests -p 'test_portfolio_closure_manifest.py' -v
+          else
+            echo "No research registry in this checkout"
+          fi
       - name: Run tests
         run: pytest
