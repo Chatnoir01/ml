@@ -24,7 +24,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install existing research dependencies
-        run: python -m pip install -e ".[dev]"
-      - name: Observation helper synthetic regression tests (no training)
-        run: python -m pytest -q tests/test_phase2r_observation.py
+      - name: Install research test dependencies and mandatory NumPy for this lane
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.26,<3"
+      - name: Observation helper synthetic regression tests (no training; no skipped tests)
+        run: |
+          python -c "import numpy; print('NumPy', numpy.__version__)"
+          python -m pytest -q -rs tests/test_phase2r_observation.py
+          python -m pytest -q --collect-only tests/test_phase2r_observation.py
