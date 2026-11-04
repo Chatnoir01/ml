@@ -4,9 +4,9 @@ from __future__ import annotations
 import copy
 import json
 
-import numpy as np
 import pytest
 
+np = pytest.importorskip("numpy", reason="Phase 2R observation requires optional NumPy")
 from adversarial_sbox.phase2r_observation import observe_checkpoint_zero
 
 
