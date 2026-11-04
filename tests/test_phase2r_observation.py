@@ -75,3 +75,27 @@ def test_reject_nan_without_leaking_weights():
     tensors["b1"][0] = np.nan
     with pytest.raises(ValueError, match="non-finite"):
         observe_checkpoint_zero(tensors=tensors, rng=rng)
+
+
+def test_observation_preserves_next_training_shuffle():
+    """Observing a seeded checkpoint must not change the next RNG permutation."""
+    rng_observed, tensors = _setup()
+    rng_control, control_tensors = _setup()
+    report = observe_checkpoint_zero(tensors=tensors, rng=rng_observed)
+    np.testing.assert_array_equal(
+        rng_observed.permutation(128), rng_control.permutation(128)
+    )
+    assert report["neural_training_performed"] is False
+    for name in tensors:
+        np.testing.assert_array_equal(tensors[name], control_tensors[name])
+
+
+def test_observed_initialization_equals_existing_phase2g_wire_hash():
+    """The helper must reuse Phase 2G's exact unmodified serializer."""
+    import hashlib
+    from adversarial_sbox.phase2g_shared_model import _serialize_model_state
+
+    rng, tensors = _setup()
+    report = observe_checkpoint_zero(tensors=tensors, rng=rng)
+    expected = hashlib.sha256(_serialize_model_state(**tensors)).hexdigest()
+    assert report["initialization_sha256"] == expected
