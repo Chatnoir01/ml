@@ -1,0 +1,85 @@
+name: Phase 2R Two-Runner Pretraining Byte Check (NO TRAINING)
+
+on:
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2r_initialization_preflight.py"
+      - "tests/test_phase2r_initialization_preflight.py"
+      - "research/PHASE2R_TWO_RUNNER_PRETRAINING_20261105.md"
+      - ".github/workflows/phase2r-two-runner-pretraining.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENBLAS_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+
+jobs:
+  zero-training-matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [A, F]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Install original NumPy version and synthetic-only unit dependencies
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy==2.5.3"
+          python -c 'import platform,numpy; assert platform.python_version()=="3.12.14"; assert numpy.__version__=="2.5.3"'
+      - name: Verify no-training preflight and tamper rejection
+        run: python -m pytest -q tests/test_phase2r_initialization_preflight.py
+      - name: Generate checkpoint-zero pretraining receipts (NO model fit)
+        run: |
+          python -m adversarial_sbox.phase2r_initialization_preflight emit \
+            --arm "${{ matrix.arm }}" \
+            --output "phase2r-pretraining-${{ matrix.arm }}.json"
+          python -c 'import json; r=json.load(open("phase2r-pretraining-${{ matrix.arm }}.json")); assert r["neural_training_performed"] is False; assert r["model_cell_count"] == 16; print("PRETRAINING_ONLY_"+r["arm_label_metadata_only"])'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-pretraining-${{ matrix.arm }}-${{ github.sha }}
+          path: phase2r-pretraining-${{ matrix.arm }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  independent-receipt-audit:
+    needs: zero-training-matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Install original numerical runtime and receipt validator
+        run: |
+          python -m pip install -e .
+          python -m pip install "numpy==2.5.3"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2r-pretraining-*-${{ github.sha }}
+          path: pretraining-receipts
+          merge-multiple: true
+      - name: Compare every A/F cell's train/validation/test, initial weights and RNG state
+        run: |
+          python -m adversarial_sbox.phase2r_initialization_preflight compare \
+            --A pretraining-receipts/phase2r-pretraining-A.json \
+            --F pretraining-receipts/phase2r-pretraining-F.json \
+            --output phase2r-two-runner-pretraining-audit.json
+          python -c 'import json; r=json.load(open("phase2r-two-runner-pretraining-audit.json")); assert r["neural_training_performed"] is False; assert r["scientific_result"] is False; print(r["status"],"DATA",r["data_matches"],"INIT",r["initialization_matches"],"RNG",r["rng_matches"])'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-two-runner-audit-${{ github.sha }}
+          path: phase2r-two-runner-pretraining-audit.json
+          if-no-files-found: error
+          retention-days: 30
