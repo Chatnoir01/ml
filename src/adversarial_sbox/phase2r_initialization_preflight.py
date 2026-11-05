@@ -161,6 +161,14 @@ def compare_pretraining_receipts(left: dict[str, Any],
             raise ValueError("noncompliant pre-training receipt")
         if receipt.get("python_version") != "3.12.14" or receipt.get("numpy_version") != "2.5.3":
             raise ValueError("not the preregistered numerical environment")
+        if (type(receipt.get("numpy_runtime_report_sha256")) is not str or
+                _HEX64.fullmatch(receipt["numpy_runtime_report_sha256"]) is None):
+            raise ValueError("missing NumPy runtime diagnostic digest")
+        if (type(receipt.get("runner_commit")) is not str or
+                re.fullmatch(r"[0-9a-f]{40}", receipt["runner_commit"]) is None):
+            raise ValueError("missing exact source commit")
+        if type(receipt.get("machine")) is not str or not receipt["machine"]:
+            raise ValueError("missing machine identity")
         if not isinstance(receipt.get("thread_limits"), dict) or any(
             receipt["thread_limits"].get(var) != "1" for var in THREAD_VARS
         ):
@@ -185,6 +193,8 @@ def compare_pretraining_receipts(left: dict[str, Any],
         examined.append(idx)
     if {left.get("arm_label_metadata_only"), right.get("arm_label_metadata_only")} != {"A", "F"}:
         raise ValueError("two independent A/F-labelled receipts required")
+    if left["runner_commit"] != right["runner_commit"]:
+        raise ValueError("source commit mismatch between independently emitted receipts")
     compared = [
         {
             "difference": d, "replicate": r,
@@ -199,6 +209,17 @@ def compare_pretraining_receipts(left: dict[str, Any],
     data = sum(x["dataset_bytes_match"] for x in compared)
     init = sum(x["initialization_bytes_match"] for x in compared)
     rng = sum(x["rng_state_match"] for x in compared)
+    runtime_match = (
+        left["numpy_runtime_report_sha256"] == right["numpy_runtime_report_sha256"]
+        and left["machine"] == right["machine"]
+    )
+    exact_bytes_match = (data == init == rng == 16)
+    if not runtime_match:
+        status = "INCOMPARABLE_NUMPY_RUNTIME_REPORT_MISMATCH"
+    elif not exact_bytes_match:
+        status = "FAIL_PRETRAINING_BYTES_DIVERGE"
+    else:
+        status = "PASS_PRETRAINING_TWO_RUNNER_BYTE_INVARIANCE"
     report = {
         "schema_version": 1,
         "comparison": "two_CI_jobs_A_vs_F_pretraining_only",
@@ -208,9 +229,10 @@ def compare_pretraining_receipts(left: dict[str, Any],
         "total_cells": 16,
         "numpy_runtime_report_hashes_match": left["numpy_runtime_report_sha256"] ==
                                               right["numpy_runtime_report_sha256"],
-        "status": ("PASS_PRETRAINING_TWO_RUNNER_BYTE_INVARIANCE"
-                   if data == init == rng == 16
-                   else "FAIL_PRETRAINING_BYTES_DIVERGE"),
+        "machine_identity_matches": left["machine"] == right["machine"],
+        "exact_pretraining_byte_invariance_observed": exact_bytes_match,
+        "runtime_comparability_established": runtime_match,
+        "status": status,
         "cells": compared,
         "neural_training_performed": False,
         "historical_discrepancy_explained": False,
