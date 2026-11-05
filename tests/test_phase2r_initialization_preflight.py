@@ -159,3 +159,34 @@ def test_refuses_duplicate_arm_labels_even_with_matching_hashes():
     another_a = _fake_receipt("A")
     with pytest.raises(ValueError, match="A/F-labelled"):
         compare_pretraining_receipts(a, another_a)
+
+
+def test_different_numpy_runtime_diagnostic_is_not_full_comparability():
+    """Actual 2026-11-05 A/F jobs had identical bytes but different runtime hashes."""
+    a, f = _fake_receipt("A"), _fake_receipt("F")
+    f["numpy_runtime_report_sha256"] = _sha("different CPU or BLAS report")
+    _reseal(f)
+    result = compare_pretraining_receipts(a, f)
+    assert result["data_matches"] == 16
+    assert result["initialization_matches"] == 16
+    assert result["rng_matches"] == 16
+    assert result["exact_pretraining_byte_invariance_observed"] is True
+    assert result["numpy_runtime_report_hashes_match"] is False
+    assert result["runtime_comparability_established"] is False
+    assert result["status"] == "INCOMPARABLE_NUMPY_RUNTIME_REPORT_MISMATCH"
+
+
+def test_different_source_commits_rejected_even_if_all_16_byte_hashes_match():
+    a, f = _fake_receipt("A"), _fake_receipt("F")
+    f["runner_commit"] = "b" * 40
+    _reseal(f)
+    with pytest.raises(ValueError, match="source commit mismatch"):
+        compare_pretraining_receipts(a, f)
+
+
+def test_missing_numpy_runtime_report_digest_rejected():
+    a, f = _fake_receipt("A"), _fake_receipt("F")
+    f["numpy_runtime_report_sha256"] = "invalid"
+    _reseal(f)
+    with pytest.raises(ValueError, match="NumPy runtime"):
+        compare_pretraining_receipts(a, f)
