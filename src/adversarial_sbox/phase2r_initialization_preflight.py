@@ -41,6 +41,51 @@ def _canonical(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
+
+
+def stable_numpy_runtime_profile() -> dict[str, Any]:
+    """Fingerprint numerically relevant runtime traits, NOT host-specific IDs.
+
+    NumPy show_runtime() may include platform.uname() with a unique hostname.
+    Its raw stdout hash is diagnostic only; it must never decide whether two
+    numerical environments are scientifically comparable.
+    """
+    import numpy as np
+    from numpy._core._multiarray_umath import (
+        __cpu_baseline__, __cpu_dispatch__, __cpu_features__,
+    )
+    try:
+        from threadpoolctl import threadpool_info
+    except ImportError as exc:
+        raise RuntimeError("threadpoolctl is required for actual BLAS provenance") from exc
+
+    loaded_blas = [
+        {name: info.get(name) for name in (
+            "user_api", "internal_api", "version",
+            "threading_layer", "architecture", "num_threads",
+        )}
+        for info in threadpool_info() if info.get("user_api") == "blas"
+    ]
+    if not loaded_blas:
+        raise RuntimeError("BLAS provider must be observed, not guessed")
+    if any(type(info["num_threads"]) is not int or info["num_threads"] != 1
+           for info in loaded_blas):
+        raise RuntimeError("actual BLAS threads must equal one")
+    return {
+        "schema_version": 1,
+        "python_version": platform.python_version(),
+        "numpy_version": np.__version__,
+        "os": platform.system(),
+        "architecture": platform.machine(),
+        "simd_baseline": sorted(str(x) for x in __cpu_baseline__),
+        "simd_dispatch": sorted(str(x) for x in __cpu_dispatch__),
+        "simd_available": sorted(
+            str(k) for k, value in __cpu_features__.items() if bool(value)
+        ),
+        "blas_libraries": sorted(loaded_blas, key=lambda info: _canonical(info)),
+    }
+
+
 def checkpoint_zero_seeded_initialization(model_seed: int):
     """Copy the original 2G pre-epoch NumPy weight recipe; never call the trainer.
 
@@ -114,6 +159,7 @@ def emit_pretraining_receipt(arm_label: str) -> dict[str, Any]:
     runtime = io.StringIO()
     with redirect_stdout(runtime):
         np.show_runtime()
+    stable_profile = stable_numpy_runtime_profile()
     result = {
         "schema_version": 1,
         "status": STATUS,
@@ -126,6 +172,8 @@ def emit_pretraining_receipt(arm_label: str) -> dict[str, Any]:
         "runner_commit": os.environ.get("GITHUB_SHA", ""),
         "thread_limits": threads,
         "numpy_runtime_report_sha256": hashlib.sha256(runtime.getvalue().encode()).hexdigest(),
+        "stable_runtime_profile": stable_profile,
+        "stable_runtime_profile_sha256": hashlib.sha256(_canonical(stable_profile)).hexdigest(),
         "cells": records,
         "model_cell_count": len(records),
         "neural_training_performed": False,
@@ -164,6 +212,12 @@ def compare_pretraining_receipts(left: dict[str, Any],
         if (type(receipt.get("numpy_runtime_report_sha256")) is not str or
                 _HEX64.fullmatch(receipt["numpy_runtime_report_sha256"]) is None):
             raise ValueError("missing NumPy runtime diagnostic digest")
+        profile = receipt.get("stable_runtime_profile")
+        if (type(profile) is not dict or profile.get("schema_version") != 1 or
+                type(receipt.get("stable_runtime_profile_sha256")) is not str or
+                _HEX64.fullmatch(receipt["stable_runtime_profile_sha256"]) is None or
+                hashlib.sha256(_canonical(profile)).hexdigest() != receipt["stable_runtime_profile_sha256"]):
+            raise ValueError("missing or mismatched stable numerical runtime fingerprint")
         if (type(receipt.get("runner_commit")) is not str or
                 re.fullmatch(r"[0-9a-f]{40}", receipt["runner_commit"]) is None):
             raise ValueError("missing exact source commit")
@@ -210,12 +264,12 @@ def compare_pretraining_receipts(left: dict[str, Any],
     init = sum(x["initialization_bytes_match"] for x in compared)
     rng = sum(x["rng_state_match"] for x in compared)
     runtime_match = (
-        left["numpy_runtime_report_sha256"] == right["numpy_runtime_report_sha256"]
+        left["stable_runtime_profile_sha256"] == right["stable_runtime_profile_sha256"]
         and left["machine"] == right["machine"]
     )
     exact_bytes_match = (data == init == rng == 16)
     if not runtime_match:
-        status = "INCOMPARABLE_NUMPY_RUNTIME_REPORT_MISMATCH"
+        status = "INCOMPARABLE_NUMERICAL_RUNTIME_PROFILE_MISMATCH"
     elif not exact_bytes_match:
         status = "FAIL_PRETRAINING_BYTES_DIVERGE"
     else:
@@ -230,6 +284,13 @@ def compare_pretraining_receipts(left: dict[str, Any],
         "numpy_runtime_report_hashes_match": left["numpy_runtime_report_sha256"] ==
                                               right["numpy_runtime_report_sha256"],
         "machine_identity_matches": left["machine"] == right["machine"],
+        "stable_runtime_profile_hashes_match": (
+            left["stable_runtime_profile_sha256"] == right["stable_runtime_profile_sha256"]
+        ),
+        "stable_runtime_profile_sha256_by_arm": {
+            "A": left["stable_runtime_profile_sha256"] if left["arm_label_metadata_only"] == "A" else right["stable_runtime_profile_sha256"],
+            "F": left["stable_runtime_profile_sha256"] if left["arm_label_metadata_only"] == "F" else right["stable_runtime_profile_sha256"],
+        },
         "exact_pretraining_byte_invariance_observed": exact_bytes_match,
         "runtime_comparability_established": runtime_match,
         "status": status,
