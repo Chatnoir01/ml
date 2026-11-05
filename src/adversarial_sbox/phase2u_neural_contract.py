@@ -27,6 +27,8 @@ SOURCE_PANEL_CANONICAL_SHA256 = "512dd21d01617944047fd4e6f6ec2ae09daa68bc76d8088
 DIFFERENCES = (1, 256)
 DATASET_SEEDS = (930101, 930113, 930127, 930139)
 MODEL_SEEDS = (940101, 940113, 940127, 940139)
+NULL_SHUFFLE_XOR_MASK = 0x6B6B6B6B
+NULL_LABEL_STRATEGY = "test_label_shuffle_after_training_fixed_score_vector"
 CANDIDATES = 12
 NEURAL_ROWS = CANDIDATES * len(DIFFERENCES) * len(DATASET_SEEDS)
 
@@ -48,6 +50,9 @@ PROTOCOL = {
     "cross_run_runtime_lock_and_commit_identical": True,
     "same_seed_initial_weights_identical_across_candidates_and_differences": True,
     "within_cell_train_validation_test_hashes_distinct": True,
+    "cross_candidate_same_regime_split_hashes_distinct": True,
+    "null_label_strategy": NULL_LABEL_STRATEGY,
+    "null_shuffle_seed_rule": "model_seed_xor_0x6B6B6B6B",
     "candidate_neural_score": "mean_over_8_of_2_times_abs(test_auc_minus_0.5)",
     "null_score": "mean_over_8_of_2_times_abs(shuffled_null_auc_minus_0.5)",
     "primary": "positive_spearman_correlation_across_12_independent_candidate_scores",
@@ -113,6 +118,7 @@ def validate_phase2u_neural_receipts(
     seen: set[tuple[str, int, int]] = set()
     expected_environment: tuple[str, str, str] | None = None
     expected_initialization_by_replicate: dict[int, str] = {}
+    dataset_used: dict[tuple[int, int, str], set[str]] = {}
     for row in runs:
         if type(row) is not dict:
             raise Phase2UOutcomeRejected("invalid neural row")
@@ -138,6 +144,11 @@ def validate_phase2u_neural_receipts(
             _hex64(dataset[label], f"{label} dataset SHA-256")
         if len(set(dataset.values())) != 3:
             raise Phase2UOutcomeRejected("train, validation and test dataset hashes must be distinct")
+        for label in ("train", "validation", "test"):
+            group = dataset_used.setdefault((difference, replicate, label), set())
+            if dataset[label] in group:
+                raise Phase2UOutcomeRejected("different candidates reused identical dataset split bytes")
+            group.add(dataset[label])
         for label in ("initialization_sha256", "final_state_sha256",
                       "rng_state_sha256", "runtime_manifest_sha256",
                       "dependency_lock_sha256"):
@@ -156,6 +167,10 @@ def validate_phase2u_neural_receipts(
         first_initial = expected_initialization_by_replicate.setdefault(replicate, initial)
         if initial != first_initial:
             raise Phase2UOutcomeRejected("same model seed produced different initial tensors")
+        if (row.get("null_label_strategy") != NULL_LABEL_STRATEGY or
+                type(row.get("null_shuffle_seed")) is not int or
+                row["null_shuffle_seed"] != (MODEL_SEEDS[replicate] ^ NULL_SHUFFLE_XOR_MASK)):
+            raise Phase2UOutcomeRejected("null-label evaluation strategy or shuffle seed changed")
         measured = _auc(row.get("test_auc"), "test AUC")
         shuffled = _auc(row.get("null_auc"), "null AUC")
         collected[fingerprint].append((measured, shuffled))
