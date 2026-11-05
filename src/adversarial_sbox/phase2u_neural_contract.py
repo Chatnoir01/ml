@@ -45,6 +45,9 @@ PROTOCOL = {
     "dataset_seeds": list(DATASET_SEEDS),
     "model_seeds": list(MODEL_SEEDS),
     "neural_training_count": NEURAL_ROWS,
+    "cross_run_runtime_lock_and_commit_identical": True,
+    "same_seed_initial_weights_identical_across_candidates_and_differences": True,
+    "within_cell_train_validation_test_hashes_distinct": True,
     "candidate_neural_score": "mean_over_8_of_2_times_abs(test_auc_minus_0.5)",
     "null_score": "mean_over_8_of_2_times_abs(shuffled_null_auc_minus_0.5)",
     "primary": "positive_spearman_correlation_across_12_independent_candidate_scores",
@@ -108,6 +111,8 @@ def validate_phase2u_neural_receipts(
         raise Phase2UOutcomeRejected("exactly 96 neural rows are required")
     collected: dict[str, list[tuple[float, float]]] = {f: [] for f in candidates}
     seen: set[tuple[str, int, int]] = set()
+    expected_environment: tuple[str, str, str] | None = None
+    expected_initialization_by_replicate: dict[int, str] = {}
     for row in runs:
         if type(row) is not dict:
             raise Phase2UOutcomeRejected("invalid neural row")
@@ -131,6 +136,8 @@ def validate_phase2u_neural_receipts(
             raise Phase2UOutcomeRejected("missing three dataset split hashes")
         for label in ("train", "validation", "test"):
             _hex64(dataset[label], f"{label} dataset SHA-256")
+        if len(set(dataset.values())) != 3:
+            raise Phase2UOutcomeRejected("train, validation and test dataset hashes must be distinct")
         for label in ("initialization_sha256", "final_state_sha256",
                       "rng_state_sha256", "runtime_manifest_sha256",
                       "dependency_lock_sha256"):
@@ -139,6 +146,16 @@ def validate_phase2u_neural_receipts(
         if (type(source_commit) is not str or len(source_commit) != 40 or
                 any(c not in "0123456789abcdef" for c in source_commit)):
             raise Phase2UOutcomeRejected("missing source commit SHA")
+        environment = (row["runtime_manifest_sha256"],
+                       row["dependency_lock_sha256"], source_commit)
+        if expected_environment is None:
+            expected_environment = environment
+        elif environment != expected_environment:
+            raise Phase2UOutcomeRejected("mixed runtime, dependency lock or runner commit")
+        initial = row["initialization_sha256"]
+        first_initial = expected_initialization_by_replicate.setdefault(replicate, initial)
+        if initial != first_initial:
+            raise Phase2UOutcomeRejected("same model seed produced different initial tensors")
         measured = _auc(row.get("test_auc"), "test AUC")
         shuffled = _auc(row.get("null_auc"), "null AUC")
         collected[fingerprint].append((measured, shuffled))
