@@ -32,7 +32,7 @@ The source-of-truth is the new [forward-only probe module](../src/adversarial_sb
 - Hash seven staged float32 tensor byte arrays using a domain-separated, versioned length + shape + C-order little-endian serializer. Do not use string `repr` or auto-convert float64.
 - Pin separate job Python **3.12.14**, NumPy **2.5.3**, `threadpoolctl==3.6.0`, five thread-limit variables `=1`. Record normalized CPU SIMD and BLAS provider/version/core/thread profile from `threadpoolctl` before comparing.
 - The third job checks canonical receipt integrity, the same source commit, exact initial-state/RNG values and the seven stage digests. Records the earliest differing stage, and **always preserves observational output**, even when runner profiles differ.
-- Tests: six synthetic-only unit tests for float32/row-order/shape digest, omitted/tampered metadata, CPU drift classification, first stage localization, fixed synthetic-batch inference and no-training attestations.
+- Tests: seven synthetic-only unit tests for float32/row-order/shape digest, preregistered seed and CPU/BLAS pinning, omitted/tampered metadata, CPU drift classification, first stage localization, fixed synthetic-batch inference and no-training attestations.
 
 **The CI workflow does not try to make the host CPU profiles equal**. It must report whether they actually match. Distinct host architectures are a source of comparison uncertainty rather than proof of a causal hardware effect.
 
