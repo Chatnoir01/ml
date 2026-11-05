@@ -20,6 +20,12 @@ The new `phase2u_neural_contract.py` separately checks the original exact frozen
 
 Cross-run hash equality is a necessary comparability condition, **not proof** that the bytes accurately describe the execution. Genuine runtime attestation, record-level sample split inspection, original model serialization and an independent recomputation remain open gates.
 
+**Additional checks added prospectively before any Phase 2U neural scores (2026-11-05):** for each fixed input-difference, replicate, and split, all 12 candidate-specific dataset byte SHA-256 values must be distinct. This catches the particularly serious accidental error of passing the same ciphertext dataset to multiple S-Box models, but does NOT establish plaintext non-overlap, source integrity, or fair paired input generation. The exact neural-training pipeline still needs independent preflight.
+
+**Null AUC semantics:** the historical `neural_heterogeneity._train_byte_tanh_mlp` **does not retrain** a shuffled-label negative-control model. It scores the original trained model's fixed **test-set predictions**, then uses `random.Random(model_seed ^ 0x6B6B6B6B).shuffle(test_labels)` to measure chance label alignment on that held-out set. Therefore the 2U design must call this a **test-label permutation diagnostic**, not a shuffled-label neural training experiment. The future receipt has a required null method identifier and exact XOR-derived shuffle seed; the 96 neural-training count remains unchanged. This diagnostic alone cannot rule out training-set leakage or confounding by a different model-training procedure.
+
+All these additional controls change only the prospective **draft neural receipt protocol** and its new protocol SHA-256, not the existing frozen source or classical predictor receipts.
+
 ## 2. Proposed prospective confirmatory geometry (inherited, requires review)
 
 These inputs were preregistered **before any Phase 2T/2U neural outcomes** in `PHASE2T_PROSPECTIVE_PREDICTION_PROTOCOL.md`. The Phase 2U source population is a separate version, so they require distinct owner/scientific approval rather than automatic transplantation:
