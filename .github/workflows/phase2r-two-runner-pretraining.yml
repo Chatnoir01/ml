@@ -70,16 +70,25 @@ jobs:
           pattern: phase2r-pretraining-*-${{ github.sha }}
           path: pretraining-receipts
           merge-multiple: true
-      - name: Compare every A/F cell's train/validation/test, initial weights and RNG state
+      - name: Compare independent A/F receipts and preserve even incomparable outcomes
+        shell: bash
         run: |
+          set +e
           python -m adversarial_sbox.phase2r_initialization_preflight compare \
             --A pretraining-receipts/phase2r-pretraining-A.json \
             --F pretraining-receipts/phase2r-pretraining-F.json \
             --output phase2r-two-runner-pretraining-audit.json
-          python -c 'import json; r=json.load(open("phase2r-two-runner-pretraining-audit.json")); assert r["neural_training_performed"] is False; assert r["scientific_result"] is False; print(r["status"],"DATA",r["data_matches"],"INIT",r["initialization_matches"],"RNG",r["rng_matches"])'
+          status="$?"
+          set -e
+          echo "Comparator process exit: ${status}; preserving original report before enforcing PASS."
+          test -f phase2r-two-runner-pretraining-audit.json
+          python -c 'import json; r=json.load(open("phase2r-two-runner-pretraining-audit.json")); assert r["neural_training_performed"] is False; assert r["scientific_result"] is False; print(r["status"],"DATA",r["data_matches"],"INIT",r["initialization_matches"],"RNG",r["rng_matches"],"RUNTIME_COMPARABLE",r["runtime_comparability_established"])'
       - uses: actions/upload-artifact@v4
         with:
           name: phase2r-two-runner-audit-${{ github.sha }}
           path: phase2r-two-runner-pretraining-audit.json
           if-no-files-found: error
           retention-days: 30
+      - name: Fail closed unless bytes and normalized numerical profile all match
+        run: |
+          python -c 'import json; r=json.load(open("phase2r-two-runner-pretraining-audit.json")); assert r["status"] == "PASS_PRETRAINING_TWO_RUNNER_BYTE_INVARIANCE", r["status"]'
