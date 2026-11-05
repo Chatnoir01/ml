@@ -10,7 +10,7 @@ import pytest
 from adversarial_sbox.phase2u_neural_contract import (
     CANDIDATES, DATASET_SEEDS, DIFFERENCES, MODEL_SEEDS, NEURAL_ROWS,
     PREDICTION_SHA256, PROTOCOL, PROTOCOL_SHA256,
-    SOURCE_PANEL_CANONICAL_SHA256,
+    SOURCE_PANEL_CANONICAL_SHA256, NULL_LABEL_STRATEGY, NULL_SHUFFLE_XOR_MASK,
     Phase2UOutcomeRejected, validate_phase2u_neural_receipts,
     analyze_supplied_phase2u_receipts,
 )
@@ -50,6 +50,8 @@ def _synthetic() -> tuple[dict, dict]:
                     "runner_commit_sha": "a" * 40,
                     "test_auc": 0.55 + candidate["classical_feature_score"] / 3,
                     "null_auc": 0.501,
+                    "null_label_strategy": NULL_LABEL_STRATEGY,
+                    "null_shuffle_seed": MODEL_SEEDS[rep] ^ NULL_SHUFFLE_XOR_MASK,
                 })
     assert len(runs) == NEURAL_ROWS
     outcome = {
@@ -182,4 +184,35 @@ def test_dataset_split_hash_collision_rejected():
     p, o = _synthetic()
     o["runs"][0]["dataset_sha256"]["test"] = o["runs"][0]["dataset_sha256"]["train"]
     with pytest.raises(Phase2UOutcomeRejected, match="must be distinct"):
+        _check(p, o)
+
+
+def test_cross_candidate_dataset_reuse_rejected():
+    """A candidate-specific ciphertext dataset must not silently ignore its S-Box."""
+    p, o = _synthetic()
+    first = o["runs"][0]
+    other = next(
+        row for row in o["runs"]
+        if (row["fingerprint"] != first["fingerprint"]
+            and row["difference"] == first["difference"]
+            and row["replicate"] == first["replicate"])
+    )
+    other["dataset_sha256"]["train"] = first["dataset_sha256"]["train"]
+    with pytest.raises(Phase2UOutcomeRejected, match="different candidates reused"):
+        _check(p, o)
+
+
+def test_null_baseline_must_be_heldout_label_shuffle_not_retraining():
+    """Pin the existing test-label permutation semantics and replicate seeds."""
+    p, o = _synthetic()
+    o["runs"][0]["null_label_strategy"] = "retrain_on_shuffled_labels"
+    with pytest.raises(Phase2UOutcomeRejected, match="null-label evaluation"):
+        _check(p, o)
+    p, o = _synthetic()
+    o["runs"][0]["null_shuffle_seed"] += 1
+    with pytest.raises(Phase2UOutcomeRejected, match="shuffle seed"):
+        _check(p, o)
+    p, o = _synthetic()
+    o["runs"][0]["null_shuffle_seed"] = True
+    with pytest.raises(Phase2UOutcomeRejected, match="shuffle seed"):
         _check(p, o)
