@@ -16,6 +16,10 @@ The old `phase2t_evaluate.py` requires a `phase2t_fresh_12_neural_only` outcome 
 
 The new `phase2u_neural_contract.py` separately checks the original exact frozen Phase 2U digest, original source-panel canonical digest, and all 96 candidate × delta × replicate outcome identities. A passing validator proves only supplied **metadata consistency**, not honesty or provenance authenticity of its claimed values.
 
+**Engineering strengthening (2026-11-05, before real 2U labels):** the same runner commit, dependency-lock SHA and runtime-manifest SHA are now required for all 96 rows, rather than merely requiring each field to look like a hash. The original `byte_tanh_mlp` initializes weights exclusively from a registered `model_seed`; the initial model tensor SHA must therefore match for all 24 candidate/difference cells sharing one of the four replicate model seeds. Each cell must have three distinct train/validation/test split hashes. The new constraints form part of this draft **future** protocol fingerprint, not any historical frozen Phase 2U prediction or Phase 2G execution.
+
+Cross-run hash equality is a necessary comparability condition, **not proof** that the bytes accurately describe the execution. Genuine runtime attestation, record-level sample split inspection, original model serialization and an independent recomputation remain open gates.
+
 ## 2. Proposed prospective confirmatory geometry (inherited, requires review)
 
 These inputs were preregistered **before any Phase 2T/2U neural outcomes** in `PHASE2T_PROSPECTIVE_PREDICTION_PROTOCOL.md`. The Phase 2U source population is a separate version, so they require distinct owner/scientific approval rather than automatic transplantation:
