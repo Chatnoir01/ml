@@ -10,6 +10,7 @@ import pytest
 np = pytest.importorskip("numpy")
 from adversarial_sbox.datasets import PairSample
 from adversarial_sbox.neural100 import BATCH_SIZE
+from adversarial_sbox.phase2g import TRAINING_DATASET_BASE_SEEDS, TRAINING_MODEL_BASE_SEEDS
 from adversarial_sbox.phase2r_forward_only_probe import (
     _STAGES, _array_receipt, _canonical, compare_forward_probes,
     forward_only_probe,
@@ -22,14 +23,19 @@ def _hash(x):
 
 def _receipt():
     stage = _array_receipt(np.zeros((3, 12), dtype=np.float32))
-    profile = {"schema_version": 1, "blas_libraries": [{"architecture": "Haswell"}]}
+    profile = {
+        "schema_version": 1, "python_version": "3.12.14",
+        "numpy_version": "2.5.3", "simd_available": ["AVX2"],
+        "blas_libraries": [{"architecture": "Haswell", "num_threads": 1}],
+    }
     fields = {
         "schema_version": 1,
         "purpose": "phase2r_first_forward_batch_without_training",
         "source_commit": "a" * 40,
         "fixture_sha256": "09e94da031992240d857a139768445c042cb712abf866f15084300a4a267e8a2",
         "difference": 1, "replicate": 0,
-        "model_seed": 456, "dataset_seed": 123,
+        "model_seed": TRAINING_MODEL_BASE_SEEDS[0],
+        "dataset_seed": TRAINING_DATASET_BASE_SEEDS[0],
         "batch_size": BATCH_SIZE,
         "initialization_sha256": _hash("init"),
         "rng_state_sha256": _hash("rng"),
@@ -120,3 +126,19 @@ def test_one_fixed_synthetic_batch_executes_only_forward_arrays():
     assert result["gradient_computed"] is False
     assert result["optimizer_update_performed"] is False
     assert result["historical_phase2g_anomaly_explained"] is False
+
+
+def test_invalid_registered_seed_or_unpinned_runtime_fails_closed():
+    a, f = _receipt(), _receipt()
+    f["model_seed"] += 1
+    _reseal(f)
+    with pytest.raises(ValueError, match="registered source and seed"):
+        compare_forward_probes(a, f)
+    f = _receipt()
+    f["runtime_profile"]["blas_libraries"][0]["num_threads"] = 2
+    f["runtime_profile_sha256"] = hashlib.sha256(
+        _canonical(f["runtime_profile"])
+    ).hexdigest()
+    _reseal(f)
+    with pytest.raises(ValueError, match="fully observed"):
+        compare_forward_probes(a, f)
