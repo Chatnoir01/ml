@@ -36,6 +36,11 @@ def _fake_receipt(arm: str) -> dict:
                 "initialization_sha256": _sha(f"seeded-{r}"),
                 "rng_state_sha256": _sha(f"rng-{r}"),
             })
+    stable_profile = {
+        "schema_version": 1, "numpy_version": "2.5.3",
+        "python_version": "3.12.14", "architecture": "x86_64",
+        "simd_available": ["SSE2"], "blas_libraries": [{"internal_api": "openblas", "num_threads": 1}],
+    }
     report = {
         "schema_version": 1, "status": STATUS,
         "arm_label_metadata_only": arm, "fixture_id": FIXTURE_ID,
@@ -44,6 +49,8 @@ def _fake_receipt(arm: str) -> dict:
         "machine": "x86_64", "runner_commit": "a"*40,
         "thread_limits": {var: "1" for var in THREAD_VARS},
         "numpy_runtime_report_sha256": _sha("synthetic-runtime"),
+        "stable_runtime_profile": stable_profile,
+        "stable_runtime_profile_sha256": hashlib.sha256(_canonical(stable_profile)).hexdigest(),
         "cells": cells, "model_cell_count": 16,
         "neural_training_performed": False,
         "historical_phase2g_artifacts_used": False,
@@ -161,8 +168,8 @@ def test_refuses_duplicate_arm_labels_even_with_matching_hashes():
         compare_pretraining_receipts(a, another_a)
 
 
-def test_different_numpy_runtime_diagnostic_is_not_full_comparability():
-    """Actual 2026-11-05 A/F jobs had identical bytes but different runtime hashes."""
+def test_volatile_numpy_runtime_stdout_is_not_a_comparability_gate():
+    """The raw NumPy report includes platform.uname: unique runner hostnames."""
     a, f = _fake_receipt("A"), _fake_receipt("F")
     f["numpy_runtime_report_sha256"] = _sha("different CPU or BLAS report")
     _reseal(f)
@@ -172,8 +179,9 @@ def test_different_numpy_runtime_diagnostic_is_not_full_comparability():
     assert result["rng_matches"] == 16
     assert result["exact_pretraining_byte_invariance_observed"] is True
     assert result["numpy_runtime_report_hashes_match"] is False
-    assert result["runtime_comparability_established"] is False
-    assert result["status"] == "INCOMPARABLE_NUMPY_RUNTIME_REPORT_MISMATCH"
+    assert result["stable_runtime_profile_hashes_match"] is True
+    assert result["runtime_comparability_established"] is True
+    assert result["status"] == "PASS_PRETRAINING_TWO_RUNNER_BYTE_INVARIANCE"
 
 
 def test_different_source_commits_rejected_even_if_all_16_byte_hashes_match():
@@ -189,4 +197,27 @@ def test_missing_numpy_runtime_report_digest_rejected():
     f["numpy_runtime_report_sha256"] = "invalid"
     _reseal(f)
     with pytest.raises(ValueError, match="NumPy runtime"):
+        compare_pretraining_receipts(a, f)
+
+
+def test_changed_cpu_or_blas_profile_is_scientifically_incomparable():
+    """A numerical hardware variation must not produce a full PASS."""
+    a, f = _fake_receipt("A"), _fake_receipt("F")
+    f["stable_runtime_profile"]["simd_available"].append("DIFFERENT_CPU")
+    f["stable_runtime_profile_sha256"] = hashlib.sha256(
+        _canonical(f["stable_runtime_profile"])
+    ).hexdigest()
+    _reseal(f)
+    result = compare_pretraining_receipts(a, f)
+    assert result["exact_pretraining_byte_invariance_observed"] is True
+    assert result["stable_runtime_profile_hashes_match"] is False
+    assert result["runtime_comparability_established"] is False
+    assert result["status"] == "INCOMPARABLE_NUMERICAL_RUNTIME_PROFILE_MISMATCH"
+
+
+def test_runtime_profile_hash_must_be_bound_to_its_actual_fields():
+    a, f = _fake_receipt("A"), _fake_receipt("F")
+    f["stable_runtime_profile"]["blas_libraries"][0]["num_threads"] = 8
+    _reseal(f)
+    with pytest.raises(ValueError, match="stable numerical runtime fingerprint"):
         compare_pretraining_receipts(a, f)
