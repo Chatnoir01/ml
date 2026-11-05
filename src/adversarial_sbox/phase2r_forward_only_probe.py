@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import struct
 from pathlib import Path
 from typing import Any
@@ -112,17 +113,33 @@ def compare_forward_probes(a: dict[str, Any], f: dict[str, Any]) -> dict[str, An
         got = stripped.pop("receipt_sha256", None)
         if hashlib.sha256(_canonical(stripped)).hexdigest() != got:
             raise ValueError("forward receipt integrity mismatch")
-        if (record.get("purpose") != "phase2r_first_forward_batch_without_training"
+        if (record.get("schema_version") != 1 or
+                record.get("purpose") != "phase2r_first_forward_batch_without_training"
                 or record.get("fixture_sha256") != CURRICULUM_SHA256
                 or record.get("neural_training_performed") is not False
                 or record.get("gradient_computed") is not False
                 or record.get("optimizer_update_performed") is not False
                 or record.get("historical_phase2g_anomaly_explained") is not False):
             raise ValueError("invalid forward-only scope contract")
+        if (type(record.get("source_commit")) is not str or
+                re.fullmatch(r"[0-9a-f]{40}", record["source_commit"]) is None or
+                record.get("model_seed") != TRAINING_MODEL_BASE_SEEDS[_REP] or
+                record.get("dataset_seed") != TRAINING_DATASET_BASE_SEEDS[_REP]):
+            raise ValueError("incorrect registered source and seed identity")
         if not isinstance(record.get("runtime_profile"), dict):
             raise ValueError("missing normalized runtime profile")
         if hashlib.sha256(_canonical(record["runtime_profile"])).hexdigest() != record.get("runtime_profile_sha256"):
             raise ValueError("unbound numerical runtime metadata")
+        numerical = record["runtime_profile"]
+        if (numerical.get("schema_version") != 1 or
+                numerical.get("python_version") != "3.12.14" or
+                numerical.get("numpy_version") != "2.5.3" or
+                not isinstance(numerical.get("simd_available"), list) or
+                not isinstance(numerical.get("blas_libraries"), list) or
+                not numerical["blas_libraries"] or
+                any(type(info.get("num_threads")) is not int or
+                    info["num_threads"] != 1 for info in numerical["blas_libraries"])):
+            raise ValueError("numerical runtime not pinned or fully observed")
         if not isinstance(record.get("stages"), dict) or set(record["stages"]) != set(_STAGES):
             raise ValueError("missing forward stages")
         for stage in _STAGES:
