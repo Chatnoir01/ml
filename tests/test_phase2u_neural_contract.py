@@ -42,7 +42,7 @@ def _synthetic() -> tuple[dict, dict]:
                     "model_seed": MODEL_SEEDS[rep],
                     "dataset_sha256": {name: _hash(f"{fp}:{difference}:{rep}:{name}")
                                        for name in ("train", "validation", "test")},
-                    "initialization_sha256": _hash(f"{fp}:{difference}:{rep}:init"),
+                    "initialization_sha256": _hash(f"same-seed-init:{rep}"),
                     "final_state_sha256": _hash(f"{fp}:{difference}:{rep}:state"),
                     "rng_state_sha256": _hash(f"{fp}:{difference}:{rep}:rng"),
                     "runtime_manifest_sha256": _hash("synthetic-runtime"),
@@ -152,3 +152,34 @@ def test_statistics_never_promote_synthetic_receipts_to_scientific_result():
     assert report["scientific_validation_status"] == (
         "UNAUTHENTICATED_SUPPLIED_RECEIPTS_NOT_SCIENTIFIC_VERDICT"
     )
+
+
+def test_mixed_runtime_or_source_revision_rejected():
+    """A 96-row aggregate must not silently mix computational environments."""
+    for field, message in (
+        ("runtime_manifest_sha256", "runtime"),
+        ("dependency_lock_sha256", "dependency"),
+        ("runner_commit_sha", "commit"),
+    ):
+        p, o = _synthetic()
+        o["runs"][-1][field] = (
+            "b" * 40 if field == "runner_commit_sha"
+            else _hash("different-" + field)
+        )
+        with pytest.raises(Phase2UOutcomeRejected, match="mixed " + ".*"):
+            _check(p, o)
+
+
+def test_identical_model_seed_requires_identical_initial_tensors():
+    """Same explicitly fixed seed cannot produce candidate-specific initial weights."""
+    p, o = _synthetic()
+    o["runs"][-1]["initialization_sha256"] = _hash("different-init-but-same-seed")
+    with pytest.raises(Phase2UOutcomeRejected, match="same model seed"):
+        _check(p, o)
+
+
+def test_dataset_split_hash_collision_rejected():
+    p, o = _synthetic()
+    o["runs"][0]["dataset_sha256"]["test"] = o["runs"][0]["dataset_sha256"]["train"]
+    with pytest.raises(Phase2UOutcomeRejected, match="must be distinct"):
+        _check(p, o)
