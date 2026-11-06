@@ -8,6 +8,7 @@ on:
       - "src/adversarial_sbox/phase2h.py"
       - "src/adversarial_sbox/phase2h_evidence.py"
       - "src/adversarial_sbox/phase2h_timeline.py"
+      - "src/adversarial_sbox/phase2h_h3_archival.py"
       - "tests/test_phase2h*.py"
       - "research/PHASE2H_PROTOCOL.md"
       - "research/phase2h-evidence-inventory.json"
@@ -94,7 +95,7 @@ jobs:
           cmp research/PHASE2H_RESULT.md /tmp/PHASE2H_RESULT-rerun.md
 
       - name: Run Phase 2H tests
-        run: pytest -q tests/test_phase2h.py tests/test_phase2h_evidence.py tests/test_phase2h_timeline.py tests/test_phase2h_runner.py
+        run: pytest -q tests/test_phase2h.py tests/test_phase2h_evidence.py tests/test_phase2h_timeline.py tests/test_phase2h_runner.py tests/test_phase2h_h3_archival.py
 
       - name: Upload Phase 2H deterministic product
         uses: actions/upload-artifact@v4
