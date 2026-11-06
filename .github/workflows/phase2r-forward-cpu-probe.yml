@@ -1,0 +1,85 @@
+name: Phase 2R Forward Only CPU-BLAS Probe (NO TRAINING)
+
+on:
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2r_forward_only_probe.py"
+      - "tests/test_phase2r_forward_only_probe.py"
+      - "research/PHASE2R_FORWARD_CPU_PROBE_PROTOCOL_20261106.md"
+      - ".github/workflows/phase2r-forward-cpu-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENBLAS_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+
+jobs:
+  original-numerical-version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        label: [A, F]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Install pinned NumPy BLAS introspection and synthetic tests
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy==2.5.3" "threadpoolctl==3.6.0"
+          python -c 'import numpy,platform; assert numpy.__version__=="2.5.3"; assert platform.python_version()=="3.12.14"'
+      - name: Only synthetic unit tests, no training
+        run: python -m pytest -q tests/test_phase2r_forward_only_probe.py
+      - name: Compute fixed synthetic-batch forward hashes (NO training)
+        run: |
+          python -m adversarial_sbox.phase2r_forward_only_probe \
+            --arm "${{ matrix.label }}" \
+            --output "phase2r-forward-${{ matrix.label }}.json"
+          python -c 'import json; r=json.load(open("phase2r-forward-${{ matrix.label }}.json")); assert r["neural_training_performed"] is False and r["optimizer_update_performed"] is False; print("FORWARD_ONLY",r["runtime_profile"]["blas_libraries"])'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-forward-${{ matrix.label }}-${{ github.sha }}
+          path: phase2r-forward-${{ matrix.label }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  compare-source-receipts:
+    needs: original-numerical-version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Install package and comparison dependencies
+        run: |
+          python -m pip install -e .
+          python -m pip install "numpy==2.5.3" "threadpoolctl==3.6.0"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2r-forward-*-${{ github.sha }}
+          path: receipts
+          merge-multiple: true
+      - name: Record observed first mismatch regardless of CPU difference
+        run: |
+          python -m adversarial_sbox.phase2r_forward_only_probe \
+            --compare-A receipts/phase2r-forward-A.json \
+            --compare-F receipts/phase2r-forward-F.json \
+            --output phase2r-forward-cpu-comparison.json
+          python -c 'import json; r=json.load(open("phase2r-forward-cpu-comparison.json")); assert r["neural_training_performed"] is False; print("OBSERVATION",r["status"],"EARLIEST",r["earliest_different_stage"])'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-forward-cpu-audit-${{ github.sha }}
+          path: phase2r-forward-cpu-comparison.json
+          if-no-files-found: error
+          retention-days: 30

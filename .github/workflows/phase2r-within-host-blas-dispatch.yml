@@ -1,0 +1,121 @@
+name: Phase 2R Within-Host OpenBLAS Dispatch (FORWARD ONLY; NO TRAINING)
+
+on:
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2r_forward_only_probe.py"
+      - "tests/test_phase2r_forward_only_probe.py"
+      - "research/PHASE2R_WITHIN_HOST_BLAS_DISPATCH_PROTOCOL_20261106.md"
+      - ".github/workflows/phase2r-within-host-blas-dispatch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENBLAS_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+
+jobs:
+  same-host-coretype-contrast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        replica: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Install locked numerical runtime and synthetic verifier dependencies
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy==2.5.3" "threadpoolctl==3.6.0"
+          python -c 'import platform,numpy; assert platform.python_version()=="3.12.14"; assert numpy.__version__=="2.5.3"'
+      - name: Test isolated forward probe without any training
+        run: python -m pytest -q tests/test_phase2r_forward_only_probe.py
+      - name: Generate original native and forced-Haswell forward observations on SAME HOST
+        shell: bash
+        run: |
+          env -u OPENBLAS_CORETYPE python -m adversarial_sbox.phase2r_forward_only_probe \
+            --arm A --output phase2r-native.json
+          env OPENBLAS_CORETYPE=HASWELL python -m adversarial_sbox.phase2r_forward_only_probe \
+            --arm F --output phase2r-forced-haswell.json
+          python -m adversarial_sbox.phase2r_forward_only_probe \
+            --compare-A phase2r-native.json \
+            --compare-F phase2r-forced-haswell.json \
+            --output phase2r-dispatch-comparison.json
+      - name: Classify observed kernel pair and preserve negative/ineligible outcomes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,hashlib,os
+          a=json.load(open("phase2r-native.json",encoding="utf-8"))
+          f=json.load(open("phase2r-forced-haswell.json",encoding="utf-8"))
+          c=json.load(open("phase2r-dispatch-comparison.json",encoding="utf-8"))
+          def arch(receipt):
+              libs=receipt["runtime_profile"]["blas_libraries"]
+              assert len(libs)==1 and libs[0]["internal_api"]=="openblas"
+              assert libs[0]["num_threads"]==1
+              return libs[0]["architecture"]
+          native=arch(a); forced=arch(f)
+          assert forced=="Haswell", "requested OPENBLAS_CORETYPE=HASWELL was not applied"
+          assert a["source_commit"]==f["source_commit"]==os.environ["GITHUB_SHA"]
+          assert a["neural_training_performed"] is f["neural_training_performed"] is False
+          assert a["gradient_computed"] is f["gradient_computed"] is False
+          assert a["optimizer_update_performed"] is f["optimizer_update_performed"] is False
+          assert c["neural_training_performed"] is False
+          # Separate processes, but both share the SAME runner's CPU features.
+          assert a["runtime_profile"]["simd_available"] == f["runtime_profile"]["simd_available"]
+          if native=="SkylakeX":
+              status=("ELIGIBLE_KERNEL_CONTRAST_IDENTICAL_FORWARD_BYTES" if c["all_stage_bytes_equal"]
+                      else "ELIGIBLE_KERNEL_CONTRAST_DIFFERENT_FORWARD_BYTES")
+          elif native=="Haswell":
+              status="INCONCLUSIVE_NO_DISPATCH_CHANGE"
+          else:
+              status="OUT_OF_TARGET_KERNEL_PAIR"
+          result={
+              "schema_version":1,
+              "experiment":"phase2r_same_host_native_vs_forced_haswell_forward_only",
+              "replica":int(os.environ["MATRIX_REPLICA"]),
+              "head_commit_sha":a["source_commit"],
+              "native_kernel":native,
+              "forced_kernel":forced,
+              "native_runtime_sha256":a["runtime_profile_sha256"],
+              "forced_runtime_sha256":f["runtime_profile_sha256"],
+              "all_seven_stages_equal":c["all_stage_bytes_equal"],
+              "first_different_stage":c["earliest_different_stage"],
+              "decision":status,
+              "neural_training_performed":False,
+              "historical_phase2g_anomaly_explained":False,
+              "source_receipt_sha256s":{"native":a["receipt_sha256"],
+                                       "forced":f["receipt_sha256"],
+                                       "comparison":c["report_sha256"]},
+          }
+          result["report_sha256"]=hashlib.sha256(
+              json.dumps(result,sort_keys=True,separators=(",",":")).encode()
+          ).hexdigest()
+          with open("phase2r-dispatch-decision.json","x",encoding="utf-8") as out:
+              json.dump(result,out,sort_keys=True,indent=2)
+              out.write("\n")
+          print("DISPATCH_DECISION",status,"NATIVE",native,"FORCED",forced,
+                "FORWARD_EQUAL",c["all_stage_bytes_equal"])
+          PY
+        env:
+          MATRIX_REPLICA: ${{ matrix.replica }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase2r-within-host-dispatch-replica-${{ matrix.replica }}-${{ github.sha }}
+          path: |
+            phase2r-native.json
+            phase2r-forced-haswell.json
+            phase2r-dispatch-comparison.json
+            phase2r-dispatch-decision.json
+          if-no-files-found: error
+          retention-days: 30
