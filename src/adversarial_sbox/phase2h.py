@@ -14,6 +14,7 @@ from typing import Any
 
 from .phase2g import CHECKPOINT_GENERATIONS, EVOLUTION_SEEDS
 from .phase2h_timeline import build_divergence_timeline
+from .phase2h_h3_archival import classical_distortion_from_frozen_receipts
 from .phase2h_evidence import verify_evidence_manifest
 
 PARENT_PHASE2G_COMMIT = "ba1aec133c50ddac246a54a70bb3ff2f0994df3a"
@@ -169,73 +170,9 @@ def _mechanism_events(raw: Mapping[str, Any]) -> dict[str, Any]:
 
 
 
-def _classical_tuple(raw: Mapping[str, Any]) -> tuple[float, ...] | None:
-    """Return the frozen primary-security tuple from a serialized ledger row."""
-    try:
-        nl = float(raw["nonlinearity"])
-        du = float(raw["differential_uniformity"])
-        lc = float(raw["max_linear_correlation"])
-        degree = float(raw["algebraic_degree"])
-    except (KeyError, TypeError, ValueError):
-        return None
-    # Admissibility is deliberately not reconstructed here: the artifact may omit
-    # the frozen constraint object. Primary coordinates remain directly auditable.
-    return (nl, -du, -lc, degree)
-
-
 def _classical_distortion(raw: Mapping[str, Any]) -> dict[str, Any]:
-    ledger_raw = raw.get("classical_evaluation_ledger", {})
-    if isinstance(ledger_raw, Sequence) and not isinstance(ledger_raw, (str, bytes, bytearray)):
-        ledger = {
-            str(row.get("fingerprint", "")): row
-            for row in ledger_raw
-            if isinstance(row, Mapping) and row.get("fingerprint")
-        }
-    elif isinstance(ledger_raw, Mapping):
-        ledger = {str(k): v for k, v in ledger_raw.items() if isinstance(v, Mapping)}
-    else:
-        ledger = {}
-
-    paired = worse = better = equal = unavailable = 0
-    by_generation: dict[str, dict[str, int]] = {}
-    for event in _selection_events(raw):
-        entered = event.get("score_caused_entered", ())
-        exited = event.get("score_caused_exited", ())
-        if not isinstance(entered, Sequence) or isinstance(entered, (str, bytes, bytearray)):
-            continue
-        if not isinstance(exited, Sequence) or isinstance(exited, (str, bytes, bytearray)):
-            continue
-        generation = str(int(event.get("generation", -1)))
-        row = by_generation.setdefault(
-            generation, {"paired": 0, "entered_worse": 0, "entered_better": 0, "equal": 0, "unavailable": 0}
-        )
-        for entrant, displaced in zip(sorted(map(str, entered)), sorted(map(str, exited))):
-            left = _classical_tuple(ledger.get(entrant, {}))
-            right = _classical_tuple(ledger.get(displaced, {}))
-            if left is None or right is None:
-                unavailable += 1
-                row["unavailable"] += 1
-                continue
-            paired += 1
-            row["paired"] += 1
-            if left < right:
-                worse += 1
-                row["entered_worse"] += 1
-            elif left > right:
-                better += 1
-                row["entered_better"] += 1
-            else:
-                equal += 1
-                row["equal"] += 1
-    return {
-        "paired_membership_changes": paired,
-        "entered_worse_primary_tuple": worse,
-        "entered_better_primary_tuple": better,
-        "equal_primary_tuple": equal,
-        "unavailable_pairs": unavailable,
-        "by_generation": by_generation,
-        "warning": "entrant/exit pairing is deterministic fingerprint order; use only when event semantics are set replacement",
-    }
+    """Read frozen original selection/ledger schema, never an absent-field false zero."""
+    return classical_distortion_from_frozen_receipts(raw)
 
 
 def _recurrence(raw: Mapping[str, Any]) -> dict[str, Any]:
@@ -465,9 +402,18 @@ def diagnose_phase2g_receipts(
                 "requires immutable probe evaluation of checkpoint model states; "
                 "must not be reconstructed from absent evidence"
             ),
-            "candidate_level_classical_distortion": True,
+            "candidate_level_classical_distortion": all(
+                bool(row[f"{arm}_classical_distortion"]["available"])
+                for row in seeds.values()
+                for arm in PRIMARY_ARMS
+            ),
             "candidate_level_classical_distortion_source": (
-                "official arm artifacts contain classical_evaluation_ledger plus score-caused entrants/exits"
+                "original selected_before/after, score_caused_entered and actual exited sets; "
+                "340-row max_abs_lat historical classical ledger; sorted multiset comparison"
+            ),
+            "candidate_level_classical_distortion_warning": (
+                "unavailable if original H3 event/ledger schema absent; "
+                "availability is not inferred from archived source descriptions"
             ),
         },
     }

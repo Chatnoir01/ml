@@ -35,11 +35,11 @@ def test_timeline_finds_first_divergence_without_guessing_between_checkpoints() 
     result = build_divergence_timeline(adaptive, fixed)
     assert result["first_curriculum_divergence_generation"] == 5
     assert result["first_population_divergence_generation"] == 5
-    assert result["first_model_divergence_generation"] == 0
-    assert result["earliest_divergence_generation"] == 0
-    assert result["earliest_divergence_signals"] == ["model"]
-    assert result["ordering_claim_available"] is True
-    assert result["ordering_claim"] == "model_diverges_first"
+    assert result["first_model_divergence_generation"] is None
+    assert result["earliest_divergence_generation"] == 5
+    assert result["earliest_divergence_signals"] == ["curriculum", "population"]
+    assert result["ordering_claim_available"] is False
+    assert result["ordering_claim"] is None
     assert result["checkpoints"][0]["curriculum_jaccard"] == 1.0
 
 
@@ -66,4 +66,4 @@ def test_timeline_refuses_ordering_claim_when_signals_tie_at_checkpoint() -> Non
     assert result["earliest_divergence_signals"] == ["curriculum", "population"]
     assert result["ordering_claim_available"] is False
     assert result["ordering_claim"] is None
-    assert "cannot order signals" in result["ordering_note"]
+    assert "actual model states unavailable" in result["ordering_note"]
