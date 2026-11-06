@@ -169,6 +169,7 @@ def emit_two_epochs(tensors_path: Path) -> dict[str, Any]:
             epoch_receipt: dict[str, Any] = {
                 "epoch": epoch,
                 "permutation_sha256": _index_hash(order, scope="entire-permutation"),
+                "permutation_indices": [int(i) for i in order.tolist()],
                 "rng_after_permutation_sha256": _sha(_canonical(rng.bit_generator.state)),
                 "batches": [],
                 "epoch_end_receipts": {},
@@ -316,6 +317,12 @@ def verify_two_epoch_pair(
                 if part.get("epoch") != e:
                     raise ValueError("missing original epoch identity")
                 _require_sha(part.get("permutation_sha256"), "full permutation SHA")
+                perm = part.get("permutation_indices")
+                if (type(perm) is not list or len(perm) != 5600 or
+                        any(type(i) is not int for i in perm) or
+                        sorted(perm) != list(range(5600)) or
+                        _index_hash(perm, scope="entire-permutation") != part["permutation_sha256"]):
+                    raise ValueError("missing or invalid complete original permutation indices")
                 _require_sha(part.get("rng_after_permutation_sha256"), "RNG after permutation")
                 batches = part.get("batches")
                 if type(batches) is not list or len(batches) != 22:
@@ -325,6 +332,9 @@ def verify_two_epoch_pair(
                             batch.get("rows") != (256 if j<21 else 224)):
                         raise ValueError("original minibatch order/size drift")
                     _require_sha(batch.get("indices_sha256"), "source minibatch indices")
+                    if _index_hash(perm[j*BATCH_SIZE:(j+1)*BATCH_SIZE],
+                                   scope="selected-batch") != batch["indices_sha256"]:
+                        raise ValueError("source mini-batch indices do not match full permutation")
                 extra = part.get("epoch_end_receipts")
                 if type(extra) is not dict or set(extra) != set(_EPOCH_END):
                     raise ValueError("missing epoch end moments, variance or test prediction SHA")
@@ -344,7 +354,7 @@ def verify_two_epoch_pair(
             if a[field] != b[field]:
                 raise ValueError("source seed/dataset/initialization differs between kernels")
         for e in range(EPOCHS):
-            for field in ("permutation_sha256", "rng_after_permutation_sha256", "batches"):
+            for field in ("permutation_sha256", "permutation_indices", "rng_after_permutation_sha256", "batches"):
                 if a["epochs"][e][field] != b["epochs"][e][field]:
                     raise ValueError("different original per-epoch index permutation or RNG state")
     expected_keys = {
