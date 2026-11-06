@@ -139,7 +139,7 @@ def classical_distortion_from_frozen_receipts(raw: Mapping[str, Any]) -> dict[st
         if bool(entered) != bool(event.get("membership_changed")):
             raise ValueError("H3 event membership_changed flag mismatch")
         eligible = bool(event.get("neural_selection_enabled")) and bool(event.get("boundary_opportunity"))
-        if caused != entered if eligible else bool(caused or entered):
+        if (eligible and caused != entered) or (not eligible and bool(caused or entered)):
             raise ValueError("H3 score_caused_entered not consistent with frozen event")
         for fp in before | after:
             if fp not in ledger:
