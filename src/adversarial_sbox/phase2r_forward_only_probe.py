@@ -50,7 +50,7 @@ def _array_receipt(value: Any) -> dict[str, Any]:
     }
 
 
-def forward_only_probe() -> dict[str, Any]:
+def forward_only_probe(*, tensor_output: Path | None = None) -> dict[str, Any]:
     """Run only tensor arithmetic corresponding to first forward batch, NO updates."""
     import numpy as np
 
@@ -79,6 +79,11 @@ def forward_only_probe() -> dict[str, Any]:
     probs = _sigmoid(logits)
     arrays = (xb, linear1, h1, linear2, h2, logits, probs)
     stages = {name: _array_receipt(arr) for name, arr in zip(_STAGES, arrays)}
+    if tensor_output is not None:
+        # New optional *synthetic-only* tensor evidence. Exact produced tensors,
+        # not a second reconstructed inference path. Never save on old runs.
+        with tensor_output.open("xb") as handle:
+            np.savez(handle, **{name: array for name, array in zip(_STAGES, arrays)})
     runtime = stable_numpy_runtime_profile()
     receipt = {
         "schema_version": 1,
@@ -192,10 +197,11 @@ def main() -> None:
     parser.add_argument("--compare-A", type=Path)
     parser.add_argument("--compare-F", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--tensor-output", type=Path)
     args = parser.parse_args()
     if args.arm and not args.compare_A and not args.compare_F:
-        report = forward_only_probe()
-    elif not args.arm and args.compare_A and args.compare_F:
+        report = forward_only_probe(tensor_output=args.tensor_output)
+    elif not args.arm and args.compare_A and args.compare_F and args.tensor_output is None:
         report = compare_forward_probes(json.loads(args.compare_A.read_text()),
                                          json.loads(args.compare_F.read_text()))
     else:
