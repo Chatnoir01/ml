@@ -1,0 +1,91 @@
+name: Phase 2R First Full Epoch CPU Dispatch (SYNTHETIC ONLY)
+
+on:
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2r_first_epoch.py"
+      - "tests/test_phase2r_first_epoch.py"
+      - "research/PHASE2R_FIRST_EPOCH_NUMERICAL_PROTOCOL_20261106.md"
+      - ".github/workflows/phase2r-first-epoch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENBLAS_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+
+jobs:
+  exactly-one-first-epoch-22-original-minibatches:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Install original pinned numerical runtime and scientific CI tests
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy==2.5.3" "threadpoolctl==3.6.0"
+          python -c 'import numpy,platform; assert numpy.__version__=="2.5.3" and platform.python_version()=="3.12.14"'
+      - name: Check nine synthetic parity, 22-batch geometry and receipt/AUC tamper tests
+        run: python -m pytest -q -rs tests/test_phase2r_first_epoch.py
+      - name: First original 22 minibatches on SAME host; one epoch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          env OPENBLAS_CORETYPE=HASWELL python -m adversarial_sbox.phase2r_first_epoch \
+            --kernel Haswell \
+            --npz haswell-first-epoch-original-tensors.npz \
+            --output haswell-first-epoch-original-receipt.json
+          env OPENBLAS_CORETYPE=NEHALEM python -m adversarial_sbox.phase2r_first_epoch \
+            --kernel Nehalem \
+            --npz nehalem-first-epoch-original-tensors.npz \
+            --output nehalem-first-epoch-original-receipt.json
+          python -m adversarial_sbox.phase2r_first_epoch \
+            --haswell-json haswell-first-epoch-original-receipt.json \
+            --nehalem-json nehalem-first-epoch-original-receipt.json \
+            --haswell-npz haswell-first-epoch-original-tensors.npz \
+            --nehalem-npz nehalem-first-epoch-original-tensors.npz \
+            --output phase2r-first-epoch-numerical-comparison.json
+          sha256sum haswell-first-epoch-original-receipt.json \
+            nehalem-first-epoch-original-receipt.json \
+            haswell-first-epoch-original-tensors.npz \
+            nehalem-first-epoch-original-tensors.npz \
+            phase2r-first-epoch-numerical-comparison.json > SOURCE_SHA256SUMS.txt
+          python - <<'PY'
+          import json
+          x=json.load(open("phase2r-first-epoch-numerical-comparison.json",encoding="utf-8"))
+          assert x["completed_steps"] == 22
+          assert x["samples_seen"] == 5600
+          assert x["source_array_hashes_recomputed"] == 1412
+          assert x["historical_32_epoch_fit_performed"] is False
+          assert x["phase2u_neural_trainings_performed"] == 0
+          assert x["historic_phase2g_cause_established"] is False
+          print("STEP,DIFFERENT_WEIGHT_ELEMENTS,MAX_ABS_WEIGHT_DELTA,MEAN_ABS_WEIGHT_DELTA")
+          for row in x["per_step"]:
+              updated=row["updated"]
+              print(row["step"],updated["elements_changed"],
+                    updated["max_abs_delta"],updated["mean_abs_delta"],sep=",")
+          print("ONE_EPOCH_FINAL_WEIGHTS_DIFFER",x["final_updated_parameter_element_difference"])
+          print("SYNTHETIC_TEST",json.dumps(x["test_output_comparison"],sort_keys=True))
+          PY
+      - name: Archive original JSON, float32 tensors, SHA checksums also if negative
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-first-epoch-${{ github.sha }}
+          path: |
+            haswell-first-epoch-original-receipt.json
+            nehalem-first-epoch-original-receipt.json
+            haswell-first-epoch-original-tensors.npz
+            nehalem-first-epoch-original-tensors.npz
+            phase2r-first-epoch-numerical-comparison.json
+            SOURCE_SHA256SUMS.txt
+          if-no-files-found: warn
+          retention-days: 30
