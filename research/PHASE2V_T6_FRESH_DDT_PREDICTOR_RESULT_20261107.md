@@ -27,10 +27,10 @@ Twelve LOCO folds, each fitting **one scalar OLS feature and an intercept on the
 | Primary R5, mean maximum DDT count | 0.00923995 | 0.00948947 | −6.35% (worse) |
 | Secondary R4, full-DDT+rotation | 0.01784771 | 0.01881436 | −6.17% (worse) |
 | Secondary R4, max DDT count | 0.01784771 | 0.01807640 | −2.36% (worse) |
-| Secondary R4−R5, full-DDT+rotation | 0.018? (see raw JSON for exact mean) | **0.02014008** | −18.45% (worse) |
-| Secondary R4−R5, max DDT count | 0.018? (see raw JSON for exact mean) | **0.01847463** | −5.52% (worse) |
+| Secondary R4−R5, full-DDT+rotation | 0.01820987 | **0.02014008** | −18.45% (worse) |
+| Secondary R4−R5, max DDT count | 0.01820987 | **0.01847463** | −5.52% (worse) |
 
-*For the R4−R5 secondary rows, the exact baseline MAE is specified in the machine JSON; no rounded/invented value is used here.* One key failure mode: the new physics-aware x feature varies only from **2.68662 to 2.71440** across the 12 new curricula, which is a small dynamic range compared to outcome variation; despite exact DDT computation, the scalar discards considerable per-trail information.
+The R4−R5 baseline MAE is the same 0.01820987 in both prespecified comparisons. One key failure mode: the new physics-aware x feature varies only from **2.68662 to 2.71440** across the 12 new curricula, which is a small dynamic range compared to outcome variation; despite exact DDT computation, the scalar discards considerable per-trail information.
 
 ### Source-seen/held-out test AUC persists with independent keys and plaintext schedules
 
