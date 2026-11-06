@@ -108,7 +108,7 @@ def test_tampered_source_or_stage_fails_closed():
         compare_forward_probes(a, f)
 
 
-def test_one_fixed_synthetic_batch_executes_only_forward_arrays():
+def test_one_fixed_synthetic_batch_executes_only_forward_arrays(tmp_path):
     sample = PairSample(0x12345678, 0xBADCAFE0, 1)
     fixture = tuple()
     with patch("adversarial_sbox.phase2r_forward_only_probe.load_phase2r_fixture", return_value=fixture), \
@@ -119,7 +119,11 @@ def test_one_fixed_synthetic_batch_executes_only_forward_arrays():
          patch.dict("os.environ", {"OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1",
                                   "MKL_NUM_THREADS": "1", "NUMEXPR_NUM_THREADS": "1",
                                   "VECLIB_MAXIMUM_THREADS": "1", "GITHUB_SHA": "a"*40}):
-        result = forward_only_probe()
+        dump = tmp_path / "frozen-synthetic-forward-arrays.npz"
+        result = forward_only_probe(tensor_output=dump)
+    with np.load(dump, allow_pickle=False) as tensors:
+        assert set(tensors.files) == set(_STAGES)
+        assert {k: _array_receipt(tensors[k]) for k in _STAGES} == result["stages"]
     assert set(result["stages"]) == set(_STAGES)
     assert result["stages"]["input_features"]["shape"] == [BATCH_SIZE, 12]
     assert result["neural_training_performed"] is False
