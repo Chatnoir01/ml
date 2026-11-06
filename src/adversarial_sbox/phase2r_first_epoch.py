@@ -145,8 +145,10 @@ def emit_first_epoch(npz_path: Path) -> dict[str, Any]:
     if len(order) != 5600 or sorted(order.tolist()) != list(range(5600)):
         raise RuntimeError("first epoch original permutation invalid")
     post_rng = _sha(_canonical(rng.bit_generator.state))
-    moments = {k: np.zeros_like(p) for k, p in weights.items()}
-    variances = {k: np.zeros_like(p) for k, p in weights.items()}
+    moments = {k: np.zeros_like(p) if k != "b3" else np.float32(0.0)
+               for k, p in weights.items()}
+    variances = {k: np.zeros_like(p) if k != "b3" else np.float32(0.0)
+                 for k, p in weights.items()}
     all_tensors: dict[str, Any] = {}
     receipts, batch_receipts = {}, []
     for step in range(1, STEPS + 1):
