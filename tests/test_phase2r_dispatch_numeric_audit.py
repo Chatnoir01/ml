@@ -5,8 +5,9 @@ import copy
 import hashlib
 import json
 
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy", reason="Optional scientific NumPy dependency is required for synthetic tests")
 
 from adversarial_sbox.phase2g import TRAINING_DATASET_BASE_SEEDS, TRAINING_MODEL_BASE_SEEDS
 from adversarial_sbox.phase2r_forward_only_probe import _STAGES, _array_receipt, _canonical
