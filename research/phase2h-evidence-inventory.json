@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "phase": "2H-evidence-inventory",
+  "source_workflow_run_id": 35572084785,
+  "source_marker_sha": "030652489dd489a4705bbf64a12d7e6fa01ca03b",
+  "parent_phase2g_commit": "ba1aec133c50ddac246a54a70bb3ff2f0994df3a",
+  "parent_phase2g_aggregate_sha256": "1df1812bc58e088c6a639d7ccbb94e1f3a02feb0ebd9f8b04e4ac81b1ea983d2",
+  "primary_arm_artifacts": [
+    {"seed":726011,"A":10626946695,"F":10626476796},
+    {"seed":726023,"A":10627155376,"F":10626671887},
+    {"seed":726037,"A":10625909904,"F":10626486708},
+    {"seed":726049,"A":10627345678,"F":10626114482},
+    {"seed":726061,"A":10626079205,"F":10627510059},
+    {"seed":726073,"A":10627075474,"F":10626104854},
+    {"seed":726087,"A":10626890698,"F":10626343485},
+    {"seed":726099,"A":10627010752,"F":10626492551},
+    {"seed":726113,"A":10626900479,"F":10626756126}
+  ],
+  "freeze_artifact_id": 10626482818,
+  "heldout_validation_artifact_id": 10626982348,
+  "aggregate_artifact_id": 10627326790,
+  "observed_structure": {
+    "all_18_primary_artifacts_available": true,
+    "arm_payload_contains_checkpoint_curriculum_fingerprints": true,
+    "arm_payload_contains_checkpoint_population_fingerprints": true,
+    "arm_payload_contains_selection_events": true,
+    "arm_payload_contains_classical_evaluation_ledger": true,
+    "arm_payload_contains_generation_trace": true,
+    "arm_payload_contains_parent_map": true
+  },
+  "notes": "Inventory only. Artifact availability does not itself support H1-H4. Phase 2H must derive and report preregistered diagnostics before a mechanistic interpretation."
+}
