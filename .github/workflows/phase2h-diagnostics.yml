@@ -95,7 +95,39 @@ jobs:
           cmp research/PHASE2H_RESULT.md /tmp/PHASE2H_RESULT-rerun.md
 
       - name: Run Phase 2H tests
-        run: pytest -q tests/test_phase2h.py tests/test_phase2h_evidence.py tests/test_phase2h_timeline.py tests/test_phase2h_runner.py tests/test_phase2h_h3_archival.py
+        run: pytest -q tests/test_phase2h.py tests/test_phase2h_evidence.py tests/test_phase2h_timeline.py tests/test_phase2h_runner.py tests/test_phase2h_h3_archival.py tests/test_phase2h_timeline_model_states.py
+
+      - name: Assert original H3/H2 archival parity against independently preserved source
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          doc = json.loads(Path("research/phase2h-diagnostics.json").read_text())
+          assert doc["availability"]["candidate_level_classical_distortion"] is True
+          rows = doc["diagnostics"]
+          assert len(rows) == 9
+          expected_bad_seeds = {726049, 726061, 726073, 726113}
+          for arm, expected_nonzero, expected_slots, expected_worse_events, expected_equal_events in (
+              ("A", 356, 1895, 105, 255),
+              ("F", 357, 1953, 107, 253),
+          ):
+              values = [row[f"{arm}_classical_distortion"] for row in rows.values()]
+              assert all(x["available"] and x["event_count"] == 40 for x in values)
+              assert sum(x["nonzero_event_count"] for x in values) == expected_nonzero
+              assert sum(x["paired_membership_changes"] for x in values) == expected_slots
+              assert sum(x["event_classifications"].get("all_worse_or_equal", 0) for x in values) == expected_worse_events
+              assert sum(x["event_classifications"].get("all_equal", 0) for x in values) == expected_equal_events
+              assert all(x["causal_claim_supported"] is False for x in values)
+          for seed, row in rows.items():
+              timeline = row["A_vs_F_timeline"]
+              observed = timeline["checkpoints"][0]["model_state_sha256_differing_count"]
+              expected = 16 if int(seed) in expected_bad_seeds else 0
+              assert observed == expected, (seed, observed, expected)
+              assert timeline["first_curriculum_divergence_generation"] == 5
+              assert timeline["first_model_divergence_generation"] == (0 if expected else 5)
+          print("SOURCE_ARCHIVE_H3_H2_PARITY_CONFIRMED: 720 events, 3848 slots, 64/144 checkpoint0 mismatch")
+          PY
 
       - name: Upload Phase 2H deterministic product
         uses: actions/upload-artifact@v4
