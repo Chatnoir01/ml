@@ -7,8 +7,9 @@ from __future__ import annotations
 import copy
 import hashlib
 
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy", reason="Optional scientific NumPy dependency is required for synthetic tests")
 
 from adversarial_sbox.phase2g import TRAINING_DATASET_BASE_SEEDS, TRAINING_MODEL_BASE_SEEDS
 from adversarial_sbox.phase2r_fixture import CURRICULUM_SHA256
