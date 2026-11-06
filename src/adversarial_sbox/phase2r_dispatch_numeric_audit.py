@@ -23,6 +23,15 @@ EXPECTED_NUMPY = "2.5.3"
 EXPECTED_PYTHON = "3.12.14"
 EXPECTED_KERNELS = ("Haswell", "Nehalem")
 EXPERIMENT = "phase2r_same_host_haswell_vs_nehalem_forward_only_v1"
+_EXPECTED_SHAPES = {
+    "input_features": (256, 12),
+    "first_linear": (256, 48),
+    "first_tanh": (256, 48),
+    "second_linear": (256, 24),
+    "second_tanh": (256, 24),
+    "logits": (256,),
+    "probabilities": (256,),
+}
 
 
 def _sha(data: bytes) -> str:
@@ -85,8 +94,8 @@ def audit_controlled_dispatch(
             b = na[name]
             if _array_receipt(a) != h["stages"][name] or _array_receipt(b) != n["stages"][name]:
                 raise ValueError("NPZ stage bytes do not match sealed original stage digest")
-            if a.shape != b.shape:
-                raise ValueError("different stage shapes across kernels")
+            if a.shape != b.shape or a.shape != _EXPECTED_SHAPES[name]:
+                raise ValueError("unexpected or different forward stage shape")
             mismatched = int(np.count_nonzero(a.view(np.uint32) != b.view(np.uint32)))
             delta = np.abs(a.astype(np.float64) - b.astype(np.float64))
             summary = {
@@ -116,7 +125,6 @@ def audit_controlled_dispatch(
         "synthetic_fixture_only": True,
         "same_machine_by_workflow_design_not_hardware_attested": True,
         "source_commit": h["source_commit"],
-        "original_blanks_preserved": False,
         "kernel_pair": ["Haswell", "Nehalem"],
         "pinned_python": EXPECTED_PYTHON,
         "pinned_numpy": EXPECTED_NUMPY,
