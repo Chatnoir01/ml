@@ -39,3 +39,15 @@ Only a **separately preregistered** next experiment, with explicit approval and 
 **CI qualifier:** exact numerical microexperiment and benchmark were successful when audited; at the moment this report was prepared, the general Phase 0 matrix for the source head was still running. Do not silently reclassify it as passed without checking.
 
 The work stays on a distinct DRAFT [PR #164](https://github.com/Chatnoir01/ml/pull/164), stacked on #163. No changes to `main`, #161 frozen observation-only work, or original Phase 2G/Phase 2U scientific receipts.
+
+
+## Independent evidence package exported with integrity proofs
+
+The conversation-generated evidence package **`phase2r_eight_adam_complete_evidence_20261106.zip`** has:
+- **Exact length:** `2,832,601` bytes;
+- **Outer SHA-256:** `64cdee0738b58e2c861346dcaa1d5c8b50aa231a204e22d938f9fc4c2f502cf4`;
+- Unmodified original GitHub ZIP from artifact `13472519459`;
+- Independently recomputed 8-step JSON results and read-only verification script;
+- `README.txt` and `SHA256SUMS.txt` for the included evidence files.
+
+The original source ZIP, report, and code are available as separate files within that package. **This records bytes held in the ChatGPT conversation, not that a separate user-owned independent backup or peer review has occurred.** Archive the package outside transient GitHub Actions and verify the outer SHA before December 2026.
