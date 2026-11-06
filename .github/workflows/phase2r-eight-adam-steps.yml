@@ -1,0 +1,86 @@
+name: Phase 2R Eight Consecutive Adam Steps (SYNTHETIC ONLY)
+
+on:
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2r_eight_adam_steps.py"
+      - "tests/test_phase2r_eight_adam_steps.py"
+      - "research/PHASE2R_EIGHT_ADAM_STEPS_PROTOCOL_20261106.md"
+      - ".github/workflows/phase2r-eight-adam-steps.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENBLAS_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+
+jobs:
+  exactly-eight-consecutive-original-batches:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Freeze numerical environment and synthetic-only tests
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy==2.5.3" "threadpoolctl==3.6.0"
+          python -c 'import platform,numpy; assert platform.python_version()=="3.12.14" and numpy.__version__=="2.5.3"'
+      - name: Ten synthetic checks including exact first-step parity
+        run: python -m pytest -q -rs tests/test_phase2r_eight_adam_steps.py
+      - name: Original first eight batches ONLY; two kernels on SAME host
+        shell: bash
+        run: |
+          set -euo pipefail
+          env OPENBLAS_CORETYPE=HASWELL python -m adversarial_sbox.phase2r_eight_adam_steps \
+            --kernel Haswell --npz haswell-eight-step-original-tensors.npz \
+            --output haswell-eight-step-original-receipt.json
+          env OPENBLAS_CORETYPE=NEHALEM python -m adversarial_sbox.phase2r_eight_adam_steps \
+            --kernel Nehalem --npz nehalem-eight-step-original-tensors.npz \
+            --output nehalem-eight-step-original-receipt.json
+          python -m adversarial_sbox.phase2r_eight_adam_steps \
+            --haswell-json haswell-eight-step-original-receipt.json \
+            --nehalem-json nehalem-eight-step-original-receipt.json \
+            --haswell-npz haswell-eight-step-original-tensors.npz \
+            --nehalem-npz nehalem-eight-step-original-tensors.npz \
+            --output phase2r-eight-step-per-step-audit.json
+          sha256sum haswell-eight-step-original-receipt.json \
+            nehalem-eight-step-original-receipt.json \
+            haswell-eight-step-original-tensors.npz \
+            nehalem-eight-step-original-tensors.npz \
+            phase2r-eight-step-per-step-audit.json > SOURCE_SHA256SUMS.txt
+          python - <<'PY'
+          import json
+          x=json.load(open("phase2r-eight-step-per-step-audit.json",encoding="utf-8"))
+          assert x["steps"]==8 and x["tensor_pairs_rechecked"]==256
+          assert x["full_neural_training_performed"] is False
+          assert x["phase2u_neural_trainings_performed"]==0
+          assert x["historical_phase2g_cause_identified"] is False
+          print("STEP,BITWISE_WEIGHT_TENSORS,BITWISE_WEIGHT_ELEMENTS,MAX_ABS_WEIGHT_DELTA,MEAN_ABS_WEIGHT_DELTA")
+          for row in x["per_step"]:
+              y=row["updated"]
+              print(row["step"],y["tensors_changed"],y["elements_changed"],
+                    y["maximum_absolute_difference"],y["mean_absolute_difference_weighted"],sep=",")
+          print("EIGHTH_STEP_DIFFERENT",x["eighth_step_has_any_parameter_difference"])
+          PY
+      - name: Preserve raw receipts and original 512 tensor hashes even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-eight-adam-steps-${{ github.sha }}
+          path: |
+            haswell-eight-step-original-receipt.json
+            nehalem-eight-step-original-receipt.json
+            haswell-eight-step-original-tensors.npz
+            nehalem-eight-step-original-tensors.npz
+            phase2r-eight-step-per-step-audit.json
+            SOURCE_SHA256SUMS.txt
+          if-no-files-found: warn
+          retention-days: 30
