@@ -106,7 +106,7 @@ def _pair(tmp_path, *, mutated=None):
         f"s{i:02d}__{name}":np.zeros(_expected_shape(name,i),dtype=np.float32)
         for i in range(1,23) for name in STAGES
     }
-    stages["synthetic_test_probabilities"]=np.full(1200,0.5,dtype=np.float32)
+    stages["synthetic_test_probabilities"]=np.linspace(0.2,0.8,1200,dtype=np.float32)
     stages["synthetic_test_labels"]=(np.arange(1200)%2).astype(np.float32)
     changed={k:v.copy() for k,v in stages.items()}
     if mutated:
