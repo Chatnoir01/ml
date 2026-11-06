@@ -109,7 +109,7 @@ def test_phase2h_reports_unavailable_evidence_instead_of_inventing_it() -> None:
         evidence_manifest=_manifest(_inputs()),
     )
     assert result["availability"]["forgetting_matrix"] is False
-    assert result["availability"]["candidate_level_classical_distortion"] is True
+    assert result["availability"]["candidate_level_classical_distortion"] is False
 
 
 def test_phase2h_detects_adaptive_drift_and_rank_change() -> None:
@@ -146,7 +146,8 @@ def test_phase2h_classical_distortion_fails_closed_without_ledger_rows() -> None
     )
     for seed in EVOLUTION_SEEDS:
         row = result["diagnostics"][str(int(seed))]
-        assert row["A_classical_distortion"]["paired_membership_changes"] == 0
+        assert row["A_classical_distortion"]["available"] is False
+        assert row["A_classical_distortion"]["paired_membership_changes"] is None
 
 
 def test_diagnostics_refuse_to_run_without_frozen_manifest() -> None:
