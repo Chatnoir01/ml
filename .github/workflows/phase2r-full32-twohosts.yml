@@ -1,0 +1,171 @@
+name: Phase 2R Two Independent-Job Full 32-Epoch Synthetic Kernel Contrasts
+
+on:
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2r_full32_twohosts.py"
+      - "src/adversarial_sbox/phase2r_full32_audit.py"
+      - "tests/test_phase2r_full32_twohosts.py"
+      - "research/PHASE2R_FULL32_TWOHOSTS_PROTOCOL_20261106.md"
+      - ".github/workflows/phase2r-full32-twohosts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENBLAS_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+
+jobs:
+  each-host-within-host-core-contrast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Install historical pinned NumPy/BLAS and test dependencies
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy==2.5.3" "threadpoolctl==3.6.0"
+          python -c 'import numpy,platform; assert numpy.__version__=="2.5.3" and platform.python_version()=="3.12.14"'
+      - name: Exact first-two-epoch mathematical parity and 32-epoch anti-tamper synthetic tests
+        run: python -m pytest -q -rs tests/test_phase2r_full32_twohosts.py
+      - name: Two fresh seeds, two cores, exactly 32 epochs each on ONE host
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          env OPENBLAS_CORETYPE=HASWELL python -m adversarial_sbox.phase2r_full32_twohosts \
+            --kernel Haswell \
+            --npz evidence/haswell-full32-raw-tensors.npz \
+            --output evidence/haswell-full32-raw-receipt.json
+          env OPENBLAS_CORETYPE=NEHALEM python -m adversarial_sbox.phase2r_full32_twohosts \
+            --kernel Nehalem \
+            --npz evidence/nehalem-full32-raw-tensors.npz \
+            --output evidence/nehalem-full32-raw-receipt.json
+          python -m adversarial_sbox.phase2r_full32_audit \
+            --haswell-json evidence/haswell-full32-raw-receipt.json \
+            --nehalem-json evidence/nehalem-full32-raw-receipt.json \
+            --haswell-npz evidence/haswell-full32-raw-tensors.npz \
+            --nehalem-npz evidence/nehalem-full32-raw-tensors.npz \
+            --output evidence/host_${{ matrix.host }}_pair_audit.json
+          (cd evidence && sha256sum *.json *.npz > SOURCE_SHA256SUMS.txt)
+          python - <<'PY'
+          import json,os
+          p="evidence/host_"+os.environ["MATRIX_HOST"]+"_pair_audit.json"
+          x=json.load(open(p,encoding="utf-8"))
+          assert x["source_array_digests_recomputed"]==2352
+          assert x["epochs_per_model"]==32 and x["adam_steps_per_model"]==704
+          assert x["fixed_evaluation_epochs"]==[1,2,4,8,16,32]
+          assert [r["replicate"] for r in x["replicates"]]==[6,7]
+          assert [r["model_seed"] for r in x["replicates"]]==[786087,786101]
+          assert x["phase2u_prospective_neural_fits"]==0
+          assert x["historical_phase2g_root_cause_established"] is False
+          print("RUNNER_SAMPLED",os.environ["MATRIX_HOST"],x["observed_runner_profile"]["blas_libraries"])
+          for r in x["replicates"]:
+              cp=r["fixed_test_checkpoints"][-1];end=r["per_epoch"][-1]
+              print("FINAL_32_EPOCH",r["replicate"],"WEIGHT_BITS",end["bitwise_different_weights"],
+                    "L2",end["relative_l2_weight_difference"],"AUC_H",cp["auc_haswell"],
+                    "AUC_N",cp["auc_nehalem"],"AUC_DELTA",cp["signed_auc_difference"],
+                    "RANK_TIE_CHANGES",cp["changed_positive_negative_rank_or_tie_pairs"])
+          PY
+        env:
+          MATRIX_HOST: ${{ matrix.host }}
+      - name: Save exact sources and original SHA256 even if experiment invalid
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-full32-host-${{ matrix.host }}-${{ github.sha }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 30
+
+  compare-two-host-reported-profiles:
+    needs: each-host-within-host-core-contrast
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phase2r-full32-host-*-${{ github.sha }}
+          path: cross-host
+          merge-multiple: false
+      - name: Compare original pair reports across different scheduled runners without inferring equivalent hardware
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import glob,hashlib,json
+          reports=[]
+          for host in (1,2):
+              hits=glob.glob(f"cross-host/**/host_{host}_pair_audit.json",recursive=True)
+              if len(hits)!=1:
+                  raise RuntimeError(f"missing or ambiguous original report for sampled host {host}")
+              report=json.load(open(hits[0],encoding="utf-8"))
+              checksum=report.pop("report_sha256")
+              canonical=json.dumps(report,sort_keys=True,separators=(",",":")).encode()
+              if hashlib.sha256(canonical).hexdigest()!=checksum:
+                  raise RuntimeError("original paired numerical audit SHA corrupted")
+              report["report_sha256"]=checksum
+              if (report["epochs_per_model"]!=32 or
+                      report["source_array_digests_recomputed"]!=2352 or
+                      [x["replicate"] for x in report["replicates"]]!=[6,7]):
+                  raise RuntimeError("cross-host source identity or original stage scope mismatch")
+              reports.append(report)
+          a,b=reports
+          if a["source_commit"]!=b["source_commit"]:
+              raise RuntimeError("two runners checked out different source commits")
+          profile_a=a["observed_runner_profile"]
+          profile_b=b["observed_runner_profile"]
+          same_profiles=(profile_a==profile_b)
+          rows=[]
+          for i,rep in enumerate((6,7)):
+              aa,bb=a["replicates"][i],b["replicates"][i]
+              if (aa["model_seed"]!=bb["model_seed"] or aa["dataset_seed"]!=bb["dataset_seed"]):
+                  raise RuntimeError("two hosts used different preregistered model cells")
+              ac=aa["fixed_test_checkpoints"][-1]
+              bc=bb["fixed_test_checkpoints"][-1]
+              rows.append({
+                  "replicate":rep,
+                  "host_1_epoch32_auc_delta":ac["signed_auc_difference"],
+                  "host_2_epoch32_auc_delta":bc["signed_auc_difference"],
+                  "same_epoch32_auc_delta_across_runner_jobs":ac["signed_auc_difference"]==bc["signed_auc_difference"],
+                  "host_1_changed_parameter_bits":aa["per_epoch"][-1]["bitwise_different_weights"],
+                  "host_2_changed_parameter_bits":bb["per_epoch"][-1]["bitwise_different_weights"]
+              })
+          report={
+              "schema_version":1,
+              "study":"phase2r_full32_two_new_seeds_two_independently_scheduled_runners",
+              "source_commit":a["source_commit"],
+              "reported_cross_host_profile_equivalence":same_profiles,
+              "comparison_status":("SAME_REPORTED_PROFILES_NOT_PHYSICAL_HARDWARE_ATTESTATION"
+                                    if same_profiles else "CROSS_HOST_REPORTED_CPU_BLAS_PROFILES_DIFFER"),
+              "original_two_host_pair_report_sha256s":[a["report_sha256"],b["report_sha256"]],
+              "final_seed_comparisons":rows,
+              "not_physical_microarchitecture_independence_proof":True,
+              "historical_phase2g_root_cause_established":False,
+              "phase2u_prospective_neural_fits":0,
+          }
+          report["report_sha256"]=hashlib.sha256(json.dumps(
+              report,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+          with open("cross-host-comparison.json","x",encoding="utf-8") as out:
+              json.dump(report,out,sort_keys=True,indent=2);out.write("\n")
+          print(report["comparison_status"])
+          for row in rows:print(row)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-full32-cross-host-comparison-${{ github.sha }}
+          path: cross-host-comparison.json
+          if-no-files-found: error
+          retention-days: 30
