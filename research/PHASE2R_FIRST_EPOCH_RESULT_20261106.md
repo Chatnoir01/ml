@@ -57,8 +57,21 @@ The original frozen scientific verdict remains **`phase2g_adaptive_coevolution_n
 ## Complete exported conversation evidence package
 
 - Package: `phase2r_first_epoch_complete_verified_evidence_20261106.zip`
-- Exact archive size **7,739,268 bytes**; SHA-256 **`9af82bdaa0474af1cfc4cd64ca38312c61a080290518c5fbc9fed5de797488c7`**.
+- Exact archive size **7,739,868 bytes**; SHA-256 **`656b13aafa9ac6ad62c74b943ec6c04981fd9240e094310c3ae29c916595598d`**.
 - Inside are the unchanged original GitHub source ZIP, corrected independent full verifier, its machine-readable 22-step audit, separate post-hoc prediction-rank auditor and JSON, `SHA256SUMS.txt` and `README.txt`.
 - All nested source checksums and ZIP CRC have been rechecked. It is **not** established that any user-owned offline/cloud backup or independently authenticated scientific escrow already holds these bytes.
 
-The separate post-hoc rank-auditor source SHA256 is `9c18725f0e678597cc4ea9208165fd88cf132fab5b6c9384a469d7975405b306`; its JSON SHA256 is `ff11dd312a6c26a0910eb35a60be84fac3aab922cc6f3920089bb6f5fb4d9ba3`.
+The separate post-hoc rank-auditor source SHA256 is `facbb17bb6de47f68b48f5d4eb678486145b2c264686e99cbe5c582c78b48e10`; its JSON SHA256 is `d721e9d19694151d90ec9c0fdd4915f06a10adfecef6f11d2f7fb5995900723f`.
+
+
+### Exploratory scale-of-change check (additional post-hoc)
+
+A raw count of differing `float32` *bit patterns* should **not** be presented as a large difference in model function. Independently flattened all 1,825 post-update parameters from the original Haswell and Nehalem stage files and measured the vector (L_2) distance divided by the Haswell vector (L_2) norm:
+
+| Step | Bitwise different parameter elements | Relative parameter-vector L2 distance |
+|---:|---:|---:|
+| 1 | 73 | 1.865892301020558e-9 |
+| 8 | 469 | 2.4658717701154774e-8 |
+| 22 | 771 | **4.416324867426168e-8** |
+
+Thus **42.25% of weight values have differing bit representations**, but the normalized entire-model weight difference is only around **4.4 × 10⁻⁸** on this sample. This is **not** evidence of a substantial model-function change. These additional L2 metrics are exploratory, not preregistered. They are reproducible from the unchanged original NPZ arrays by the updated post-hoc audit script in the evidence package.
