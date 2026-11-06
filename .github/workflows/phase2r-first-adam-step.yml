@@ -1,0 +1,88 @@
+name: Phase 2R Single First Adam Microstep CPU Contrast (SYNTHETIC ONLY)
+
+on:
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2r_first_adam_microstep.py"
+      - "tests/test_phase2r_first_adam_microstep.py"
+      - "research/PHASE2R_FIRST_ADAM_STEP_PROTOCOL_20261106.md"
+      - ".github/workflows/phase2r-first-adam-step.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENBLAS_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+
+jobs:
+  exactly-one-original-gradient-and-adam-step:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Install historical numerical runtime and fail-closed unit-test dependencies
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy==2.5.3" "threadpoolctl==3.6.0"
+          python -c 'import platform,numpy; assert platform.python_version()=="3.12.14" and numpy.__version__=="2.5.3"'
+      - name: Validate exact historical microstep math and tamper controls (synthetic-only)
+        run: python -m pytest -q -rs tests/test_phase2r_first_adam_microstep.py
+      - name: Execute ONE first-minibatch gradient and Adam step per kernel; NO full training
+        shell: bash
+        run: |
+          set -euo pipefail
+          env OPENBLAS_CORETYPE=HASWELL python -m adversarial_sbox.phase2r_first_adam_microstep \
+            --kernel haswell \
+            --npz haswell-first-step-tensors.npz \
+            --output haswell-first-step-receipt.json
+          env OPENBLAS_CORETYPE=NEHALEM python -m adversarial_sbox.phase2r_first_adam_microstep \
+            --kernel nehalem \
+            --npz nehalem-first-step-tensors.npz \
+            --output nehalem-first-step-receipt.json
+          python -m adversarial_sbox.phase2r_first_adam_microstep \
+            --haswell-json haswell-first-step-receipt.json \
+            --nehalem-json nehalem-first-step-receipt.json \
+            --haswell-npz haswell-first-step-tensors.npz \
+            --nehalem-npz nehalem-first-step-tensors.npz \
+            --output first-adam-step-numeric-audit.json
+          sha256sum haswell-first-step-receipt.json nehalem-first-step-receipt.json \
+            haswell-first-step-tensors.npz nehalem-first-step-tensors.npz \
+            first-adam-step-numeric-audit.json > SOURCE_SHA256SUMS.txt
+          python - <<'PY'
+          import json
+          r=json.load(open("first-adam-step-numeric-audit.json",encoding="utf-8"))
+          assert r["one_adam_step_executed"] is True
+          assert r["full_neural_training_performed"] is False
+          assert r["phase2u_neural_trainings_performed"] == 0
+          assert r["historical_phase2g_cause_identified"] is False
+          assert r["total_stages"] == 32
+          print("MICROSTEP",r["observed_outcome"])
+          print("FIRST_GRADIENT",r["first_different_gradient"])
+          print("FIRST_UPDATED",r["first_different_updated_parameter"])
+          print("GRADIENT_STAGE_CHANGES",r["gradient_stage_changes"])
+          print("PARAMETER_STAGE_CHANGES",r["updated_parameter_changes"])
+          for x in r["all_stage_measurements"]:
+              print("STAGE",x["stage"],x["differing_float32_values"],x["values"],x["maximum_absolute_difference"])
+          PY
+      - name: Retain original source JSON, NPZ, and measurement even on errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-first-adam-step-${{ github.sha }}
+          path: |
+            haswell-first-step-receipt.json
+            nehalem-first-step-receipt.json
+            haswell-first-step-tensors.npz
+            nehalem-first-step-tensors.npz
+            first-adam-step-numeric-audit.json
+            SOURCE_SHA256SUMS.txt
+          retention-days: 30
+          if-no-files-found: warn
