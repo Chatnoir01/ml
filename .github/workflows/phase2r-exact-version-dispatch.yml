@@ -1,0 +1,86 @@
+name: Phase 2R Exact-Version Same-Host BLAS Numeric Contrast (NO TRAINING)
+
+on:
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2r_forward_only_probe.py"
+      - "src/adversarial_sbox/phase2r_dispatch_numeric_audit.py"
+      - "tests/test_phase2r_forward_only_probe.py"
+      - "tests/test_phase2r_dispatch_numeric_audit.py"
+      - "research/PHASE2R_EXACT_VERSION_SAME_HOST_DISPATCH_20261106.md"
+      - ".github/workflows/phase2r-exact-version-dispatch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENBLAS_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+
+jobs:
+  haswell-vs-nehalem-single-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Install original scientific numerical versions and unit tests
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy==2.5.3" "threadpoolctl==3.6.0"
+          python -c 'import platform,numpy; assert platform.python_version()=="3.12.14"; assert numpy.__version__=="2.5.3"'
+      - name: All original and new synthetic receipt tests (no model fit)
+        run: python -m pytest -q tests/test_phase2r_forward_only_probe.py tests/test_phase2r_dispatch_numeric_audit.py
+      - name: Two independent subprocesses on one host, same initial data and model
+        shell: bash
+        run: |
+          set -euo pipefail
+          env OPENBLAS_CORETYPE=HASWELL python -m adversarial_sbox.phase2r_forward_only_probe \
+            --arm A \
+            --output haswell-forward-receipt.json \
+            --tensor-output haswell-forward-tensors.npz
+          env OPENBLAS_CORETYPE=NEHALEM python -m adversarial_sbox.phase2r_forward_only_probe \
+            --arm F \
+            --output nehalem-forward-receipt.json \
+            --tensor-output nehalem-forward-tensors.npz
+          python -m adversarial_sbox.phase2r_dispatch_numeric_audit \
+            --haswell-json haswell-forward-receipt.json \
+            --nehalem-json nehalem-forward-receipt.json \
+            --haswell-npz haswell-forward-tensors.npz \
+            --nehalem-npz nehalem-forward-tensors.npz \
+            --output controlled-dispatch-numeric-audit.json
+          sha256sum haswell-forward-receipt.json nehalem-forward-receipt.json \
+            haswell-forward-tensors.npz nehalem-forward-tensors.npz \
+            controlled-dispatch-numeric-audit.json > SOURCE_SHA256SUMS.txt
+          python - <<'PY'
+          import json
+          x=json.load(open("controlled-dispatch-numeric-audit.json",encoding="utf-8"))
+          assert x["neural_training_performed"] is False
+          assert x["gradients_computed"] is False and x["optimizer_update_performed"] is False
+          assert x["original_phase2g_64_of_144_explained"] is False
+          assert x["kernel_pair"] == ["Haswell","Nehalem"]
+          print("CONTROLLED_DISPATCH",x["outcome"],"FIRST",x["first_bitwise_different_stage"])
+          for stage in x["stages"]:
+              print(stage["stage"],stage["bitwise_differing_float32_values"],
+                    stage["elements"],stage["maximum_absolute_difference"])
+          PY
+      - name: Preserve original observations and measurement even if negative or interrupted
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-exact-version-same-host-blas-${{ github.sha }}
+          path: |
+            haswell-forward-receipt.json
+            nehalem-forward-receipt.json
+            haswell-forward-tensors.npz
+            nehalem-forward-tensors.npz
+            controlled-dispatch-numeric-audit.json
+            SOURCE_SHA256SUMS.txt
+          if-no-files-found: warn
+          retention-days: 30
