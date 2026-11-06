@@ -52,3 +52,13 @@ The original frozen scientific verdict remains **`phase2g_adaptive_coevolution_n
 - `phase2r_first_epoch_independent_verifier_20261106.py` (fixed scalar serializer): SHA256 `8b86eae0e02ceca67083bc63ec85b9a7f6ce33b04de5c8a878b723ef47679c1d`.
 - `phase2r_first_epoch_independent_audit_20261106.json`: SHA256 `10e3b9ce69eddd27ccb63952ef34e70e4adb1de32015d466267b3a52bad26930`.
 - Separate post-hoc analysis script and report are packed with the downloadable evidence bundle. The user must preserve that bundle in independently durable storage; conversation files and Actions artifacts are not a verified independent archive.
+
+
+## Complete exported conversation evidence package
+
+- Package: `phase2r_first_epoch_complete_verified_evidence_20261106.zip`
+- Exact archive size **7,739,268 bytes**; SHA-256 **`9af82bdaa0474af1cfc4cd64ca38312c61a080290518c5fbc9fed5de797488c7`**.
+- Inside are the unchanged original GitHub source ZIP, corrected independent full verifier, its machine-readable 22-step audit, separate post-hoc prediction-rank auditor and JSON, `SHA256SUMS.txt` and `README.txt`.
+- All nested source checksums and ZIP CRC have been rechecked. It is **not** established that any user-owned offline/cloud backup or independently authenticated scientific escrow already holds these bytes.
+
+The separate post-hoc rank-auditor source SHA256 is `9c18725f0e678597cc4ea9208165fd88cf132fab5b6c9384a469d7975405b306`; its JSON SHA256 is `ff11dd312a6c26a0910eb35a60be84fac3aab922cc6f3920089bb6f5fb4d9ba3`.
