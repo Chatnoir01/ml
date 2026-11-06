@@ -1,0 +1,90 @@
+name: Phase 2R Two Epochs Two Seeds (SYNTHETIC ONLY)
+
+on:
+  pull_request:
+    paths:
+      - "src/adversarial_sbox/phase2r_two_epochs_two_seeds.py"
+      - "tests/test_phase2r_two_epochs_two_seeds.py"
+      - "research/PHASE2R_TWO_EPOCHS_TWO_SEEDS_PROTOCOL_20261106.md"
+      - ".github/workflows/phase2r-two-epochs-two-seeds.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENBLAS_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  VECLIB_MAXIMUM_THREADS: "1"
+
+jobs:
+  exactly-two-epochs-two-registered-seed-replicates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.14"
+      - name: Install pinned original NumPy/OpenBLAS and fail-closed test dependencies
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy==2.5.3" "threadpoolctl==3.6.0"
+          python -c 'import numpy,platform; assert platform.python_version()=="3.12.14" and numpy.__version__=="2.5.3"'
+      - name: Validate bounded two-seed synthetic code and frozen epoch-1 mathematical parity
+        run: python -m pytest -q -rs tests/test_phase2r_two_epochs_two_seeds.py
+      - name: Run exactly two epochs for two original seed pairs under both BLAS kernels
+        shell: bash
+        run: |
+          set -euo pipefail
+          env OPENBLAS_CORETYPE=HASWELL python -m adversarial_sbox.phase2r_two_epochs_two_seeds \
+            --kernel Haswell \
+            --npz haswell-two-epochs-source-tensors.npz \
+            --output haswell-two-epochs-source-receipt.json
+          env OPENBLAS_CORETYPE=NEHALEM python -m adversarial_sbox.phase2r_two_epochs_two_seeds \
+            --kernel Nehalem \
+            --npz nehalem-two-epochs-source-tensors.npz \
+            --output nehalem-two-epochs-source-receipt.json
+          python -m adversarial_sbox.phase2r_two_epochs_two_seeds \
+            --haswell-json haswell-two-epochs-source-receipt.json \
+            --nehalem-json nehalem-two-epochs-source-receipt.json \
+            --haswell-npz haswell-two-epochs-source-tensors.npz \
+            --nehalem-npz nehalem-two-epochs-source-tensors.npz \
+            --output phase2r-two-epochs-two-seeds-comparison.json
+          sha256sum haswell-two-epochs-source-receipt.json nehalem-two-epochs-source-receipt.json \
+            haswell-two-epochs-source-tensors.npz nehalem-two-epochs-source-tensors.npz \
+            phase2r-two-epochs-two-seeds-comparison.json > SOURCE_SHA256SUMS.txt
+          python - <<'PY'
+          import json
+          z=json.load(open("phase2r-two-epochs-two-seeds-comparison.json",encoding="utf-8"))
+          assert z["steps_per_replica"] == 44
+          assert z["original_stage_sha256s_recomputed"] == 1168
+          assert z["phase2u_trainings"] == 0
+          assert z["historical_phase2g_cause_proven"] is False
+          assert len(z["replicates"]) == 2
+          print("REPLICATE,EPOCH,DIFFERENT_WEIGHTS,RELATIVE_L2_WEIGHT,AUC_HASWELL,AUC_NEHALEM,AUC_DELTA,DIFFERENT_TEST_PROBABILITIES")
+          for rep in z["replicates"]:
+              for e in rep["epoch_checkpoints"]:
+                  s=rep["per_step"][e["after_step"]-1]
+                  print(rep["replicate"],e["epoch"],s["different_parameter_values"],
+                        s["relative_parameter_l2_delta"],
+                        e["test_auc_by_kernel"]["Haswell"],
+                        e["test_auc_by_kernel"]["Nehalem"],
+                        e["auc_difference"],e["test_probability_bit_differences"],sep=",")
+          PY
+      - name: Preserve original source JSON, float32 NPZ and comparison even on experiment failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2r-two-epochs-two-seeds-${{ github.sha }}
+          path: |
+            haswell-two-epochs-source-receipt.json
+            nehalem-two-epochs-source-receipt.json
+            haswell-two-epochs-source-tensors.npz
+            nehalem-two-epochs-source-tensors.npz
+            phase2r-two-epochs-two-seeds-comparison.json
+            SOURCE_SHA256SUMS.txt
+          if-no-files-found: warn
+          retention-days: 30
