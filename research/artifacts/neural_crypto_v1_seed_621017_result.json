@@ -1,0 +1,46 @@
+{
+  "architecture": {
+    "alice": [
+      16,
+      32,
+      8
+    ],
+    "bob": [
+      16,
+      32,
+      8
+    ],
+    "eve": [
+      8,
+      24,
+      8
+    ],
+    "fresh_eve_hidden": [
+      16,
+      48
+    ]
+  },
+  "controls": {
+    "fresh_xor_bob_accuracy": 1.0,
+    "fresh_xor_keyless_guess_expected_accuracy": 0.5,
+    "identity_eve_accuracy": 1.0
+  },
+  "heldout_bob_bit_accuracy": 0.49755859375,
+  "heldout_fresh_eve_bit_accuracies": [
+    0.4908447265625,
+    0.5218505859375
+  ],
+  "heldout_fresh_eve_max_bit_accuracy": 0.5218505859375,
+  "holdout_not_used_for_training": true,
+  "kind": "educational_neural_cryptography_not_a_cipher",
+  "mode": "full_exploratory",
+  "no_crypto_wall_integration": true,
+  "no_security_claim": true,
+  "protocol_sha256": "2ab9d951c78537c449724b60d550ba81eac5dece29858be7ecdfc5006fe1241c",
+  "schema_version": 1,
+  "security_verdict": "NOT_EVALUATED_CRYPTOGRAPHICALLY",
+  "seed": 621017,
+  "train_steps": 200,
+  "val_bob_bit_accuracy": 0.4984130859375,
+  "val_trained_eve_bit_accuracy": 0.5098876953125
+}

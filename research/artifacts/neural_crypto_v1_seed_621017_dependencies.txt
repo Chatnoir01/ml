@@ -1,0 +1,9 @@
+-e git+https://github.com/Chatnoir01/ml@36e2bb3208f19ae359ec14160b67aeda78d7648b#egg=adversarial_sbox
+coverage==7.17.2
+iniconfig==2.3.1
+numpy==2.4.6
+packaging==26.3
+pluggy==1.7.0
+Pygments==2.21.0
+pytest==9.2.0
+pytest-cov==7.1.0
