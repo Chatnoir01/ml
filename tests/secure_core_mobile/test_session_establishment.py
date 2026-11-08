@@ -7,6 +7,17 @@ from secure_core_mobile.hostile_boundary import (
 from secure_core_mobile.session import establish_boundary_session, establish_development_session
 
 
+def _self_declared_pvm() -> BoundaryEvidence:
+    return BoundaryEvidence(
+        kind=BoundaryKind.ANDROID_PVM,
+        boundary_id="pvm-1",
+        isolated_from_host=True,
+        owns_authorization_state=True,
+        owns_monotonic_state=True,
+        evidence_sha256="a" * 64,
+    )
+
+
 def test_development_session_is_explicitly_untrusted():
     context, key = establish_development_session()
     assert context.trusted_boundary is False
@@ -22,28 +33,16 @@ def test_development_boundary_cannot_create_trusted_session():
         )
 
 
-def test_qualified_boundary_requires_strong_session_key():
-    boundary = BoundaryEvidence(
-        kind=BoundaryKind.ANDROID_PVM,
-        boundary_id="pvm-1",
-        isolated_from_host=True,
-        owns_authorization_state=True,
-        owns_monotonic_state=True,
-        evidence_sha256="a" * 64,
-    )
-    with pytest.raises(ValueError, match="too short"):
-        establish_boundary_session(boundary=boundary, derived_key=b"short")
+@pytest.mark.parametrize("derived_key", [b"short", b"x" * 32])
+def test_self_declared_pvm_cannot_create_trusted_session_at_any_key_length(derived_key):
+    # Provenance is checked first. A 32-byte key alone cannot confer trust;
+    # a too-short key must not bypass the boundary gate either.
+    boundary = _self_declared_pvm()
+    assert boundary.qualifies_for_hostile_host_experiment is False
+    with pytest.raises(ValueError, match="does not qualify"):
+        establish_boundary_session(boundary=boundary, derived_key=derived_key)
 
 
-def test_qualified_boundary_records_provenance():
-    boundary = BoundaryEvidence(
-        kind=BoundaryKind.ANDROID_PVM,
-        boundary_id="pvm-1",
-        isolated_from_host=True,
-        owns_authorization_state=True,
-        owns_monotonic_state=True,
-        evidence_sha256="a" * 64,
-    )
-    context = establish_boundary_session(boundary=boundary, derived_key=b"x" * 32)
-    assert context.trusted_boundary is True
-    assert context.provenance == "qualified-boundary:pvm-1"
+def test_self_declared_pvm_cannot_claim_qualified_session_provenance():
+    with pytest.raises(ValueError, match="does not qualify"):
+        establish_boundary_session(boundary=_self_declared_pvm(), derived_key=b"x" * 32)
