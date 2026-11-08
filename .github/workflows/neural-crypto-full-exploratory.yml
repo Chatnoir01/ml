@@ -1,0 +1,91 @@
+name: Neural Crypto Lab V1 Full Exploratory (NO SECURITY CLAIM)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/neural-crypto-full-exploratory.yml"
+      - "research/NEURAL_CRYPTO_LAB_FULL_EXPLORATORY_20261108.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-seed-621017:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install explicit optional neural research dependencies
+        run: python -m pip install -e ".[dev,neural]"
+      - name: Run existing unit tests with installed NumPy
+        run: |
+          python -c "import numpy; print(numpy.__version__)"
+          python -m pytest -q tests/test_neural_crypto_lab.py
+      - name: Execute original full study in independent Python processes
+        run: |
+          mkdir -p research-artifacts
+          python scripts/run_neural_crypto_lab.py --full --seed 621017 --output research-artifacts/full-621017-first.json
+          python scripts/run_neural_crypto_lab.py --full --seed 621017 --output research-artifacts/full-621017-repeat.json
+      - name: Check result contract and deterministic same-runner replay
+        run: |
+          python - <<'PY'
+          import json, math, pathlib, hashlib
+          root = pathlib.Path("research-artifacts")
+          raw_a = (root / "full-621017-first.json").read_bytes()
+          raw_b = (root / "full-621017-repeat.json").read_bytes()
+          if raw_a != raw_b:
+              raise RuntimeError("full_experiment_repeat_not_identical")
+          result = json.loads(raw_a)
+          if result.get("mode") != "full_exploratory" or result.get("seed") != 621017 or result.get("train_steps") != 200:
+              raise RuntimeError("wrong_full_protocol_budget")
+          if result.get("kind") != "educational_neural_cryptography_not_a_cipher":
+              raise RuntimeError("wrong_experiment_scope")
+          if not result.get("no_security_claim") or not result.get("holdout_not_used_for_training"):
+              raise RuntimeError("research_firewall_absent")
+          if result.get("security_verdict") != "NOT_EVALUATED_CRYPTOGRAPHICALLY":
+              raise RuntimeError("forbidden_security_verdict")
+          required = ("val_bob_bit_accuracy", "val_trained_eve_bit_accuracy",
+                      "heldout_bob_bit_accuracy", "heldout_fresh_eve_max_bit_accuracy")
+          for key in required:
+              value = result.get(key)
+              if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1:
+                  raise RuntimeError("invalid_result_" + key)
+          challenger = result.get("heldout_fresh_eve_bit_accuracies")
+          if not isinstance(challenger, list) or len(challenger) != 2:
+              raise RuntimeError("missing_independent_eve_challengers")
+          if not all(type(x) in (int, float) and math.isfinite(x) and 0 <= x <= 1 for x in challenger):
+              raise RuntimeError("invalid_challenger_results")
+          if abs(max(challenger) - result["heldout_fresh_eve_max_bit_accuracy"]) > 1e-12:
+              raise RuntimeError("challenger_summary_mismatch")
+          controls = result.get("controls", {})
+          if controls.get("identity_eve_accuracy") != 1.0 or controls.get("fresh_xor_bob_accuracy") != 1.0:
+              raise RuntimeError("broken_plaintext_or_xor_control")
+          digest = hashlib.sha256(raw_a).hexdigest()
+          (root / "sha256.txt").write_text(digest + "  full-621017-first.json\n", encoding="utf-8")
+          print("FULL_EXPLORATORY_CONTRACT_PASS; SAME_RUNNER_REPLAY_IDENTICAL")
+          print("RESULT_SHA256", digest)
+          print("Bob accuracy", result["heldout_bob_bit_accuracy"])
+          print("Best fresh Eve accuracy", result["heldout_fresh_eve_max_bit_accuracy"])
+          PY
+      - name: Record exact execution environment
+        run: |
+          git rev-parse HEAD > research-artifacts/source-commit.txt
+          python --version > research-artifacts/python-version.txt 2>&1
+          python -m pip freeze > research-artifacts/dependencies.txt
+          sha256sum research-artifacts/dependencies.txt > research-artifacts/dependency-manifest-sha256.txt
+      - name: Archive research-only result and provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: neural-crypto-v1-full-621017-original
+          path: research-artifacts/
+          if-no-files-found: error
