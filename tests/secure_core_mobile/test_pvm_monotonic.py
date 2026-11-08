@@ -4,7 +4,7 @@ from secure_core_mobile.hostile_boundary import BoundaryEvidence, BoundaryKind, 
 from secure_core_mobile.pvm_monotonic import PvmMonotonicRootUnavailable
 
 
-def _qualified():
+def _self_declared_pvm():
     return BoundaryEvidence(
         kind=BoundaryKind.ANDROID_PVM, boundary_id="pvm",
         isolated_from_host=True, owns_authorization_state=True,
@@ -17,9 +17,12 @@ def test_development_boundary_cannot_construct_pvm_root():
         PvmMonotonicRootUnavailable(development_boundary())
 
 
-def test_placeholder_never_claims_hardware_resistance():
-    root = PvmMonotonicRootUnavailable(_qualified())
-    assert root.hardware_resistant is False
-    assert root.boundary_owned is False
-    with pytest.raises(RuntimeError, match="not implemented"):
-        root.advance()
+def test_self_declared_pvm_cannot_construct_monotonic_root():
+    # Do not revive the old positive construction test: there is no
+    # independently verified native Android issuer for this dataclass.
+    boundary = _self_declared_pvm()
+    assert boundary.qualifies_for_hostile_host_experiment is False
+    assert PvmMonotonicRootUnavailable.hardware_resistant is False
+    assert PvmMonotonicRootUnavailable.boundary_owned is False
+    with pytest.raises(ValueError, match="qualified"):
+        PvmMonotonicRootUnavailable(boundary)
