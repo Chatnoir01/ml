@@ -1,0 +1,80 @@
+name: Phase 2V T11 preregistered R7 signal and DDT controls
+
+on:
+  push:
+    branches:
+      - research/phase2v-t11-rotation7-classical-controls-20261119
+  pull_request:
+    paths:
+      - "scripts/phase2v_t11_*"
+      - "research/PHASE2V_T11_*"
+      - ".github/workflows/phase2v-t11.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-replication:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install original research Python package
+        run: python -m pip install -e .
+      - name: Reproduce original frozen T11 twice with exact output identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/phase2v_t11_rotation7_controls.py --out "$RUNNER_TEMP/t11-run1.json"
+          python scripts/phase2v_t11_rotation7_controls.py --out "$RUNNER_TEMP/t11-run2.json"
+          cmp "$RUNNER_TEMP/t11-run1.json" "$RUNNER_TEMP/t11-run2.json"
+          sha256sum "$RUNNER_TEMP/t11-run1.json"
+      - name: Independent full source/metric/2304-panel audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          HASH=$(sha256sum "$RUNNER_TEMP/t11-run1.json" | cut -d' ' -f1)
+          python scripts/phase2v_t11_independent_audit.py --report "$RUNNER_TEMP/t11-run1.json" --expected-sha "$HASH"
+      - name: Deliberately corrupt synthetic output; every control MUST reject
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import copy,json,os
+          from pathlib import Path
+          from scripts.phase2v_t11_independent_audit import verify_shape,verify_panel,audit
+          original=json.loads((Path(os.environ["RUNNER_TEMP"])/"t11-run1.json").read_text())
+          probes=[
+              ("drop panel",lambda d:d["panels"].pop(),verify_shape),
+              ("duplicate panel",lambda d:d["panels"].append(copy.deepcopy(d["panels"][0])),verify_shape),
+              ("wrong preregistration",lambda d:d.update(preregistration_commit="0"*40),verify_shape),
+              ("tamper panel AUC",lambda d:d["panels"][0].update(auc=0.999),lambda d:verify_panel(d["panels"][0])),
+              ("tamper pair SHA",lambda d:d["panels"][0].update(pairs_sha256="0"*64),lambda d:verify_panel(d["panels"][0])),
+              ("tamper parent DU",lambda d:d["parent_boxes"][0]["global_metrics"].update(du=999),audit),
+              ("tamper candidate fingerprint",lambda d:d["candidate_boxes"][0].update(sha256="0"*64),audit),
+              ("tamper group F7 rho",lambda d:d["group_reports"][0]["rhos_R7"].update(f7=999.0),audit),
+              ("tamper primary status",lambda d:d["summary"].update(preregistered_primary_status="SYNTHETIC_WRONG"),audit),
+          ]
+          for name,mutator,check in probes:
+              sample=copy.deepcopy(original)
+              mutator(sample)
+              try:check(sample)
+              except (ValueError,AssertionError,KeyError):
+                  print("REJECTED",name)
+              else:raise AssertionError("mutation was accepted: "+name)
+          PY
+      - name: Archive raw experiment (temporary)
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2v-t11-exact-2304-panels
+          path: ${{ runner.temp }}/t11-run1.json
+          retention-days: 30
