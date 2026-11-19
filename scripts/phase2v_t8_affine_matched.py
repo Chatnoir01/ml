@@ -288,7 +288,7 @@ def run():
                                        negative_any_zero_byte=sum(score>0 for score, label in zip(scores,labels) if label==0)/128)
                             panels.append(row)
                             scores_by_cell[(group, box_index, arm, delta, rep, rounds)] = [auc]
-    if (len(boxes), len(panels), len(seen_key_schedules), source_schedule_count, independent_auc_checks)!=(72, 1152, 24, 48, 96):
+    if (len(boxes), len(panels), len(seen_key_schedules), source_schedule_count, independent_auc_checks)!=(72, 1152, 24, 48, 192):
         raise AssertionError("source, panel or AUC control count mismatch")
 
     group_summaries = []
