@@ -1,0 +1,28 @@
+name: Phase 2V T8 metric-matched research
+on:
+  push:
+    branches:
+      - research/phase2v-t8-affine-matched-structure-20261119
+  pull_request:
+    paths:
+      - "scripts/phase2v_t8_*"
+      - "research/PHASE2V_T8_*"
+      - ".github/workflows/phase2v-t8.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install source-only research dependencies
+        run: python -m pip install -e .
+      - name: Execute preregistered T8 experiment
+        run: python scripts/phase2v_t8_affine_matched.py --out "$RUNNER_TEMP/phase2v-t8-raw.json"
