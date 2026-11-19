@@ -1,0 +1,79 @@
+name: Phase 2V T10 independent MixColumns transfer falsification
+on:
+  push:
+    branches:
+      - research/phase2v-t10-mds-diffusion-transfer-20261119
+  pull_request:
+    paths:
+      - "scripts/phase2v_t10_*"
+      - "research/PHASE2V_T10_*"
+      - ".github/workflows/phase2v-t10.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install original classical metrics, no neural extra
+        run: python -m pip install -e .
+      - name: Replay exact preregistered source twice and compare byte-for-byte
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/phase2v_t10_mds_transfer.py --out "$RUNNER_TEMP/t10-one.json"
+          python scripts/phase2v_t10_mds_transfer.py --out "$RUNNER_TEMP/t10-two.json"
+          cmp "$RUNNER_TEMP/t10-one.json" "$RUNNER_TEMP/t10-two.json"
+          sha256sum "$RUNNER_TEMP/t10-one.json"
+      - name: Independently rebuild 12 parents, 72 SBoxes, both ciphers and 2304 AUC panels
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA=$(sha256sum "$RUNNER_TEMP/t10-one.json" | cut -d' ' -f1)
+          python scripts/phase2v_t10_independent_audit.py --report "$RUNNER_TEMP/t10-one.json" --expected-sha "$SHA"
+      - name: Fail-closed negative tests — reject corrupted scientific evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import copy,json,os
+          from pathlib import Path
+          from scripts.phase2v_t10_independent_audit import verify_shape,verify_panel,audit
+          original=json.loads((Path(os.environ["RUNNER_TEMP"])/"t10-one.json").read_text())
+          probes=[
+              ("drop panel",lambda x:x["panels"].pop(),verify_shape),
+              ("duplicate panel",lambda x:x["panels"].append(copy.deepcopy(x["panels"][0])),verify_shape),
+              ("wrong protocol",lambda x:x.update(preregistration_commit="0"*40),verify_shape),
+              ("tamper AUC",lambda x:x["panels"][0].update(auc=0.999),lambda x:verify_panel(x["panels"][0])),
+              ("tamper raw pair fingerprint",lambda x:x["panels"][0].update(pairs_sha256="0"*64),lambda x:verify_panel(x["panels"][0])),
+              ("tamper parent DU",lambda x:x["parent_boxes"][0]["global_metrics"].update(du=999),audit),
+              ("tamper candidate fingerprint",lambda x:x["candidate_boxes"][0].update(sha256="0"*64),audit),
+              ("tamper primary conclusion",lambda x:x["summary"].update(preregistered_transport_supported=True),audit),
+          ]
+          for name,mutator,validator in probes:
+              obj=copy.deepcopy(original);mutator(obj)
+              try:
+                  validator(obj)
+              except (ValueError,AssertionError):
+                  print("PASS fail-closed:",name)
+              else:
+                  raise AssertionError("scientific tampering accepted: "+name)
+          PY
+      - name: Retain original raw scientific output
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2v-t10-raw-2304-panels
+          path: ${{ runner.temp }}/t10-one.json
+          retention-days: 30
