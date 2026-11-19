@@ -1,0 +1,73 @@
+name: Phase 2V T7 independent research reproduction
+
+on:
+  push:
+    branches:
+      - research/phase2v-t7-input-activity-20261119
+  pull_request:
+    paths:
+      - "scripts/phase2v_t7_*"
+      - "research/PHASE2V_T7_*"
+      - ".github/workflows/phase2v-t7.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-and-audit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install repository package (no neural dependencies)
+        run: python -m pip install -e .
+      - name: Run original 768-panel research and check locked digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/phase2v_t7_input_activity.py --out "$RUNNER_TEMP/t7.json"
+          echo "7225a3823d3e57d583d2b2f1b000e839a9a7371f0046bcb7601384dc7a4dfd1e  $RUNNER_TEMP/t7.json" | sha256sum --check --status
+      - name: Independently regenerate and audit all 768 panels
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/phase2v_t7_independent_audit.py --report "$RUNNER_TEMP/t7.json" --expected-sha 7225a3823d3e57d583d2b2f1b000e839a9a7371f0046bcb7601384dc7a4dfd1e
+      - name: Corruption rejection controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import copy, json, os
+          from pathlib import Path
+          from scripts.phase2v_t7_independent_audit import validate_shape,verify
+          original=json.loads((Path(os.environ["RUNNER_TEMP"])/"t7.json").read_text())
+          for name,mutator,thorough in (
+            ("missing panel", lambda d: d["panels"].pop(),False),
+            ("duplicate panel", lambda d: d["panels"].append(copy.deepcopy(d["panels"][0])),False),
+            ("changed study", lambda d: d.update(study="unknown"),False),
+            ("manipulated AUC", lambda d: d["panels"][0].update(auc=0.999),True),
+            ("manipulated pair source",lambda d:d["panels"][0].update(pair_sha256="0"*64),True)
+          ):
+            altered=copy.deepcopy(original)
+            mutator(altered)
+            try:
+              (verify if thorough else validate_shape)(altered)
+            except ValueError:
+              print("PASS negative control:",name)
+            else:
+              raise AssertionError("Tampering accepted: "+name)
+          PY
+      - name: Upload generated raw evidence (temporary artifact)
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2v-t7-raw-output
+          path: ${{ runner.temp }}/t7.json
+          retention-days: 30
