@@ -295,10 +295,10 @@ def audit(report):
             across_box_auc_r4_range=max(means)-min(means))
         for field,v in vals.items():
             if abs(rr[field]-v)>1e-12:raise ValueError("tampered group "+field)
-        for field,vals in (("replicate_a",rep_a),("replicate_b",rep_b),
+        for field,vector in (("replicate_a",rep_a),("replicate_b",rep_b),
                            ("source_features",desc),("source_candidate_mean_auc_r4",means)):
             observed=rr[field]
-            if len(observed)!=len(vals) or any(abs(a-b)>1e-12 for a,b in zip(observed,vals)):
+            if len(observed)!=len(vector) or any(abs(a-b)>1e-12 for a,b in zip(observed,vector)):
                 raise ValueError("tampered group vectors "+field)
         rhos.append(vals["early_descriptor_spearman_r4"])
     control_mean=statistics.mean(x["null_auc"] for x in report["panels"])
