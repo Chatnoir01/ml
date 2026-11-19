@@ -1,0 +1,68 @@
+soong_config_module_type {
+    name: "secure_core_avf_cc_defaults",
+    module_type: "cc_defaults",
+    config_namespace: "secure_core_avf",
+    value_variables: ["profile_pin_hex"],
+    properties: ["cflags"],
+}
+
+secure_core_avf_cc_defaults {
+    name: "secure_core_avf_profile_pin_defaults",
+    soong_config_variables: {
+        profile_pin_hex: {
+            // Value is supplied by protected/product build configuration.
+            // When unset, conditions_default adds no macro and the bridge
+            // remains fail-closed with NOT_PROVISIONED.
+            cflags: ["-DSCM_AVF_PROFILE_PIN_HEX=\\\"%s\\\""],
+            conditions_default: {},
+        },
+    },
+}
+
+cc_library {
+    name: "libsecure_core_avf_attestation_bridge",
+    defaults: ["secure_core_avf_profile_pin_defaults"],
+    srcs: [
+        "avf_attestation_bridge.cpp",
+        "avf_profile_pin_bridge.cpp",
+        "rollback_protected_secret_bridge.cpp",
+        "secretkeeper_transport_bridge.cpp",
+    ],
+    export_include_dirs: ["."],
+    shared_libs: ["libvm_payload#current"],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+}
+
+rust_ffi_shared {
+    name: "libsecure_core_secretkeeper_binder_bridge",
+    crate_name: "secure_core_secretkeeper_binder_bridge",
+    srcs: ["secretkeeper_binder_bridge.rs"],
+    edition: "2021",
+    lints: "android",
+    defaults: ["secretkeeper_use_latest_hal_aidl_rust"],
+    rustlibs: [
+        "android.hardware.security.secretkeeper-V1-rust",
+        "libbinder_rs",
+    ],
+}
+
+
+rust_library {
+    name: "libsecure_core_secretkeeper_verified_session",
+    crate_name: "secure_core_secretkeeper_verified_session",
+    srcs: ["secretkeeper_verified_session.rs"],
+    edition: "2021",
+    lints: "android",
+    defaults: ["secretkeeper_use_latest_hal_aidl_rust"],
+    rustlibs: [
+        "android.hardware.security.secretkeeper-V1-rust",
+        "libbinder_rs",
+        "libcoset",
+        "libexplicitkeydice",
+        "libsecretkeeper_client",
+    ],
+}

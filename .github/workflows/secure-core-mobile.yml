@@ -1,0 +1,41 @@
+name: Secure Core Mobile CI
+
+on:
+  push:
+    branches:
+      - 'secure-core-mobile/**'
+  pull_request:
+    paths:
+      - 'secure_core_mobile/**'
+      - 'tests/secure_core_mobile/**'
+      - '.github/workflows/secure-core-mobile.yml'
+      - 'pyproject.toml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secure-core-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test dependency
+        run: python -m pip install -e '.[dev]'
+      - name: Verify installed packages outside repository
+        run: |
+          cd /tmp
+          python -c "import adversarial_sbox, secure_core_mobile"
+      - name: Compile Secure Core
+        run: python -m compileall -q secure_core_mobile tests/secure_core_mobile
+      - name: Run Secure Core tests
+        run: python -m pytest -q tests/secure_core_mobile
